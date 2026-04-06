@@ -1,4 +1,53 @@
 use serde::Serialize;
+use std::collections::VecDeque;
+
+/// O(1) ring buffer wrapping VecDeque, exposing Vec-compatible interface.
+pub struct HistoryBuffer(VecDeque<f64>);
+
+impl HistoryBuffer {
+    pub fn new() -> Self {
+        Self(VecDeque::new())
+    }
+
+    pub fn push_back(&mut self, val: f64) {
+        self.0.push_back(val);
+    }
+
+    pub fn pop_front(&mut self) -> Option<f64> {
+        self.0.pop_front()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Equivalent to Vec::last() — returns the back element.
+    pub fn last(&self) -> Option<&f64> {
+        self.0.back()
+    }
+
+    pub fn iter(&self) -> std::collections::vec_deque::Iter<'_, f64> {
+        self.0.iter()
+    }
+}
+
+impl Default for HistoryBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::ops::Index<usize> for HistoryBuffer {
+    type Output = f64;
+    fn index(&self, index: usize) -> &f64 {
+        &self.0[index]
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SocInfo {
@@ -99,14 +148,14 @@ pub struct MetricsSnapshot {
 
 /// Rolling history buffer for sparkline data
 pub struct MetricsHistory {
-    pub cpu_usage: Vec<f64>,
-    pub gpu_usage: Vec<f64>,
-    pub cpu_power: Vec<f64>,
-    pub gpu_power: Vec<f64>,
-    pub ane_power: Vec<f64>,
-    pub dram_power: Vec<f64>,
-    pub package_power: Vec<f64>,
-    pub system_power: Vec<f64>,
+    pub cpu_usage: HistoryBuffer,
+    pub gpu_usage: HistoryBuffer,
+    pub cpu_power: HistoryBuffer,
+    pub gpu_power: HistoryBuffer,
+    pub ane_power: HistoryBuffer,
+    pub dram_power: HistoryBuffer,
+    pub package_power: HistoryBuffer,
+    pub system_power: HistoryBuffer,
     max_len: usize,
 }
 
@@ -119,14 +168,14 @@ impl Default for MetricsHistory {
 impl MetricsHistory {
     pub fn new() -> Self {
         Self {
-            cpu_usage: Vec::new(),
-            gpu_usage: Vec::new(),
-            cpu_power: Vec::new(),
-            gpu_power: Vec::new(),
-            ane_power: Vec::new(),
-            dram_power: Vec::new(),
-            package_power: Vec::new(),
-            system_power: Vec::new(),
+            cpu_usage: HistoryBuffer::new(),
+            gpu_usage: HistoryBuffer::new(),
+            cpu_power: HistoryBuffer::new(),
+            gpu_power: HistoryBuffer::new(),
+            ane_power: HistoryBuffer::new(),
+            dram_power: HistoryBuffer::new(),
+            package_power: HistoryBuffer::new(),
+            system_power: HistoryBuffer::new(),
             max_len: 128,
         }
     }
@@ -142,10 +191,10 @@ impl MetricsHistory {
         Self::push_val(&mut self.system_power, snapshot.power.system_w as f64, self.max_len);
     }
 
-    fn push_val(buf: &mut Vec<f64>, val: f64, max: usize) {
-        buf.push(val);
+    fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {
+        buf.push_back(val);
         if buf.len() > max {
-            buf.remove(0);
+            buf.pop_front();
         }
     }
 }
