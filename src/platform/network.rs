@@ -36,9 +36,11 @@ impl NetworkState {
                 (0.0, 0.0)
             };
 
-            // Classify interface type
+            // Classify interface type — en* interfaces are IFT_ETHER (0x06);
+            // we cannot distinguish WiFi from wired Ethernet without CoreWLAN,
+            // so label as "ethernet" (the more general correct classification).
             let iface_type = if name.starts_with("en") {
-                "wifi".to_string()
+                "ethernet".to_string()
             } else if name.starts_with("lo") {
                 continue; // skip loopback
             } else {
