@@ -81,8 +81,8 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64)> {
 
                 if !ifa.ifa_data.is_null() {
                     let data = ifa.ifa_data as *const IfData;
-                    let rx = (*data).ifi_ibytes as u64;
-                    let tx = (*data).ifi_obytes as u64;
+                    let rx = (*data).ifi_ibytes;
+                    let tx = (*data).ifi_obytes;
                     result.insert(name, (rx, tx));
                 }
             }
@@ -98,6 +98,9 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64)> {
 
 const AF_LINK: i32 = 18;
 
+/// Matches macOS `struct if_data64` from <net/if_var.h>.
+/// AF_LINK ifaddr data points to this layout on modern macOS.
+/// All counter fields are u64 to avoid truncation on machines with >4GB transferred.
 #[repr(C)]
 struct IfData {
     ifi_type: u8,
@@ -110,18 +113,18 @@ struct IfData {
     ifi_unused1: u8,
     ifi_mtu: u32,
     ifi_metric: u32,
-    ifi_baudrate: u32,
-    ifi_ipackets: u32,
-    ifi_ierrors: u32,
-    ifi_opackets: u32,
-    ifi_oerrors: u32,
-    ifi_collisions: u32,
-    ifi_ibytes: u32,
-    ifi_obytes: u32,
-    ifi_imcasts: u32,
-    ifi_omcasts: u32,
-    ifi_iqdrops: u32,
-    ifi_noproto: u32,
+    ifi_baudrate: u64,
+    ifi_ipackets: u64,
+    ifi_ierrors: u64,
+    ifi_opackets: u64,
+    ifi_oerrors: u64,
+    ifi_collisions: u64,
+    ifi_ibytes: u64,
+    ifi_obytes: u64,
+    ifi_imcasts: u64,
+    ifi_omcasts: u64,
+    ifi_iqdrops: u64,
+    ifi_noproto: u64,
     ifi_recvtiming: u32,
     ifi_xmittiming: u32,
     ifi_lastchange: libc::timeval,
