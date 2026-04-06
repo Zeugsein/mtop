@@ -3,6 +3,7 @@ use crate::platform;
 
 pub struct Sampler {
     soc: SocInfo,
+    host_port: u32,
     cpu_ticks: Vec<(u64, u64)>,
     net_state: platform::network::NetworkState,
     disk_state: platform::disk::DiskState,
@@ -12,8 +13,10 @@ pub struct Sampler {
 impl Sampler {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let soc = platform::soc::detect_soc();
+        let host_port = unsafe { mach_host_self() };
         Ok(Self {
             soc,
+            host_port,
             cpu_ticks: Vec::new(),
             net_state: platform::network::NetworkState::new(),
             disk_state: platform::disk::DiskState::new(),
@@ -31,11 +34,11 @@ impl Sampler {
         // Sleep for the interval
         std::thread::sleep(std::time::Duration::from_millis(interval as u64));
 
-        let mut cpu = platform::cpu::collect_cpu(&mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
+        let mut cpu = platform::cpu::collect_cpu(self.host_port, &mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
         let gpu = platform::gpu::collect_gpu();
         let power = platform::power::collect_power();
         let temperature = platform::temperature::collect_temperature();
-        let memory = platform::memory::collect_memory();
+        let memory = platform::memory::collect_memory(self.host_port);
         let network = self.net_state.collect();
         let processes = platform::process::collect_processes(&mut self.proc_cpu_state);
 
@@ -66,6 +69,11 @@ impl Sampler {
         })
     }
 
+    #[allow(dead_code)]
+    pub fn host_port(&self) -> u32 {
+        self.host_port
+    }
+
     pub fn debug_info(&self) -> String {
         let mut out = String::new();
         out.push_str(&format!("SoC: {}\n", self.soc.chip));
@@ -76,4 +84,8 @@ impl Sampler {
         out.push_str("\nIOReport FFI active for GPU, power, and temperature metrics.\n");
         out
     }
+}
+
+unsafe extern "C" {
+    fn mach_host_self() -> u32;
 }
