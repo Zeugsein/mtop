@@ -97,7 +97,25 @@ impl Sampler {
         out.push_str(&format!("P-cores: {}\n", self.soc.p_cores));
         out.push_str(&format!("GPU cores: {} (estimated)\n", self.soc.gpu_cores));
         out.push_str(&format!("Memory: {} GB\n", self.soc.memory_gb));
-        out.push_str("\nIOReport FFI active for GPU, power, and temperature metrics.\n");
+
+        out.push_str("\nSensor Status:\n");
+        out.push_str(&format!("  GPU (IOReport): {}\n",
+            if self.gpu_state.is_some() { "active" } else { "unavailable" }));
+        out.push_str(&format!("  Power (IOReport): {}\n",
+            if self.power_state.is_some() { "active" } else { "unavailable" }));
+        out.push_str(&format!("  Temperature (SMC): {}\n",
+            if self.temp_state.is_some() { "active" } else { "unavailable" }));
+
+        if platform::ioreport_ffi::get_ioreport().is_some() {
+            out.push_str("\nIOReport Channels:\n");
+            out.push_str("  GPU group: \"GPU Stats\" / \"GPU Performance States\"\n");
+            out.push_str("  Power group: \"Energy Model\"\n");
+        }
+
+        out.push_str("\nSMC Keys (attempted):\n");
+        out.push_str("  CPU: TC0P, TC0C, TC1C, TC2C, TC0F, Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");
+        out.push_str("  GPU: TG0P, TG0D, TG1D, Tg05, Tg0f, Tg0j\n");
+
         out
     }
 }
