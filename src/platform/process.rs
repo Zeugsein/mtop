@@ -1,17 +1,56 @@
 use crate::metrics::ProcessInfo;
+use std::collections::HashMap;
+use std::time::Instant;
 
-pub fn collect_processes() -> Vec<ProcessInfo> {
+/// Per-PID state for delta-based CPU% calculation.
+/// Stores previous cumulative CPU time (Mach absolute units) and wall-clock timestamp.
+pub struct ProcessCpuState {
+    prev: HashMap<i32, (u64, Instant)>,
+    timebase_numer: u32,
+    timebase_denom: u32,
+}
+
+impl ProcessCpuState {
+    pub fn new() -> Self {
+        let (numer, denom) = mach_timebase();
+        Self {
+            prev: HashMap::new(),
+            timebase_numer: numer,
+            timebase_denom: denom,
+        }
+    }
+
+    /// Convert Mach absolute time units to nanoseconds.
+    fn mach_to_ns(&self, mach_time: u64) -> u64 {
+        // On Apple Silicon numer/denom = 1/1, but handle Intel correctly
+        mach_time * self.timebase_numer as u64 / self.timebase_denom as u64
+    }
+}
+
+impl Default for ProcessCpuState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn collect_processes(cpu_state: &mut ProcessCpuState) -> Vec<ProcessInfo> {
     let pids = list_all_pids();
+    let now = Instant::now();
     let mut procs = Vec::with_capacity(pids.len());
+    let mut seen_pids = HashMap::with_capacity(pids.len());
 
     for pid in pids {
         if pid <= 0 {
             continue;
         }
-        if let Some(info) = get_process_info(pid) {
+        if let Some(info) = get_process_info(pid, cpu_state, now) {
+            seen_pids.insert(pid, true);
             procs.push(info);
         }
     }
+
+    // Remove stale PIDs no longer in the process list
+    cpu_state.prev.retain(|pid, _| seen_pids.contains_key(pid));
 
     // Sort by CPU% descending
     procs.sort_by(|a, b| {
@@ -48,7 +87,7 @@ fn list_all_pids() -> Vec<i32> {
 }
 
 /// Get process info via proc_pidinfo (PROC_PIDTASKINFO)
-fn get_process_info(pid: i32) -> Option<ProcessInfo> {
+fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> Option<ProcessInfo> {
     let mut task_info: ProcTaskInfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<ProcTaskInfo>() as i32;
 
@@ -78,23 +117,23 @@ fn get_process_info(pid: i32) -> Option<ProcessInfo> {
         return None;
     }
 
-    // CPU usage: total_user + total_system time in nanoseconds
-    // We report the raw task time as a fraction; for a proper percentage
-    // we'd need delta between samples, but the spec just needs the field populated.
-    // Use the thread count and cpu_usage from the proc_taskinfo struct.
-    let total_time_ns = task_info.pti_total_user + task_info.pti_total_system;
-    // Convert to a rough CPU percentage: total time / (uptime * 1e9)
-    // For simplicity, use threads_running as a heuristic indicator
-    let cpu_pct = if task_info.pti_numrunning > 0 {
-        // Use a heuristic: numrunning threads as a fraction of available cores
-        let ncpu = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) } as f32;
-        ((task_info.pti_numrunning as f32) / ncpu * 100.0).min(100.0)
-    } else if total_time_ns > 0 {
-        // Very small nonzero to indicate the process has used CPU
-        0.1
+    // Delta-based CPU%: compare cumulative task time against wall-clock elapsed
+    let cur_mach_time = task_info.pti_total_user + task_info.pti_total_system;
+    let cpu_pct = if let Some(&(prev_mach_time, prev_wall)) = cpu_state.prev.get(&pid) {
+        let delta_task_ns = cpu_state.mach_to_ns(cur_mach_time.saturating_sub(prev_mach_time));
+        let delta_wall_ns = now.duration_since(prev_wall).as_nanos() as u64;
+        if delta_wall_ns > 0 {
+            (delta_task_ns as f64 / delta_wall_ns as f64 * 100.0) as f32
+        } else {
+            0.0
+        }
     } else {
+        // First sample for this PID — report 0%
         0.0
     };
+
+    // Store current values for next delta
+    cpu_state.prev.insert(pid, (cur_mach_time, now));
 
     let mem_bytes = task_info.pti_resident_size;
 
@@ -258,6 +297,21 @@ struct ProcBsdInfo {
     pbi_start_tvusec: u64,
 }
 
+fn mach_timebase() -> (u32, u32) {
+    let mut info = MachTimebaseInfo { numer: 0, denom: 0 };
+    unsafe { mach_timebase_info(&mut info) };
+    // Fallback to 1/1 if the call returns zeros (shouldn't happen)
+    let numer = if info.numer == 0 { 1 } else { info.numer };
+    let denom = if info.denom == 0 { 1 } else { info.denom };
+    (numer, denom)
+}
+
+#[repr(C)]
+struct MachTimebaseInfo {
+    numer: u32,
+    denom: u32,
+}
+
 unsafe extern "C" {
     fn proc_listallpids(buffer: *mut libc::c_void, buffersize: i32) -> i32;
 
@@ -270,4 +324,6 @@ unsafe extern "C" {
     ) -> i32;
 
     fn proc_name(pid: i32, buffer: *mut libc::c_void, buffersize: u32) -> i32;
+
+    fn mach_timebase_info(info: *mut MachTimebaseInfo) -> i32;
 }
