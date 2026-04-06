@@ -102,6 +102,16 @@ impl Sampler {
     }
 }
 
+impl Drop for Sampler {
+    fn drop(&mut self) {
+        unsafe {
+            mach_port_deallocate(mach_task_self(), self.host_port);
+        }
+    }
+}
+
 unsafe extern "C" {
     fn mach_host_self() -> u32;
+    fn mach_task_self() -> u32;
+    fn mach_port_deallocate(task: u32, name: u32) -> i32;
 }
