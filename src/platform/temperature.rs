@@ -4,10 +4,7 @@ use crate::metrics::ThermalMetrics;
 /// Reads CPU and GPU temperature sensor keys via IOKit SMC interface.
 /// Falls back gracefully to default values if SMC is unavailable.
 pub fn collect_temperature() -> ThermalMetrics {
-    match read_smc_temperatures() {
-        Some(m) => m,
-        None => ThermalMetrics::default(),
-    }
+    read_smc_temperatures().unwrap_or_default()
 }
 
 fn read_smc_temperatures() -> Option<ThermalMetrics> {
@@ -52,7 +49,7 @@ fn read_smc_temperatures() -> Option<ThermalMetrics> {
 
 fn smc_open() -> Option<u32> {
     unsafe {
-        let matching = IOServiceMatching(b"AppleSMC\0".as_ptr() as *const i8);
+        let matching = IOServiceMatching(c"AppleSMC".as_ptr());
         if matching.is_null() {
             return None;
         }
@@ -63,7 +60,7 @@ fn smc_open() -> Option<u32> {
         }
 
         let mut conn: u32 = 0;
-        let kr = IOServiceOpen(service, libc::mach_task_self(), 0, &mut conn);
+        let kr = IOServiceOpen(service, mach_task_self(), 0, &mut conn);
         IOObjectRelease(service);
 
         if kr != 0 {
@@ -159,14 +156,16 @@ unsafe fn smc_call(conn: u32, index: u8, input: &mut SmcKeyData, output: &mut Sm
     let in_size = std::mem::size_of::<SmcKeyData>();
     let mut out_size = std::mem::size_of::<SmcKeyData>();
 
-    IOConnectCallStructMethod(
-        conn,
-        index as u32,
-        input as *const _ as *const libc::c_void,
-        in_size,
-        output as *mut _ as *mut libc::c_void,
-        &mut out_size,
-    )
+    unsafe {
+        IOConnectCallStructMethod(
+            conn,
+            index as u32,
+            input as *const _ as *const libc::c_void,
+            in_size,
+            output as *mut _ as *mut libc::c_void,
+            &mut out_size,
+        )
+    }
 }
 
 // --- SMC data structures ---
@@ -219,4 +218,5 @@ unsafe extern "C" {
         output: *mut libc::c_void,
         output_size: *mut usize,
     ) -> i32;
+    fn mach_task_self() -> u32;
 }

@@ -110,6 +110,12 @@ pub struct MetricsHistory {
     max_len: usize,
 }
 
+impl Default for MetricsHistory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsHistory {
     pub fn new() -> Self {
         Self {

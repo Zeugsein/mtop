@@ -86,6 +86,7 @@ pub fn detect_soc() -> SocInfo {
     }
 }
 
+#[allow(clippy::if_same_then_else)]
 fn estimate_gpu_cores(chip: &str) -> u32 {
     // Estimate GPU cores from chip model name
     let lower = chip.to_lowercase();

@@ -4,10 +4,7 @@ use crate::metrics::GpuMetrics;
 /// Uses dlopen/dlsym to dynamically load IOReport symbols.
 /// Falls back gracefully to default values if IOReport is unavailable.
 pub fn collect_gpu() -> GpuMetrics {
-    match read_gpu_ioreport() {
-        Some(m) => m,
-        None => GpuMetrics::default(),
-    }
+    read_gpu_ioreport().unwrap_or_default()
 }
 
 type CFStringRef = *const libc::c_void;
@@ -34,8 +31,8 @@ fn load_ioreport() -> Option<IOReportFns> {
     unsafe {
         // Try multiple possible library paths
         let paths = [
-            b"/System/Library/PrivateFrameworks/IOReport.framework/IOReport\0".as_ptr() as *const i8,
-            b"/usr/lib/libIOReport.dylib\0".as_ptr() as *const i8,
+            c"/System/Library/PrivateFrameworks/IOReport.framework/IOReport".as_ptr(),
+            c"/usr/lib/libIOReport.dylib".as_ptr(),
         ];
 
         let mut handle: *mut libc::c_void = std::ptr::null_mut();
@@ -54,7 +51,7 @@ fn load_ioreport() -> Option<IOReportFns> {
             ($name:literal, $ty:ty) => {{
                 let p = libc::dlsym(handle, $name.as_ptr() as *const i8);
                 if p.is_null() { return None; }
-                std::mem::transmute::<_, $ty>(p)
+                std::mem::transmute::<*mut libc::c_void, $ty>(p)
             }};
         }
 
@@ -136,7 +133,7 @@ fn read_gpu_ioreport() -> Option<GpuMetrics> {
 }
 
 unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<GpuMetrics> {
-    let count = (fns.state_get_count)(delta);
+    let count = unsafe { (fns.state_get_count)(delta) };
     if count <= 0 {
         return None;
     }
@@ -146,7 +143,7 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
     let mut weighted_freq: u64 = 0;
 
     for i in 0..count {
-        let residency = (fns.state_get_residency)(delta, i);
+        let residency = unsafe { (fns.state_get_residency)(delta, i) };
         total_residency += residency;
 
         if i > 0 {
@@ -176,7 +173,7 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
 
 unsafe fn cfstring(s: &str) -> CFStringRef {
     let cstr = std::ffi::CString::new(s).unwrap_or_default();
-    CFStringCreateWithCString(std::ptr::null(), cstr.as_ptr(), 0x08000100)
+    unsafe { CFStringCreateWithCString(std::ptr::null(), cstr.as_ptr(), 0x08000100) }
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]

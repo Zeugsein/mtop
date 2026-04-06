@@ -6,6 +6,12 @@ pub struct NetworkState {
     prev_time: std::time::Instant,
 }
 
+impl Default for NetworkState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NetworkState {
     pub fn new() -> Self {
         Self {

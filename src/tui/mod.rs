@@ -73,8 +73,8 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
         terminal.draw(|f| draw_dashboard(f, &state))?;
 
         // Poll for input (non-blocking, with timeout = interval)
-        if event::poll(Duration::from_millis(state.interval_ms as u64))? {
-            if let Event::Key(key) = event::read()? {
+        if event::poll(Duration::from_millis(state.interval_ms as u64))?
+            && let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => break,
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
@@ -99,7 +99,6 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
                     _ => {}
                 }
             }
-        }
 
         // Sample
         match sampler.sample(0) {
