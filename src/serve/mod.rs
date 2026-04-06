@@ -1,9 +1,12 @@
 use crate::metrics::{MetricsSnapshot, SocInfo};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
 pub type SharedMetrics = Arc<RwLock<Option<MetricsSnapshot>>>;
+
+const MAX_CONNECTIONS: usize = 64;
 
 pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Result<(), Box<dyn std::error::Error>> {
     let addr = format!("{bind}:{port}");
@@ -13,14 +16,24 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
     eprintln!("  GET /metrics — Prometheus text format");
 
     let soc = soc.clone();
+    let active = Arc::new(AtomicUsize::new(0));
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                if active.load(Ordering::Relaxed) >= MAX_CONNECTIONS {
+                    // Reject with 503 when at capacity
+                    let mut s = stream;
+                    write_response(&mut s, 503, "text/plain", "too many connections\n");
+                    continue;
+                }
                 let shared = Arc::clone(&shared);
                 let soc = soc.clone();
+                let active = Arc::clone(&active);
+                active.fetch_add(1, Ordering::Relaxed);
                 std::thread::spawn(move || {
                     process_request(stream, &shared, &soc);
+                    active.fetch_sub(1, Ordering::Relaxed);
                 });
             }
             Err(e) => eprintln!("connection error: {e}"),
