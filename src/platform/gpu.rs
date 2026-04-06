@@ -1,5 +1,5 @@
 use crate::metrics::GpuMetrics;
-use crate::platform::ioreport_ffi::{self, CFDictionaryRef, CFStringRef, IOReportFns, CFRelease};
+use crate::platform::ioreport_ffi::{self, CFDictionaryRef, CFArrayRef, CFStringRef, IOReportFns, CFRelease};
 
 /// Stateful GPU collector. Stores IOReport subscription and previous sample
 /// to compute deltas without internal sleeps.
@@ -19,7 +19,7 @@ impl GpuState {
         let fns = ioreport_ffi::get_ioreport()?;
 
         unsafe {
-            let group = ioreport_ffi::cfstring("GPU");
+            let group = ioreport_ffi::cfstring("GPU Stats");
             let sub_group = ioreport_ffi::cfstring("GPU Performance States");
 
             let channel = (fns.copy_channels)(group, sub_group, 0, 0, 0);
@@ -110,7 +110,45 @@ pub fn collect_gpu() -> GpuMetrics {
 }
 
 unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<GpuMetrics> {
-    let count = unsafe { (fns.state_get_count)(delta) };
+    // Extract IOReportChannels array from the delta dictionary
+    let items_key = unsafe { ioreport_ffi::cfstring("IOReportChannels") };
+    let items = unsafe { ioreport_ffi::CFDictionaryGetValue(delta, items_key as *const _) };
+    unsafe { CFRelease(items_key as *const _) };
+
+    if items.is_null() {
+        return None;
+    }
+
+    let channel_count = unsafe { ioreport_ffi::CFArrayGetCount(items as CFArrayRef) };
+    if channel_count <= 0 {
+        return None;
+    }
+
+    // Find the GPUPH channel by name
+    let mut gpuph_entry: *const libc::c_void = std::ptr::null();
+    for i in 0..channel_count {
+        let entry = unsafe { ioreport_ffi::CFArrayGetValueAtIndex(items as CFArrayRef, i) };
+        if entry.is_null() {
+            continue;
+        }
+        let name_cf = unsafe { (fns.channel_get_channel_name)(entry as CFDictionaryRef) };
+        if name_cf.is_null() {
+            continue;
+        }
+        let name_str = unsafe { ioreport_ffi::cfstring_to_string(name_cf) };
+        // Do NOT CFRelease name_cf — it is a borrowed reference (Get rule)
+        if name_str.contains("GPUPH") {
+            gpuph_entry = entry;
+            break;
+        }
+    }
+
+    if gpuph_entry.is_null() {
+        return None;
+    }
+
+    let channel = gpuph_entry as CFDictionaryRef;
+    let count = unsafe { (fns.state_get_count)(channel) };
     if count <= 0 {
         return None;
     }
@@ -120,13 +158,13 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
     let mut weighted_freq: u64 = 0;
 
     for i in 0..count {
-        let residency = unsafe { (fns.state_get_residency)(delta, i) };
+        let residency = unsafe { (fns.state_get_residency)(channel, i) };
         total_residency += residency;
 
         if i > 0 {
             active_residency += residency;
             // Try to read actual frequency from state name (format: "GPUPH_XXXX_YYYY")
-            let freq = unsafe { get_state_freq_mhz(fns, delta, i) }
+            let freq = unsafe { get_state_freq_mhz(fns, channel, i) }
                 .unwrap_or(200 + (i as u32) * 200); // fallback to linear estimate
             weighted_freq += residency * freq as u64;
         }
@@ -153,8 +191,8 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
 /// Extract frequency in MHz from IOReport state name.
 /// State names are formatted as "GPUPH_XXXX_YYYY" where YYYY is freq in MHz.
 /// The returned CFStringRef is borrowed (Get rule) — do NOT release it.
-unsafe fn get_state_freq_mhz(fns: &IOReportFns, delta: CFDictionaryRef, index: i32) -> Option<u32> {
-    let name_cf: CFStringRef = unsafe { (fns.state_get_name_for_index)(delta, index) };
+unsafe fn get_state_freq_mhz(fns: &IOReportFns, channel: CFDictionaryRef, index: i32) -> Option<u32> {
+    let name_cf: CFStringRef = unsafe { (fns.state_get_name_for_index)(channel, index) };
     if name_cf.is_null() {
         return None;
     }
