@@ -1,12 +1,7 @@
-mod cli;
-mod metrics;
-mod platform;
-mod serve;
-mod tui;
-
 use clap::Parser;
-use cli::{Cli, Command};
-use metrics::Sampler;
+use mtop::cli::{Cli, Command};
+use mtop::metrics::Sampler;
+use mtop::{serve, tui};
 use std::sync::{Arc, RwLock};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
