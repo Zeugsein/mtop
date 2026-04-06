@@ -536,11 +536,11 @@ fn soc_gpu_cores_nonzero() {
 }
 
 #[test]
-/// FR-9 soc: memory_gb is >= 8 (minimum Apple Silicon configuration)
+/// FR-9 soc: memory_gb is positive (CI runners may have < 8 GB)
 fn soc_memory_gb_nonzero() {
     let sampler = Sampler::new().expect("sampler init");
     let soc = sampler.soc_info();
-    assert!(soc.memory_gb >= 8, "memory_gb should be >= 8; got {}", soc.memory_gb);
+    assert!(soc.memory_gb > 0, "memory_gb should be > 0; got {}", soc.memory_gb);
 }
 
 // ---------------------------------------------------------------------------
