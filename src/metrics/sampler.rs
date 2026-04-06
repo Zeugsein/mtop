@@ -29,13 +29,24 @@ impl Sampler {
         // Sleep for the interval
         std::thread::sleep(std::time::Duration::from_millis(interval as u64));
 
-        let cpu = platform::cpu::collect_cpu(&mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
+        let mut cpu = platform::cpu::collect_cpu(&mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
         let gpu = platform::gpu::collect_gpu();
         let power = platform::power::collect_power();
         let temperature = platform::temperature::collect_temperature();
         let memory = platform::memory::collect_memory();
         let network = self.net_state.collect();
         let processes = platform::process::collect_processes();
+
+        // Cross-reference: CPU power from power module
+        cpu.power_w = power.cpu_w;
+
+        // CPU frequencies from sysctl (perflevel nominal frequencies as fallback)
+        if cpu.e_cluster.freq_mhz == 0 {
+            cpu.e_cluster.freq_mhz = platform::cpu::sysctl_cpu_freq(1); // perflevel1 = E-cores
+        }
+        if cpu.p_cluster.freq_mhz == 0 {
+            cpu.p_cluster.freq_mhz = platform::cpu::sysctl_cpu_freq(0); // perflevel0 = P-cores
+        }
 
         let timestamp = chrono::Utc::now().to_rfc3339();
 
