@@ -6,7 +6,7 @@
 
 use clap::Parser;
 use mtop::Cli;
-use mtop::cli::Command;
+use mtop::cli::{Command, TempUnit};
 
 // ---------------------------------------------------------------------------
 // FR-1: Default TUI mode
@@ -175,28 +175,26 @@ fn color_flag_applied_to_tui() {
 /// FR-6: `mtop --temp-unit fahrenheit` parses correctly
 fn temp_unit_fahrenheit_parses() {
     let cli = Cli::parse_from(["mtop", "--temp-unit", "fahrenheit"]);
-    assert_eq!(cli.temp_unit, "fahrenheit");
+    assert_eq!(cli.temp_unit, TempUnit::Fahrenheit);
 }
 
 #[test]
 /// FR-6: `mtop --temp-unit celsius` parses correctly
 fn temp_unit_celsius_parses() {
     let cli = Cli::parse_from(["mtop", "--temp-unit", "celsius"]);
-    assert_eq!(cli.temp_unit, "celsius");
+    assert_eq!(cli.temp_unit, TempUnit::Celsius);
 }
 
 #[test]
 /// FR-6: default temp_unit is "celsius"
 fn temp_unit_default_is_celsius() {
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.temp_unit, "celsius", "default temp-unit should be celsius");
+    assert_eq!(cli.temp_unit, TempUnit::Celsius, "default temp-unit should be celsius");
 }
 
 #[test]
-#[ignore] // FR-7 (PARTIAL): --temp-unit accepts any string; invalid values should be rejected
 /// FR-6: `mtop --temp-unit kelvin` should be rejected (only celsius/fahrenheit are valid)
 fn temp_unit_rejects_invalid_value() {
-    // Currently clap accepts any string. Once validation is added this should fail to parse.
     let result = Cli::try_parse_from(["mtop", "--temp-unit", "kelvin"]);
     assert!(
         result.is_err(),
@@ -205,7 +203,6 @@ fn temp_unit_rejects_invalid_value() {
 }
 
 #[test]
-#[ignore] // FR-7 (PARTIAL): --temp-unit accepts any string; invalid values should be rejected
 /// FR-6: `mtop --temp-unit garbage` should be rejected
 fn temp_unit_rejects_garbage_value() {
     let result = Cli::try_parse_from(["mtop", "--temp-unit", "garbage"]);

@@ -1,4 +1,19 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum TempUnit {
+    Celsius,
+    Fahrenheit,
+}
+
+impl std::fmt::Display for TempUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TempUnit::Celsius => write!(f, "celsius"),
+            TempUnit::Fahrenheit => write!(f, "fahrenheit"),
+        }
+    }
+}
 
 #[derive(Debug, Parser)]
 #[command(name = "mtop", version, about = "System monitor for macOS")]
@@ -15,8 +30,8 @@ pub struct Cli {
     pub color: String,
 
     /// Temperature unit: celsius or fahrenheit
-    #[arg(long, global = true, default_value = "celsius")]
-    pub temp_unit: String,
+    #[arg(long, global = true, value_enum, default_value_t = TempUnit::Celsius)]
+    pub temp_unit: TempUnit,
 }
 
 #[derive(Debug, Subcommand)]
