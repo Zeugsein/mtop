@@ -1,162 +1,127 @@
 use crate::metrics::PowerMetrics;
-use std::sync::OnceLock;
+use crate::platform::ioreport_ffi::{self, CFDictionaryRef, CFArrayRef, IOReportFns, CFRelease};
 
-/// Power metrics via IOReport Energy Model channel.
-/// Uses dlopen/dlsym to dynamically load IOReport symbols.
-/// Falls back gracefully to default values if IOReport is unavailable.
-pub fn collect_power() -> PowerMetrics {
-    read_power_ioreport().unwrap_or_default()
+/// Stateful power collector. Stores IOReport subscription, previous sample,
+/// and timestamp to compute deltas without internal sleeps.
+pub struct PowerState {
+    channel: CFDictionaryRef,
+    subscription: *const libc::c_void,
+    prev_sample: CFDictionaryRef,
+    prev_time: std::time::Instant,
 }
 
-static IOREPORT_FNS: OnceLock<Option<IOReportFns>> = OnceLock::new();
+// SAFETY: The CF objects are only accessed from the sampler thread.
+unsafe impl Send for PowerState {}
 
-type CFStringRef = *const libc::c_void;
-type CFDictionaryRef = *const libc::c_void;
-type CFArrayRef = *const libc::c_void;
+impl PowerState {
+    /// Create a new power state with IOReport subscription.
+    /// Returns None if IOReport is unavailable.
+    pub fn new() -> Option<Self> {
+        let fns = ioreport_ffi::get_ioreport()?;
 
-// Function pointer types for IOReport
-type FnCopyChannelsInGroup = unsafe extern "C" fn(CFStringRef, CFStringRef, u64, u64, u64) -> CFDictionaryRef;
-type FnCreateSubscription = unsafe extern "C" fn(*const libc::c_void, CFDictionaryRef, *mut i32, u64, *const libc::c_void) -> *const libc::c_void;
-type FnCreateSamples = unsafe extern "C" fn(*const libc::c_void, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
-type FnCreateSamplesDelta = unsafe extern "C" fn(CFDictionaryRef, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
-type FnChannelGetChannelName = unsafe extern "C" fn(CFDictionaryRef) -> CFStringRef;
-type FnSimpleGetIntegerValue = unsafe extern "C" fn(CFDictionaryRef, *mut i32) -> i64;
+        unsafe {
+            let group = ioreport_ffi::cfstring("Energy Model");
+            let channel = (fns.copy_channels)(group, std::ptr::null(), 0, 0, 0);
+            CFRelease(group as *const _);
 
-struct IOReportFns {
-    copy_channels: FnCopyChannelsInGroup,
-    create_subscription: FnCreateSubscription,
-    create_samples: FnCreateSamples,
-    create_samples_delta: FnCreateSamplesDelta,
-    channel_get_channel_name: FnChannelGetChannelName,
-    simple_get_integer_value: FnSimpleGetIntegerValue,
+            if channel.is_null() {
+                return None;
+            }
+
+            let mut sub_err: i32 = 0;
+            let subscription = (fns.create_subscription)(
+                std::ptr::null(),
+                channel,
+                &mut sub_err,
+                0,
+                std::ptr::null(),
+            );
+
+            if subscription.is_null() || sub_err != 0 {
+                CFRelease(channel as *const _);
+                return None;
+            }
+
+            let prev_sample = (fns.create_samples)(subscription, channel, std::ptr::null());
+            if prev_sample.is_null() {
+                CFRelease(channel as *const _);
+                CFRelease(subscription as *const _);
+                return None;
+            }
+
+            Some(Self {
+                channel,
+                subscription,
+                prev_sample,
+                prev_time: std::time::Instant::now(),
+            })
+        }
+    }
+
+    /// Collect power metrics by taking a new sample and computing delta against previous.
+    /// Uses actual elapsed time for nanojoules-to-watts conversion.
+    pub fn collect(&mut self) -> PowerMetrics {
+        let fns = match ioreport_ffi::get_ioreport() {
+            Some(f) => f,
+            None => return PowerMetrics::default(),
+        };
+
+        unsafe {
+            let new_sample = (fns.create_samples)(self.subscription, self.channel, std::ptr::null());
+            if new_sample.is_null() {
+                return PowerMetrics::default();
+            }
+
+            let now = std::time::Instant::now();
+            let duration_ms = now.duration_since(self.prev_time).as_secs_f64() * 1000.0;
+
+            let delta = (fns.create_samples_delta)(self.prev_sample, new_sample, std::ptr::null());
+            CFRelease(self.prev_sample as *const _);
+            self.prev_sample = new_sample;
+            self.prev_time = now;
+
+            if delta.is_null() {
+                return PowerMetrics::default();
+            }
+
+            let result = parse_power_delta(fns, delta, duration_ms).unwrap_or_default();
+            CFRelease(delta as *const _);
+            result
+        }
+    }
 }
 
-// SAFETY: IOReportFns only holds function pointers from a shared library,
-// which are valid for the lifetime of the process and safe to call from any thread.
-unsafe impl Send for IOReportFns {}
-unsafe impl Sync for IOReportFns {}
-
-fn get_ioreport() -> Option<&'static IOReportFns> {
-    IOREPORT_FNS.get_or_init(load_ioreport).as_ref()
-}
-
-fn load_ioreport() -> Option<IOReportFns> {
-    unsafe {
-        let paths = [
-            c"/System/Library/PrivateFrameworks/IOReport.framework/IOReport".as_ptr(),
-            c"/usr/lib/libIOReport.dylib".as_ptr(),
-        ];
-
-        let mut handle: *mut libc::c_void = std::ptr::null_mut();
-        for path in &paths {
-            handle = libc::dlopen(*path, libc::RTLD_LAZY);
-            if !handle.is_null() {
-                break;
+impl Drop for PowerState {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.prev_sample.is_null() {
+                CFRelease(self.prev_sample as *const _);
+            }
+            if !self.channel.is_null() {
+                CFRelease(self.channel as *const _);
+            }
+            if !self.subscription.is_null() {
+                CFRelease(self.subscription as *const _);
             }
         }
-
-        if handle.is_null() {
-            return None;
-        }
-
-        macro_rules! sym {
-            ($name:literal, $ty:ty) => {{
-                let p = libc::dlsym(handle, $name.as_ptr() as *const i8);
-                if p.is_null() { return None; }
-                std::mem::transmute::<*mut libc::c_void, $ty>(p)
-            }};
-        }
-
-        Some(IOReportFns {
-            copy_channels: sym!(b"IOReportCopyChannelsInGroup\0", FnCopyChannelsInGroup),
-            create_subscription: sym!(b"IOReportCreateSubscription\0", FnCreateSubscription),
-            create_samples: sym!(b"IOReportCreateSamples\0", FnCreateSamples),
-            create_samples_delta: sym!(b"IOReportCreateSamplesDelta\0", FnCreateSamplesDelta),
-            channel_get_channel_name: sym!(b"IOReportChannelGetChannelName\0", FnChannelGetChannelName),
-            simple_get_integer_value: sym!(b"IOReportSimpleGetIntegerValue\0", FnSimpleGetIntegerValue),
-        })
     }
 }
 
-fn read_power_ioreport() -> Option<PowerMetrics> {
-    let fns = get_ioreport()?;
-
-    unsafe {
-        let group = cfstring("Energy Model");
-        let channel = (fns.copy_channels)(group, std::ptr::null(), 0, 0, 0);
-        CFRelease(group as *const _);
-
-        if channel.is_null() {
-            return None;
-        }
-
-        let mut sub_err: i32 = 0;
-        let subscription = (fns.create_subscription)(
-            std::ptr::null(),
-            channel,
-            &mut sub_err,
-            0,
-            std::ptr::null(),
-        );
-
-        if subscription.is_null() || sub_err != 0 {
-            CFRelease(channel as *const _);
-            return None;
-        }
-
-        let sample1 = (fns.create_samples)(subscription, channel, std::ptr::null());
-        if sample1.is_null() {
-            CFRelease(channel as *const _);
-            CFRelease(subscription as *const _);
-            return None;
-        }
-
-        let before_sleep = std::time::Instant::now();
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        let actual_duration_ms = before_sleep.elapsed().as_secs_f64() * 1000.0;
-
-        let sample2 = (fns.create_samples)(subscription, channel, std::ptr::null());
-        if sample2.is_null() {
-            CFRelease(sample1 as *const _);
-            CFRelease(channel as *const _);
-            CFRelease(subscription as *const _);
-            return None;
-        }
-
-        let delta = (fns.create_samples_delta)(sample1, sample2, std::ptr::null());
-        CFRelease(sample1 as *const _);
-        CFRelease(sample2 as *const _);
-
-        if delta.is_null() {
-            CFRelease(channel as *const _);
-            CFRelease(subscription as *const _);
-            return None;
-        }
-
-        let result = parse_power_delta(fns, delta, actual_duration_ms);
-
-        CFRelease(delta as *const _);
-        CFRelease(channel as *const _);
-        CFRelease(subscription as *const _);
-
-        result
-    }
+/// Fallback for when IOReport is unavailable — returns default metrics.
+pub fn collect_power() -> PowerMetrics {
+    PowerMetrics::default()
 }
 
 unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_ms: f64) -> Option<PowerMetrics> {
-    // The delta is a CFDictionary containing an array of channel samples
-    // Each channel has a name like "CPU Energy", "GPU Energy", etc.
-    // Values are in energy units (nJ typically); divide by duration to get watts
-
-    let items_key = unsafe { cfstring("IOReportChannels") };
-    let items = unsafe { CFDictionaryGetValue(delta, items_key as *const _) };
+    let items_key = unsafe { ioreport_ffi::cfstring("IOReportChannels") };
+    let items = unsafe { ioreport_ffi::CFDictionaryGetValue(delta, items_key as *const _) };
     unsafe { CFRelease(items_key as *const _) };
 
     if items.is_null() {
         return None;
     }
 
-    let count = unsafe { CFArrayGetCount(items as CFArrayRef) };
+    let count = unsafe { ioreport_ffi::CFArrayGetCount(items as CFArrayRef) };
     if count <= 0 {
         return None;
     }
@@ -167,7 +132,7 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
     let mut dram_energy: i64 = 0;
 
     for i in 0..count {
-        let item = unsafe { CFArrayGetValueAtIndex(items as CFArrayRef, i) };
+        let item = unsafe { ioreport_ffi::CFArrayGetValueAtIndex(items as CFArrayRef, i) };
         if item.is_null() {
             continue;
         }
@@ -177,7 +142,7 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
             continue;
         }
 
-        let name_str = unsafe { cfstring_to_string(name) };
+        let name_str = unsafe { ioreport_ffi::cfstring_to_string(name) };
         let mut err: i32 = 0;
         let value = unsafe { (fns.simple_get_integer_value)(item, &mut err) };
 
@@ -218,41 +183,4 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
         package_w,
         system_w,
     })
-}
-
-unsafe fn cfstring(s: &str) -> CFStringRef {
-    let cstr = std::ffi::CString::new(s).unwrap_or_default();
-    unsafe { CFStringCreateWithCString(std::ptr::null(), cstr.as_ptr(), 0x08000100) }
-}
-
-unsafe fn cfstring_to_string(cf: CFStringRef) -> String {
-    let len = unsafe { CFStringGetLength(cf) };
-    if len <= 0 {
-        return String::new();
-    }
-    let max_size = unsafe { CFStringGetMaximumSizeForEncoding(len, 0x08000100) } + 1;
-    let mut buf = vec![0u8; max_size as usize];
-    let ok = unsafe { CFStringGetCString(cf, buf.as_mut_ptr() as *mut i8, max_size, 0x08000100) };
-    if ok {
-        let cstr = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8) };
-        cstr.to_string_lossy().to_string()
-    } else {
-        String::new()
-    }
-}
-
-#[link(name = "CoreFoundation", kind = "framework")]
-unsafe extern "C" {
-    fn CFStringCreateWithCString(
-        alloc: *const libc::c_void,
-        cstr: *const i8,
-        encoding: u32,
-    ) -> CFStringRef;
-    fn CFStringGetLength(cf: CFStringRef) -> i64;
-    fn CFStringGetMaximumSizeForEncoding(length: i64, encoding: u32) -> i64;
-    fn CFStringGetCString(cf: CFStringRef, buffer: *mut i8, max_size: i64, encoding: u32) -> bool;
-    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void) -> *const libc::c_void;
-    fn CFArrayGetCount(array: CFArrayRef) -> i64;
-    fn CFArrayGetValueAtIndex(array: CFArrayRef, idx: i64) -> *const libc::c_void;
-    fn CFRelease(cf: *const libc::c_void);
 }

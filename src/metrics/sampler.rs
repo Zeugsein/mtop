@@ -8,6 +8,9 @@ pub struct Sampler {
     net_state: platform::network::NetworkState,
     disk_state: platform::disk::DiskState,
     proc_cpu_state: platform::process::ProcessCpuState,
+    gpu_state: Option<platform::gpu::GpuState>,
+    power_state: Option<platform::power::PowerState>,
+    temp_state: Option<platform::temperature::TemperatureState>,
 }
 
 impl Sampler {
@@ -21,6 +24,9 @@ impl Sampler {
             net_state: platform::network::NetworkState::new(),
             disk_state: platform::disk::DiskState::new(),
             proc_cpu_state: platform::process::ProcessCpuState::new(),
+            gpu_state: platform::gpu::GpuState::new(),
+            power_state: platform::power::PowerState::new(),
+            temp_state: platform::temperature::TemperatureState::new(),
         })
     }
 
@@ -35,9 +41,18 @@ impl Sampler {
         std::thread::sleep(std::time::Duration::from_millis(interval as u64));
 
         let mut cpu = platform::cpu::collect_cpu(self.host_port, &mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
-        let mut gpu = platform::gpu::collect_gpu();
-        let power = platform::power::collect_power();
-        let temperature = platform::temperature::collect_temperature();
+        let mut gpu = match &mut self.gpu_state {
+            Some(state) => state.collect(),
+            None => platform::gpu::collect_gpu(),
+        };
+        let power = match &mut self.power_state {
+            Some(state) => state.collect(),
+            None => platform::power::collect_power(),
+        };
+        let temperature = match &self.temp_state {
+            Some(state) => state.collect(),
+            None => platform::temperature::collect_temperature(),
+        };
         let memory = platform::memory::collect_memory(self.host_port);
         let network = self.net_state.collect();
         let processes = platform::process::collect_processes(&mut self.proc_cpu_state);

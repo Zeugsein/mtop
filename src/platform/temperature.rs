@@ -1,15 +1,35 @@
 use crate::metrics::ThermalMetrics;
 
-/// Temperature metrics via SMC (System Management Controller).
-/// Reads CPU and GPU temperature sensor keys via IOKit SMC interface.
-/// Falls back gracefully to default values if SMC is unavailable.
-pub fn collect_temperature() -> ThermalMetrics {
-    read_smc_temperatures().unwrap_or_default()
+/// Stateful temperature collector with cached SMC connection.
+pub struct TemperatureState {
+    conn: u32,
 }
 
-fn read_smc_temperatures() -> Option<ThermalMetrics> {
-    let conn = smc_open()?;
+impl TemperatureState {
+    /// Open SMC connection. Returns None if SMC is unavailable.
+    pub fn new() -> Option<Self> {
+        let conn = smc_open()?;
+        Some(Self { conn })
+    }
 
+    /// Collect temperature metrics using the cached SMC connection.
+    pub fn collect(&self) -> ThermalMetrics {
+        read_smc_temperatures(self.conn).unwrap_or_default()
+    }
+}
+
+impl Drop for TemperatureState {
+    fn drop(&mut self) {
+        smc_close(self.conn);
+    }
+}
+
+/// Fallback for when SMC is unavailable — returns default metrics.
+pub fn collect_temperature() -> ThermalMetrics {
+    ThermalMetrics::default()
+}
+
+fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
     // CPU temperature keys — try multiple common keys
     let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T"];
     let gpu_keys = ["TG0P", "TG0D", "TG1D", "Tg05"];
@@ -25,8 +45,6 @@ fn read_smc_temperatures() -> Option<ThermalMetrics> {
         .filter_map(|k| smc_read_temp(conn, k))
         .filter(|&t| t > 0.0 && t < 130.0)
         .collect();
-
-    smc_close(conn);
 
     let cpu_avg = if cpu_temps.is_empty() {
         return None;

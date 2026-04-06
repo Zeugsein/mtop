@@ -1,6 +1,7 @@
 pub mod cpu;
 pub mod disk;
 pub mod gpu;
+pub mod ioreport_ffi;
 pub mod memory;
 pub mod network;
 pub mod power;
