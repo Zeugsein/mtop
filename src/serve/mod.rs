@@ -36,7 +36,10 @@ fn process_request(mut stream: TcpStream, shared: &SharedMetrics, soc: &SocInfo)
         None => return,
     };
 
-    let metrics = shared.read().unwrap().clone();
+    let metrics = match shared.read() {
+        Ok(guard) => guard.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    };
 
     match path.as_str() {
         "/json" => {

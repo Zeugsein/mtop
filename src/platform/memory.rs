@@ -58,7 +58,10 @@ fn sysctl_u64(name: &str) -> Option<u64> {
 }
 
 fn get_swap_usage() -> (u64, u64) {
-    let name = std::ffi::CString::new("vm.swapusage").unwrap();
+    let name = match std::ffi::CString::new("vm.swapusage") {
+        Ok(n) => n,
+        Err(_) => return (0, 0),
+    };
     let mut swap: XswUsage = unsafe { std::mem::zeroed() };
     let mut size = std::mem::size_of::<XswUsage>() as libc::size_t;
     unsafe {
