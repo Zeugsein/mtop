@@ -80,8 +80,8 @@ fn get_swap_usage() -> (u64, u64) {
 #[repr(C)]
 struct XswUsage {
     xsu_total: u64,
-    xsu_used: u64,
     xsu_avail: u64,
+    xsu_used: u64,
     xsu_encrypted: i32,
     _padding: i32,
 }
