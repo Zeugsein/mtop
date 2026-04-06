@@ -16,6 +16,11 @@ impl TemperatureState {
     pub fn collect(&self) -> ThermalMetrics {
         read_smc_temperatures(self.conn).unwrap_or_default()
     }
+
+    /// Return the SMC connection handle for debug enumeration.
+    pub fn conn(&self) -> u32 {
+        self.conn
+    }
 }
 
 impl Drop for TemperatureState {
@@ -83,7 +88,8 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
 /// Dynamically enumerate SMC temperature keys via SMC_CMD_READ_INDEX.
 /// Returns (cpu_keys, gpu_keys) filtered by prefix and flt /sp78 data type.
 /// Returns empty vecs if enumeration fails (caller falls back to static list).
-fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>) {
+/// Dynamically enumerate SMC temperature keys. Public for debug_info().
+pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>) {
     // Read "#KEY" to get total key count
     let total = match smc_read_key_count(conn) {
         Some(n) => n,

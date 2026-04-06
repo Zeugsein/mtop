@@ -112,9 +112,21 @@ impl Sampler {
             out.push_str("  Power group: \"Energy Model\"\n");
         }
 
-        out.push_str("\nSMC Keys (attempted):\n");
-        out.push_str("  CPU: TC0P, TC0C, TC1C, TC2C, TC0F, Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");
-        out.push_str("  GPU: TG0P, TG0D, TG1D, Tg05, Tg0f, Tg0j\n");
+        // Live SMC key enumeration
+        if let Some(ref temp) = self.temp_state {
+            let (cpu_keys, gpu_keys) = platform::temperature::smc_enumerate_temp_keys(temp.conn());
+            if !cpu_keys.is_empty() || !gpu_keys.is_empty() {
+                out.push_str("\nSMC Keys (discovered):\n");
+                out.push_str(&format!("  CPU: {}\n", if cpu_keys.is_empty() { "none".to_string() } else { cpu_keys.join(", ") }));
+                out.push_str(&format!("  GPU: {}\n", if gpu_keys.is_empty() { "none".to_string() } else { gpu_keys.join(", ") }));
+            } else {
+                out.push_str("\nSMC Keys (static fallback):\n");
+                out.push_str("  CPU: TC0P, TC0C, TC1C, TC2C, TC0F, Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");
+                out.push_str("  GPU: TG0P, TG0D, TG1D, Tg05, Tg0f, Tg0j\n");
+            }
+        } else {
+            out.push_str("\nSMC: unavailable\n");
+        }
 
         out
     }
