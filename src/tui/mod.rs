@@ -27,15 +27,24 @@ const THEMES: &[(&str, Color, Color)] = &[
     ("blue", Color::Blue, Color::White),
 ];
 
+/// Return the list of available theme names (for tests and CLI validation).
+pub fn theme_names() -> Vec<&'static str> {
+    THEMES.iter().map(|(name, _, _)| *name).collect()
+}
+
 const SORT_COLS: &[&str] = &["CPU%", "Mem", "PID", "Name"];
 
-pub fn run(interval_ms: u32, _color: &str, temp_unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut sampler = Sampler::new()?;
+    let initial_theme = THEMES
+        .iter()
+        .position(|(name, _, _)| *name == color)
+        .unwrap_or(0);
     let mut state = AppState {
         interval_ms: interval_ms.max(100),
         sort_col: 0,
         process_scroll: 0,
-        theme_idx: 0,
+        theme_idx: initial_theme,
         temp_unit: temp_unit.to_string(),
         history: MetricsHistory::new(),
         snapshot: MetricsSnapshot::default(),
