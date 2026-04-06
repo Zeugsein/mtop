@@ -178,6 +178,9 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
     }
 
     let duration_s = duration_ms / 1000.0;
+    if duration_s < 1e-6 {
+        return Some(PowerMetrics { available: true, ..Default::default() });
+    }
     // Convert energy to watts based on unit
     let energy_to_watts = |energy: i64| -> f32 {
         if energy <= 0 { return 0.0; }
