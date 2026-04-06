@@ -23,14 +23,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Some(Command::Serve { port }) => {
+        Some(Command::Serve { port, bind }) => {
             let mut sampler = Sampler::new()?;
             let soc = sampler.soc_info().clone();
             let shared = Arc::new(RwLock::new(None));
 
             let shared_http = Arc::clone(&shared);
             std::thread::spawn(move || {
-                if let Err(e) = serve::run(port, shared_http, &soc) {
+                if let Err(e) = serve::run(port, &bind, shared_http, &soc) {
                     eprintln!("server error: {e}");
                 }
             });

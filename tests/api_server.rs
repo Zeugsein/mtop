@@ -29,7 +29,7 @@ fn spawn_server_with_data(snapshot: Option<MetricsSnapshot>) -> u16 {
         memory_gb: 24,
     };
     std::thread::spawn(move || {
-        serve::run(port, shared, &soc).ok();
+        serve::run(port, "127.0.0.1", shared, &soc).ok();
     });
     // Give the server a moment to bind
     std::thread::sleep(Duration::from_millis(50));
@@ -303,16 +303,15 @@ fn server_listens_on_configured_port() {
 }
 
 #[test]
-#[ignore] // FR-3 (PARTIAL): --bind flag is not implemented yet
 /// FR-3: serve subcommand accepts a --bind flag for custom bind address
 fn serve_subcommand_accepts_bind_flag() {
     use clap::Parser;
     use mtop::Cli;
-    // This will fail to parse until --bind is added to the Serve subcommand
     let cli = Cli::parse_from(["mtop", "serve", "--bind", "0.0.0.0", "--port", "9191"]);
     match cli.command {
-        Some(mtop::cli::Command::Serve { port, .. }) => {
+        Some(mtop::cli::Command::Serve { port, bind }) => {
             assert_eq!(port, 9191);
+            assert_eq!(bind, "0.0.0.0");
         }
         _ => panic!("expected Serve subcommand"),
     }

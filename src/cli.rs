@@ -48,6 +48,10 @@ pub enum Command {
         /// Port to listen on
         #[arg(short, long, default_value_t = 9090)]
         port: u16,
+
+        /// Address to bind to
+        #[arg(short, long, default_value = "127.0.0.1")]
+        bind: String,
     },
 
     /// Print debug/diagnostic information

@@ -78,7 +78,7 @@ fn pipe_subcommand_samples_short_flag() {
 fn serve_subcommand_default_port() {
     let cli = Cli::parse_from(["mtop", "serve"]);
     match cli.command {
-        Some(Command::Serve { port }) => {
+        Some(Command::Serve { port, .. }) => {
             assert_eq!(port, 9090, "default serve port should be 9090");
         }
         other => panic!("expected Serve subcommand; got {other:?}"),
@@ -90,7 +90,7 @@ fn serve_subcommand_default_port() {
 fn serve_subcommand_custom_port() {
     let cli = Cli::parse_from(["mtop", "serve", "--port", "8080"]);
     match cli.command {
-        Some(Command::Serve { port }) => {
+        Some(Command::Serve { port, .. }) => {
             assert_eq!(port, 8080, "--port 8080 should set port=8080");
         }
         other => panic!("expected Serve subcommand; got {other:?}"),
@@ -102,7 +102,7 @@ fn serve_subcommand_custom_port() {
 fn serve_subcommand_port_short_flag() {
     let cli = Cli::parse_from(["mtop", "serve", "-p", "7777"]);
     match cli.command {
-        Some(Command::Serve { port }) => {
+        Some(Command::Serve { port, .. }) => {
             assert_eq!(port, 7777);
         }
         other => panic!("expected Serve subcommand; got {other:?}"),

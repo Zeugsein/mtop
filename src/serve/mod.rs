@@ -5,8 +5,8 @@ use std::sync::{Arc, RwLock};
 
 pub type SharedMetrics = Arc<RwLock<Option<MetricsSnapshot>>>;
 
-pub fn run(port: u16, shared: SharedMetrics, soc: &SocInfo) -> Result<(), Box<dyn std::error::Error>> {
-    let addr = format!("127.0.0.1:{port}");
+pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Result<(), Box<dyn std::error::Error>> {
+    let addr = format!("{bind}:{port}");
     let listener = TcpListener::bind(&addr)?;
     eprintln!("mtop serve listening on http://{addr}");
     eprintln!("  GET /json    — JSON metrics snapshot");
