@@ -71,8 +71,7 @@ impl Sampler {
         out.push_str(&format!("P-cores: {}\n", self.soc.p_cores));
         out.push_str(&format!("GPU cores: {} (estimated)\n", self.soc.gpu_cores));
         out.push_str(&format!("Memory: {} GB\n", self.soc.memory_gb));
-        out.push_str("\nNote: IOReport/SMC/HID integration pending.\n");
-        out.push_str("GPU, power, and temperature metrics require IOReport FFI.\n");
+        out.push_str("\nIOReport FFI active for GPU, power, and temperature metrics.\n");
         out
     }
 }
