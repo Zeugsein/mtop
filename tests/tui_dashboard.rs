@@ -44,6 +44,7 @@ fn make_power_metrics() -> PowerMetrics {
         dram_w: 1.1,
         package_w: 13.3,
         system_w: 15.0,
+        available: true,
     }
 }
 
@@ -52,7 +53,7 @@ fn make_snapshot() -> MetricsSnapshot {
     s.soc = make_soc();
     s.cpu = make_cpu_metrics();
     s.power = make_power_metrics();
-    s.temperature = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0 };
+    s.temperature = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true };
     s.memory = MemoryMetrics {
         ram_total: 25_769_803_776, // 24 GB
         ram_used: 8_589_934_592,   // 8 GB
@@ -180,7 +181,9 @@ fn power_history_values_match_snapshot() {
 /// FR-3: sparkline history caps at 128 entries (oldest evicted from left)
 fn power_sparkline_caps_at_128_entries() {
     let mut history = MetricsHistory::new();
-    let snapshot = MetricsSnapshot::default();
+    let mut snapshot = MetricsSnapshot::default();
+    snapshot.power.available = true;
+    snapshot.gpu.available = true;
     for _ in 0..200 {
         history.push(&snapshot);
     }
@@ -207,6 +210,7 @@ fn gpu_metrics_has_all_required_fields() {
         usage: 0.35,
         freq_mhz: 1200,
         power_w: 3.2,
+        available: true,
     };
     assert!((0.0..=1.0).contains(&gpu.usage));
     assert!(gpu.freq_mhz > 0);
@@ -227,7 +231,7 @@ fn gpu_panel_renders_usage_freq_power() {
 #[test]
 /// FR-5: ThermalMetrics stores cpu_avg_c and gpu_avg_c
 fn thermal_metrics_has_cpu_and_gpu_fields() {
-    let t = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0 };
+    let t = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true };
     assert!(t.cpu_avg_c > 0.0);
     assert!(t.gpu_avg_c > 0.0);
 }

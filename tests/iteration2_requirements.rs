@@ -667,6 +667,7 @@ fn metrics_history_records_gpu_usage() {
     let mut history = MetricsHistory::new();
     let mut snap = MetricsSnapshot::default();
     snap.gpu.usage = 0.75;
+    snap.gpu.available = true;
     history.push(&snap);
 
     assert_eq!(history.gpu_usage.len(), 1);
