@@ -6,6 +6,17 @@ description = "System monitor for macOS — TUI, HTTP API, pipe mode"
 license = "MIT"
 repository = "https://github.com/Zeugsein/mtop"
 
+[[bin]]
+name = "mtop"
+path = "src/main.rs"
+
+[lib]
+name = "mtop"
+path = "src/lib.rs"
+
+[dev-dependencies]
+libc = "0.2"
+
 [dependencies]
 ratatui = "0.30"
 crossterm = "0.29"
