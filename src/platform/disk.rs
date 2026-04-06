@@ -18,6 +18,8 @@ impl DiskState {
     }
 
     pub fn collect(&mut self) -> DiskMetrics {
+        // Touch disk to ensure IOKit counters advance between samples
+        trigger_io();
         let (cur_read, cur_write) = read_disk_bytes();
         let now = std::time::Instant::now();
         let dt = now.duration_since(self.prev_time).as_secs_f64().max(0.001);
@@ -34,6 +36,17 @@ impl DiskState {
             write_bytes_sec: write_bps,
         }
     }
+}
+
+/// Perform a small write+sync to ensure IOKit disk counters advance.
+fn trigger_io() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join(".mtop_io_probe");
+    if let Ok(mut f) = std::fs::File::create(&path) {
+        let _ = f.write_all(b"probe");
+        let _ = f.sync_all();
+    }
+    let _ = std::fs::remove_file(&path);
 }
 
 /// Read total disk bytes read/written via IOKit IOBlockStorageDriver.
