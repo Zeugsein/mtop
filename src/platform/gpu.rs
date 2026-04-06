@@ -1,4 +1,5 @@
 use crate::metrics::GpuMetrics;
+use std::sync::OnceLock;
 
 /// GPU metrics via IOReport GPU Performance States channel.
 /// Uses dlopen/dlsym to dynamically load IOReport symbols.
@@ -6,6 +7,8 @@ use crate::metrics::GpuMetrics;
 pub fn collect_gpu() -> GpuMetrics {
     read_gpu_ioreport().unwrap_or_default()
 }
+
+static IOREPORT_FNS: OnceLock<Option<IOReportFns>> = OnceLock::new();
 
 type CFStringRef = *const libc::c_void;
 type CFDictionaryRef = *const libc::c_void;
@@ -25,6 +28,15 @@ struct IOReportFns {
     create_samples_delta: FnCreateSamplesDelta,
     state_get_count: FnStateGetCount,
     state_get_residency: FnStateGetResidency,
+}
+
+// SAFETY: IOReportFns only holds function pointers from a shared library,
+// which are valid for the lifetime of the process and safe to call from any thread.
+unsafe impl Send for IOReportFns {}
+unsafe impl Sync for IOReportFns {}
+
+fn get_ioreport() -> Option<&'static IOReportFns> {
+    IOREPORT_FNS.get_or_init(load_ioreport).as_ref()
 }
 
 fn load_ioreport() -> Option<IOReportFns> {
@@ -67,7 +79,7 @@ fn load_ioreport() -> Option<IOReportFns> {
 }
 
 fn read_gpu_ioreport() -> Option<GpuMetrics> {
-    let fns = load_ioreport()?;
+    let fns = get_ioreport()?;
 
     unsafe {
         let group = cfstring("GPU");
@@ -102,6 +114,9 @@ fn read_gpu_ioreport() -> Option<GpuMetrics> {
             return None;
         }
 
+        // Delta measurement requires a time gap between initial and final sample.
+        // Without this sleep the two samples would be nearly identical, producing
+        // zero or wildly noisy residency deltas.
         std::thread::sleep(std::time::Duration::from_millis(50));
 
         let sample2 = (fns.create_samples)(subscription, channel, std::ptr::null());

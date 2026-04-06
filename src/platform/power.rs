@@ -1,4 +1,5 @@
 use crate::metrics::PowerMetrics;
+use std::sync::OnceLock;
 
 /// Power metrics via IOReport Energy Model channel.
 /// Uses dlopen/dlsym to dynamically load IOReport symbols.
@@ -6,6 +7,8 @@ use crate::metrics::PowerMetrics;
 pub fn collect_power() -> PowerMetrics {
     read_power_ioreport().unwrap_or_default()
 }
+
+static IOREPORT_FNS: OnceLock<Option<IOReportFns>> = OnceLock::new();
 
 type CFStringRef = *const libc::c_void;
 type CFDictionaryRef = *const libc::c_void;
@@ -26,6 +29,15 @@ struct IOReportFns {
     create_samples_delta: FnCreateSamplesDelta,
     channel_get_channel_name: FnChannelGetChannelName,
     simple_get_integer_value: FnSimpleGetIntegerValue,
+}
+
+// SAFETY: IOReportFns only holds function pointers from a shared library,
+// which are valid for the lifetime of the process and safe to call from any thread.
+unsafe impl Send for IOReportFns {}
+unsafe impl Sync for IOReportFns {}
+
+fn get_ioreport() -> Option<&'static IOReportFns> {
+    IOREPORT_FNS.get_or_init(load_ioreport).as_ref()
 }
 
 fn load_ioreport() -> Option<IOReportFns> {
@@ -67,7 +79,7 @@ fn load_ioreport() -> Option<IOReportFns> {
 }
 
 fn read_power_ioreport() -> Option<PowerMetrics> {
-    let fns = load_ioreport()?;
+    let fns = get_ioreport()?;
 
     unsafe {
         let group = cfstring("Energy Model");
