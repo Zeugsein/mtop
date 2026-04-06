@@ -31,8 +31,8 @@ pub fn collect_temperature() -> ThermalMetrics {
 
 fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
     // CPU temperature keys — try multiple common keys
-    let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T"];
-    let gpu_keys = ["TG0P", "TG0D", "TG1D", "Tg05"];
+    let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
+    let gpu_keys = ["TG0P", "TG0D", "TG1D", "Tg05", "Tg0f", "Tg0j"];
 
     let cpu_temps: Vec<f32> = cpu_keys
         .iter()
@@ -72,19 +72,41 @@ fn smc_open() -> Option<u32> {
             return None;
         }
 
-        let service = IOServiceGetMatchingService(MASTER_PORT, matching);
-        if service == 0 {
-            return None;
-        }
-
-        let mut conn: u32 = 0;
-        let kr = IOServiceOpen(service, mach_task_self(), 0, &mut conn);
-        IOObjectRelease(service);
-
+        let mut iterator: u32 = 0;
+        let kr = IOServiceGetMatchingServices(MASTER_PORT, matching, &mut iterator);
         if kr != 0 {
             return None;
         }
 
+        let mut target_service: u32 = 0;
+        loop {
+            let service = IOIteratorNext(iterator);
+            if service == 0 {
+                break;
+            }
+
+            let mut name = [0i8; 128];
+            IORegistryEntryGetName(service, name.as_mut_ptr());
+            let name_str = std::ffi::CStr::from_ptr(name.as_ptr()).to_string_lossy();
+
+            if name_str == "AppleSMCKeysEndpoint" {
+                target_service = service;
+                break;
+            }
+            IOObjectRelease(service);
+        }
+        IOObjectRelease(iterator);
+
+        if target_service == 0 {
+            return None;
+        }
+
+        let mut conn: u32 = 0;
+        let kr = IOServiceOpen(target_service, mach_task_self(), 0, &mut conn);
+        IOObjectRelease(target_service);
+        if kr != 0 {
+            return None;
+        }
         Some(conn)
     }
 }
@@ -224,7 +246,9 @@ impl SmcKeyData {
 #[link(name = "IOKit", kind = "framework")]
 unsafe extern "C" {
     fn IOServiceMatching(name: *const i8) -> *mut libc::c_void;
-    fn IOServiceGetMatchingService(main_port: u32, matching: *mut libc::c_void) -> u32;
+    fn IOServiceGetMatchingServices(main_port: u32, matching: *mut libc::c_void, existing: *mut u32) -> i32;
+    fn IOIteratorNext(iterator: u32) -> u32;
+    fn IORegistryEntryGetName(entry: u32, name: *mut i8) -> i32;
     fn IOServiceOpen(service: u32, owning_task: u32, conn_type: u32, connection: *mut u32) -> i32;
     fn IOServiceClose(connection: u32) -> i32;
     fn IOObjectRelease(object: u32) -> i32;
