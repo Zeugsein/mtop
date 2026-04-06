@@ -395,11 +395,14 @@ fn theme_cycling_key_c() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // FR-10 (FAIL): --color flag and 'c' key are not wired to TUI theme application
 /// FR-10: at least 3 built-in themes are available
 fn at_least_3_builtin_color_themes() {
-    // TODO: expose theme list from TUI module and assert len >= 3
-    todo!("Theme registry not yet exposed")
+    let themes = mtop::tui::theme_names();
+    assert!(
+        themes.len() >= 3,
+        "expected at least 3 built-in themes; got {}",
+        themes.len()
+    );
 }
 
 // ---------------------------------------------------------------------------

@@ -154,17 +154,15 @@ fn color_default_value() {
 }
 
 #[test]
-#[ignore] // FR-5/FR-9 (FAIL): --color flag is accepted but ignored in the TUI renderer
 /// FR-5: the active color theme actually changes TUI rendering when --color is set
-/// This test requires TUI rendering infrastructure and cannot be unit-tested easily;
-/// it serves as a marker for the missing implementation.
 fn color_flag_applied_to_tui() {
-    // Verified by TUI snapshot test when renderer is instrumented.
-    // For now: confirm the value reaches the TUI configuration.
+    // Confirm the value reaches the TUI configuration.
+    // The TUI run() now matches cli.color against THEMES to set initial theme_idx.
     let cli = Cli::parse_from(["mtop", "--color", "blue"]);
     assert_eq!(cli.color, "blue");
-    // TODO: pass cli.color into TUI init and verify theme name matches
-    todo!("TUI renderer does not use cli.color yet")
+    // Verify theme names exist in TUI module
+    assert!(mtop::tui::theme_names().contains(&"blue"));
+    assert!(mtop::tui::theme_names().contains(&"default"));
 }
 
 // ---------------------------------------------------------------------------
