@@ -137,7 +137,7 @@ fn read_gpu_ioreport() -> Option<GpuMetrics> {
             return None;
         }
 
-        let result = parse_gpu_delta(&fns, delta);
+        let result = parse_gpu_delta(fns, delta);
 
         CFRelease(delta as *const _);
         CFRelease(channel as *const _);
