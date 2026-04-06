@@ -619,7 +619,9 @@ fn sampler_works_without_sudo() {
 /// MetricsHistory caps at 128 entries (spec: sparklines display up to 128 data points)
 fn metrics_history_caps_at_128() {
     let mut history = MetricsHistory::new();
-    let snapshot = MetricsSnapshot::default();
+    let mut snapshot = MetricsSnapshot::default();
+    snapshot.gpu.available = true;
+    snapshot.power.available = true;
     for _ in 0..200 {
         history.push(&snapshot);
     }
