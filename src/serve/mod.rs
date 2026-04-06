@@ -108,8 +108,14 @@ fn write_response(stream: &mut TcpStream, status: u16, content_type: &str, body:
     );
 }
 
+fn escape_label_value(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+}
+
 fn to_prometheus(m: &MetricsSnapshot, soc: &SocInfo) -> String {
-    let chip = &soc.chip;
+    let chip = escape_label_value(&soc.chip);
     let l = format!(r#"chip="{chip}""#);
 
     let mut out = String::new();
@@ -171,13 +177,14 @@ fn to_prometheus(m: &MetricsSnapshot, soc: &SocInfo) -> String {
     out.push_str("# HELP mtop_network_bytes_per_second Network throughput in bytes per second\n");
     out.push_str("# TYPE mtop_network_bytes_per_second gauge\n");
     for iface in &m.network.interfaces {
+        let iname = escape_label_value(&iface.name);
         out.push_str(&format!(
-            "mtop_network_bytes_per_second{{{l},interface=\"{}\",direction=\"rx\"}} {}\n",
-            iface.name, iface.rx_bytes_sec
+            "mtop_network_bytes_per_second{{{l},interface=\"{iname}\",direction=\"rx\"}} {}\n",
+            iface.rx_bytes_sec
         ));
         out.push_str(&format!(
-            "mtop_network_bytes_per_second{{{l},interface=\"{}\",direction=\"tx\"}} {}\n",
-            iface.name, iface.tx_bytes_sec
+            "mtop_network_bytes_per_second{{{l},interface=\"{iname}\",direction=\"tx\"}} {}\n",
+            iface.tx_bytes_sec
         ));
     }
     out.push('\n');
