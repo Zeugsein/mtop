@@ -119,6 +119,11 @@ fn process_request(mut stream: TcpStream, shared: &SharedMetrics, soc: &SocInfo)
     }
 }
 
+/// Read the HTTP request path from the stream.
+/// NOTE: Single-read design is an accepted residual Slowloris risk.
+/// Primary defense is the per-IP connection limit (MAX_PER_IP) + 2s timeout.
+/// A slow sender can hold one connection for up to 2s before timeout fires.
+/// With MAX_PER_IP=8, an attacker can occupy at most 8 slots per IP.
 fn read_path(stream: &mut TcpStream) -> Option<String> {
     stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok()?;
     stream.set_write_timeout(Some(std::time::Duration::from_secs(2))).ok()?;
