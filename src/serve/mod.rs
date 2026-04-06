@@ -1,12 +1,14 @@
 use crate::metrics::{MetricsSnapshot, SocInfo};
+use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{IpAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub type SharedMetrics = Arc<RwLock<Option<MetricsSnapshot>>>;
 
 const MAX_CONNECTIONS: usize = 64;
+const MAX_PER_IP: usize = 8;
 
 pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Result<(), Box<dyn std::error::Error>> {
     let addr = format!("{bind}:{port}");
@@ -17,6 +19,7 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
 
     let soc = soc.clone();
     let active = Arc::new(AtomicUsize::new(0));
+    let per_ip: Arc<Mutex<HashMap<IpAddr, usize>>> = Arc::new(Mutex::new(HashMap::new()));
 
     for stream in listener.incoming() {
         match stream {
@@ -28,12 +31,45 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
                     write_response(&mut s, 503, "text/plain", "too many connections\n");
                     continue;
                 }
+
+                let peer_ip = match stream.peer_addr() {
+                    Ok(addr) => addr.ip(),
+                    Err(_) => {
+                        active.fetch_sub(1, Ordering::Release);
+                        continue;
+                    }
+                };
+
+                {
+                    let counts = per_ip.lock().unwrap();
+                    if *counts.get(&peer_ip).unwrap_or(&0) >= MAX_PER_IP {
+                        active.fetch_sub(1, Ordering::Release);
+                        let mut s = stream;
+                        write_response(&mut s, 429, "text/plain", "too many connections from your IP\n");
+                        continue;
+                    }
+                }
+
+                // Increment per-IP count
+                {
+                    let mut counts = per_ip.lock().unwrap();
+                    *counts.entry(peer_ip).or_insert(0) += 1;
+                }
+
                 let shared = Arc::clone(&shared);
                 let soc = soc.clone();
                 let active = Arc::clone(&active);
+                let per_ip = Arc::clone(&per_ip);
                 std::thread::spawn(move || {
                     process_request(stream, &shared, &soc);
                     active.fetch_sub(1, Ordering::Release);
+                    let mut counts = per_ip.lock().unwrap();
+                    if let Some(c) = counts.get_mut(&peer_ip) {
+                        *c = c.saturating_sub(1);
+                        if *c == 0 {
+                            counts.remove(&peer_ip);
+                        }
+                    }
                 });
             }
             Err(e) => eprintln!("connection error: {e}"),
@@ -84,7 +120,8 @@ fn process_request(mut stream: TcpStream, shared: &SharedMetrics, soc: &SocInfo)
 }
 
 fn read_path(stream: &mut TcpStream) -> Option<String> {
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok()?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok()?;
+    stream.set_write_timeout(Some(std::time::Duration::from_secs(2))).ok()?;
     let mut buf = [0u8; 2048];
     let n = stream.read(&mut buf).ok()?;
     let text = std::str::from_utf8(&buf[..n]).ok()?;
@@ -96,6 +133,7 @@ fn write_response(stream: &mut TcpStream, status: u16, content_type: &str, body:
     let status_text = match status {
         200 => "OK",
         404 => "Not Found",
+        429 => "Too Many Requests",
         503 => "Service Unavailable",
         _ => "OK",
     };
