@@ -78,6 +78,7 @@ pub struct GpuMetrics {
     pub freq_mhz: u32,
     pub usage: f32,
     pub power_w: f32,
+    pub available: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -88,12 +89,14 @@ pub struct PowerMetrics {
     pub dram_w: f32,
     pub package_w: f32,
     pub system_w: f32,
+    pub available: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ThermalMetrics {
     pub cpu_avg_c: f32,
     pub gpu_avg_c: f32,
+    pub available: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -182,13 +185,17 @@ impl MetricsHistory {
 
     pub fn push(&mut self, snapshot: &MetricsSnapshot) {
         Self::push_val(&mut self.cpu_usage, snapshot.cpu.total_usage as f64, self.max_len);
-        Self::push_val(&mut self.gpu_usage, snapshot.gpu.usage as f64, self.max_len);
-        Self::push_val(&mut self.cpu_power, snapshot.power.cpu_w as f64, self.max_len);
-        Self::push_val(&mut self.gpu_power, snapshot.power.gpu_w as f64, self.max_len);
-        Self::push_val(&mut self.ane_power, snapshot.power.ane_w as f64, self.max_len);
-        Self::push_val(&mut self.dram_power, snapshot.power.dram_w as f64, self.max_len);
-        Self::push_val(&mut self.package_power, snapshot.power.package_w as f64, self.max_len);
-        Self::push_val(&mut self.system_power, snapshot.power.system_w as f64, self.max_len);
+        if snapshot.gpu.available {
+            Self::push_val(&mut self.gpu_usage, snapshot.gpu.usage as f64, self.max_len);
+        }
+        if snapshot.power.available {
+            Self::push_val(&mut self.cpu_power, snapshot.power.cpu_w as f64, self.max_len);
+            Self::push_val(&mut self.gpu_power, snapshot.power.gpu_w as f64, self.max_len);
+            Self::push_val(&mut self.ane_power, snapshot.power.ane_w as f64, self.max_len);
+            Self::push_val(&mut self.dram_power, snapshot.power.dram_w as f64, self.max_len);
+            Self::push_val(&mut self.package_power, snapshot.power.package_w as f64, self.max_len);
+            Self::push_val(&mut self.system_power, snapshot.power.system_w as f64, self.max_len);
+        }
     }
 
     fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {

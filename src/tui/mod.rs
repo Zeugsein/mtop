@@ -255,6 +255,14 @@ fn draw_power_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppS
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    if !s.power.available {
+        f.render_widget(
+            Paragraph::new("Power sensors: N/A").style(Style::default().fg(Color::DarkGray)),
+            inner,
+        );
+        return;
+    }
+
     let items = [
         ("CPU ", &state.history.cpu_power, s.power.cpu_w),
         ("GPU ", &state.history.gpu_power, s.power.gpu_w),
@@ -308,13 +316,16 @@ fn draw_temp_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppSt
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let (cpu_t, gpu_t, unit) = if state.temp_unit == "fahrenheit" {
-        (s.temperature.cpu_avg_c * 9.0 / 5.0 + 32.0, s.temperature.gpu_avg_c * 9.0 / 5.0 + 32.0, "°F")
+    let text = if !s.temperature.available {
+        "CPU avg: N/A    GPU avg: N/A".to_string()
     } else {
-        (s.temperature.cpu_avg_c, s.temperature.gpu_avg_c, "°C")
+        let (cpu_t, gpu_t, unit) = if state.temp_unit == "fahrenheit" {
+            (s.temperature.cpu_avg_c * 9.0 / 5.0 + 32.0, s.temperature.gpu_avg_c * 9.0 / 5.0 + 32.0, "°F")
+        } else {
+            (s.temperature.cpu_avg_c, s.temperature.gpu_avg_c, "°C")
+        };
+        format!("CPU avg: {:.0}{unit}    GPU avg: {:.0}{unit}", cpu_t, gpu_t)
     };
-
-    let text = format!("CPU avg: {:.0}{unit}    GPU avg: {:.0}{unit}", cpu_t, gpu_t);
     f.render_widget(
         Paragraph::new(text).style(Style::default().fg(Color::White)),
         inner,
