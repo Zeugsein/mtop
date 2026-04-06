@@ -36,7 +36,9 @@ impl DiskState {
     }
 }
 
-/// Read total disk bytes read/written via IOKit IOBlockStorageDriver
+/// Read total disk bytes read/written via IOKit IOBlockStorageDriver.
+/// Uses IORegistryEntryCreateCFProperty (singular) to get fresh Statistics
+/// on each call, avoiding the caching behavior of CreateCFProperties.
 fn read_disk_bytes() -> (u64, u64) {
     unsafe {
         let mut total_read: u64 = 0;
@@ -53,42 +55,36 @@ fn read_disk_bytes() -> (u64, u64) {
             return (0, 0);
         }
 
+        let stats_key = cfstring_from_static(b"Statistics\0");
+        let read_key = cfstring_from_static(b"Bytes (Read)\0");
+        let write_key = cfstring_from_static(b"Bytes (Write)\0");
+
         loop {
             let service = IOIteratorNext(iter);
             if service == 0 {
                 break;
             }
 
-            let mut props: CFMutableDictionaryRef = std::ptr::null_mut();
-            let kr = IORegistryEntryCreateCFProperties(
+            // Use CreateCFProperty (singular) which reads the property fresh
+            let stats = IORegistryEntryCreateCFProperty(
                 service,
-                &mut props,
+                stats_key,
                 std::ptr::null(),
                 0,
             );
 
-            if kr == 0 && !props.is_null() {
-                let stats_key = cfstring_from_static(b"Statistics\0");
-                let stats = CFDictionaryGetValue(props as CFDictionaryRef, stats_key as *const _);
-
-                if !stats.is_null() {
-                    let read_key = cfstring_from_static(b"Bytes (Read)\0");
-                    let write_key = cfstring_from_static(b"Bytes (Write)\0");
-
-                    total_read += cf_number_value(CFDictionaryGetValue(stats as CFDictionaryRef, read_key as *const _));
-                    total_write += cf_number_value(CFDictionaryGetValue(stats as CFDictionaryRef, write_key as *const _));
-
-                    CFRelease(read_key as *const _);
-                    CFRelease(write_key as *const _);
-                }
-
-                CFRelease(stats_key as *const _);
-                CFRelease(props as *const _);
+            if !stats.is_null() {
+                total_read += cf_number_value(CFDictionaryGetValue(stats as CFDictionaryRef, read_key as *const _));
+                total_write += cf_number_value(CFDictionaryGetValue(stats as CFDictionaryRef, write_key as *const _));
+                CFRelease(stats as *const _);
             }
 
             IOObjectRelease(service);
         }
 
+        CFRelease(stats_key as *const _);
+        CFRelease(read_key as *const _);
+        CFRelease(write_key as *const _);
         IOObjectRelease(iter);
 
         (total_read, total_write)
@@ -134,12 +130,12 @@ unsafe extern "C" {
     ) -> i32;
     fn IOIteratorNext(iterator: u32) -> u32;
     fn IOObjectRelease(object: u32) -> i32;
-    fn IORegistryEntryCreateCFProperties(
+    fn IORegistryEntryCreateCFProperty(
         entry: u32,
-        properties: *mut CFMutableDictionaryRef,
+        key: CFStringRef,
         allocator: CFAllocatorRef,
         options: u32,
-    ) -> i32;
+    ) -> *const libc::c_void;
 
     fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void) -> *const libc::c_void;
     fn CFStringCreateWithCString(
