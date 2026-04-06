@@ -6,10 +6,7 @@
 /// implementation and should be un-ignored once the feature is implemented.
 
 // Bring public API into scope via the crate lib root
-use mtop::metrics::types::{
-    CpuMetrics, DiskMetrics, GpuMetrics, MemoryMetrics, MetricsHistory, MetricsSnapshot,
-    NetworkMetrics, PowerMetrics, SocInfo, ThermalMetrics,
-};
+use mtop::metrics::types::{MetricsHistory, MetricsSnapshot};
 use mtop::metrics::Sampler;
 
 // ---------------------------------------------------------------------------

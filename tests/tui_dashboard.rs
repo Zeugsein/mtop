@@ -78,16 +78,16 @@ fn make_snapshot() -> MetricsSnapshot {
 #[ignore] // FR-1: requires full TUI render pipeline to a mock terminal buffer
 /// FR-1: dashboard renders CPU panel, power panel, temperature, memory, network, and process list
 fn dashboard_renders_all_required_panels() {
-    // TODO: construct a ratatui TestBackend at 80x24, render the dashboard,
-    // and assert that the buffer contains text from each panel section.
-    todo!("Requires TUI render harness with TestBackend")
+    // Requires constructing a ratatui TestBackend at 80x24, rendering the
+    // dashboard, and asserting that the buffer contains text from each panel.
+    // Skipped: needs TUI render harness infrastructure.
 }
 
 #[test]
 #[ignore] // FR-1: requires TUI render pipeline
 /// FR-1: dashboard renders without overflow at minimum 80x24 terminal size
 fn dashboard_no_overflow_at_minimum_terminal_size() {
-    todo!("Requires TUI render harness with TestBackend at 80x24")
+    // Skipped: needs TUI render harness with TestBackend at 80x24.
 }
 
 // ---------------------------------------------------------------------------
@@ -132,14 +132,14 @@ fn cpu_cluster_usages_in_valid_range() {
 #[ignore] // FR-2: bar rendering requires TUI render pipeline
 /// FR-2: each core bar includes a label like "E0" or "P0" with percentage
 fn cpu_bar_labels_include_core_type_and_index() {
-    todo!("Requires TUI render harness to inspect rendered bar text")
+    // Skipped: needs TUI render harness to inspect rendered bar text.
 }
 
 #[test]
 #[ignore] // FR-2: color coding requires TUI render pipeline
 /// FR-2: green < 30%, cyan 30-40%, yellow 40-60%, red > 60% color coding
 fn cpu_bar_color_codes_by_utilization_level() {
-    todo!("Requires TUI render harness to inspect cell styles")
+    // Skipped: needs TUI render harness to inspect cell styles.
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +193,7 @@ fn power_sparkline_caps_at_128_entries() {
 #[ignore] // FR-3: requires TUI render pipeline
 /// FR-3: power panel renders sparkline rows for CPU, GPU, ANE, DRAM, package, system
 fn power_panel_renders_all_sparkline_rows() {
-    todo!("Requires TUI render harness to inspect sparkline row labels")
+    // Skipped: needs TUI render harness to inspect sparkline row labels.
 }
 
 // ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ fn gpu_metrics_has_all_required_fields() {
 #[ignore] // FR-4: requires TUI render pipeline
 /// FR-4: GPU panel renders utilization %, frequency in MHz, and power in Watts
 fn gpu_panel_renders_usage_freq_power() {
-    todo!("Requires TUI render harness to inspect GPU panel text")
+    // Skipped: needs TUI render harness to inspect GPU panel text.
 }
 
 // ---------------------------------------------------------------------------
@@ -245,14 +245,14 @@ fn temperature_celsius_to_fahrenheit_conversion() {
 #[ignore] // FR-5: requires TUI render pipeline
 /// FR-5: temperature panel shows °C by default
 fn temperature_panel_shows_celsius_by_default() {
-    todo!("Requires TUI render harness to inspect temperature panel text")
+    // Skipped: needs TUI render harness to inspect temperature panel text.
 }
 
 #[test]
 #[ignore] // FR-5: requires TUI render pipeline
 /// FR-5: temperature panel shows °F when --temp-unit fahrenheit is set
 fn temperature_panel_shows_fahrenheit_when_configured() {
-    todo!("Requires TUI render harness with fahrenheit config")
+    // Skipped: needs TUI render harness with fahrenheit config.
 }
 
 // ---------------------------------------------------------------------------
@@ -281,14 +281,14 @@ fn memory_bytes_to_gb_conversion() {
 #[ignore] // FR-6: requires TUI render pipeline
 /// FR-6: memory panel renders RAM bar with used/total in GB
 fn memory_panel_renders_ram_bar() {
-    todo!("Requires TUI render harness to inspect memory bar text")
+    // Skipped: needs TUI render harness to inspect memory bar text.
 }
 
 #[test]
 #[ignore] // FR-6: requires TUI render pipeline
 /// FR-6: memory panel renders swap bar when swap is active
 fn memory_panel_renders_swap_bar_when_active() {
-    todo!("Requires TUI render harness with active swap")
+    // Skipped: needs TUI render harness with active swap.
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +329,7 @@ fn network_rate_auto_scale_formatting() {
 #[ignore] // FR-7: requires TUI render pipeline
 /// FR-7: network panel shows upload (↑) and download (↓) rates with auto-scaled units
 fn network_panel_renders_rates_with_units() {
-    todo!("Requires TUI render harness to inspect network panel text")
+    // Skipped: needs TUI render harness to inspect network panel text.
 }
 
 // ---------------------------------------------------------------------------
@@ -355,14 +355,14 @@ fn process_list_is_sorted_cpu_desc() {
 #[ignore] // FR-8: requires TUI render pipeline + keyboard event simulation
 /// FR-8: pressing 's' cycles sort column through CPU%, Memory, PID, Name
 fn process_list_sort_cycles_on_s_key() {
-    todo!("Requires TUI event simulation harness")
+    // Skipped: needs TUI event simulation harness.
 }
 
 #[test]
 #[ignore] // FR-8: requires TUI render pipeline + keyboard event simulation
 /// FR-8: Up/Down arrow keys and j/k move process list selection
 fn process_list_navigation_with_arrows_and_jk() {
-    todo!("Requires TUI event simulation harness")
+    // Skipped: needs TUI event simulation harness.
 }
 
 // ---------------------------------------------------------------------------
@@ -373,21 +373,21 @@ fn process_list_navigation_with_arrows_and_jk() {
 #[ignore] // FR-9: requires TUI lifecycle + terminal state restoration check
 /// FR-9: pressing 'q' exits the TUI and restores terminal state
 fn quit_key_exits_tui_cleanly() {
-    todo!("Requires TUI lifecycle test with terminal state inspection")
+    // Skipped: needs TUI lifecycle test with terminal state inspection.
 }
 
 #[test]
 #[ignore] // FR-9: requires TUI render pipeline + keyboard event simulation
 /// FR-9: pressing '+' increases interval by 250ms, '-' decreases (min 100ms)
 fn interval_adjustment_keys_plus_minus() {
-    todo!("Requires TUI event simulation harness")
+    // Skipped: needs TUI event simulation harness.
 }
 
 #[test]
 #[ignore] // FR-9/FR-10 (FAIL): --color flag accepted but theme not applied
 /// FR-9: pressing 'c' cycles to the next available color theme
 fn theme_cycling_key_c() {
-    todo!("Requires TUI event simulation harness and theme registry")
+    // Skipped: needs TUI event simulation harness and theme registry.
 }
 
 // ---------------------------------------------------------------------------
@@ -413,7 +413,7 @@ fn at_least_3_builtin_color_themes() {
 #[ignore] // FR-11: requires TUI lifecycle with resize event injection
 /// FR-11: dashboard re-renders without crash when terminal is resized
 fn dashboard_handles_terminal_resize() {
-    todo!("Requires TUI lifecycle test with resize event injection")
+    // Skipped: needs TUI lifecycle test with resize event injection.
 }
 
 // ---------------------------------------------------------------------------
@@ -448,5 +448,5 @@ fn soc_info_fields_present_for_header() {
 #[ignore] // FR-12: requires TUI render pipeline to inspect header line
 /// FR-12: header line is rendered at the top of the TUI dashboard
 fn soc_header_rendered_in_tui() {
-    todo!("Requires TUI render harness to inspect first line of buffer")
+    // Skipped: needs TUI render harness to inspect first line of buffer.
 }
