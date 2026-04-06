@@ -5,6 +5,7 @@ pub struct Sampler {
     soc: SocInfo,
     cpu_ticks: Vec<(u64, u64)>,
     net_state: platform::network::NetworkState,
+    disk_state: platform::disk::DiskState,
 }
 
 impl Sampler {
@@ -14,6 +15,7 @@ impl Sampler {
             soc,
             cpu_ticks: Vec::new(),
             net_state: platform::network::NetworkState::new(),
+            disk_state: platform::disk::DiskState::new(),
         })
     }
 
@@ -46,7 +48,7 @@ impl Sampler {
             temperature,
             memory,
             network,
-            disk: DiskMetrics::default(), // TODO: implement disk I/O
+            disk: self.disk_state.collect(),
             processes,
         })
     }
