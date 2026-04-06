@@ -203,5 +203,6 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
         dram_w,
         package_w,
         system_w,
+        available: true,
     })
 }

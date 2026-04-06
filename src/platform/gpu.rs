@@ -185,6 +185,7 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
         freq_mhz,
         usage,
         power_w: 0.0,
+        available: true,
     })
 }
 

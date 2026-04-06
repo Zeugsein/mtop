@@ -62,6 +62,7 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
     Some(ThermalMetrics {
         cpu_avg_c: cpu_avg,
         gpu_avg_c: gpu_avg,
+        available: true,
     })
 }
 
