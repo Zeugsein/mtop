@@ -82,3 +82,19 @@ mtop SHALL support a `debug` subcommand that prints raw diagnostic information a
 - **WHEN** the user runs `mtop debug`
 - **THEN** stdout SHALL print chip detection info, available SMC keys, IOReport channel names, and sensor availability
 
+### Requirement: Debug subcommand sensor enumeration
+The debug subcommand SHALL enumerate available SMC keys and IOReport channel names to aid in diagnosing sensor availability and naming on different hardware.
+
+> Reference: tech-spec/smc.md — SMC key enumeration via SEARCH_KEY; tech-spec/ioreport.md — IOReportCopyChannelsInGroup for channel discovery
+
+#### Scenario: SMC key listing
+- **WHEN** the user runs `mtop debug` on a system with SMC access
+- **THEN** the output SHALL include a list of discovered SMC temperature keys (e.g., TC0P, TG0P) with their current values
+
+#### Scenario: IOReport channel listing
+- **WHEN** the user runs `mtop debug` on an Apple Silicon Mac
+- **THEN** the output SHALL include IOReport channel group names and subgroup names for "Energy Model" and "GPU Performance States"
+
+#### Scenario: Debug on unsupported hardware
+- **WHEN** the user runs `mtop debug` on a system without SMC or IOReport
+- **THEN** the output SHALL indicate which sensors are unavailable rather than crashing
