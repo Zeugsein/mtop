@@ -35,15 +35,16 @@ impl Sampler {
         std::thread::sleep(std::time::Duration::from_millis(interval as u64));
 
         let mut cpu = platform::cpu::collect_cpu(self.host_port, &mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
-        let gpu = platform::gpu::collect_gpu();
+        let mut gpu = platform::gpu::collect_gpu();
         let power = platform::power::collect_power();
         let temperature = platform::temperature::collect_temperature();
         let memory = platform::memory::collect_memory(self.host_port);
         let network = self.net_state.collect();
         let processes = platform::process::collect_processes(&mut self.proc_cpu_state);
 
-        // Cross-reference: CPU power from power module
+        // Cross-reference: CPU and GPU power from power module
         cpu.power_w = power.cpu_w;
+        gpu.power_w = power.gpu_w;
 
         // CPU frequencies from sysctl (perflevel nominal frequencies as fallback)
         if cpu.e_cluster.freq_mhz == 0 {
