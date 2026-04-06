@@ -2,7 +2,7 @@
 
 mtop is a greenfield macOS system monitor targeting Apple Silicon. It collects hardware metrics (CPU, GPU, power, temperature, memory, network, disk) without sudo and presents them via three modes: TUI dashboard, JSON pipe, and HTTP API. This is the MVP — first working version with core functionality.
 
-The project uses a cleanroom development methodology. All implementation derives from these formal specs, not from any reference project source code.
+All implementation derives from these formal specs.
 
 ## Goals / Non-Goals
 
@@ -38,7 +38,7 @@ The project uses a cleanroom development methodology. All implementation derives
 
 ### D3: Threading — collection thread + presentation thread
 **Choice**: Dedicated collection thread updates shared store at interval. TUI runs in main thread. HTTP server spawns its own thread.
-**Rationale**: Decouples collection latency from rendering. If a sensor is slow, the TUI doesn't freeze. Simpler than per-source threads (macpow approach) for MVP.
+**Rationale**: Decouples collection latency from rendering. If a sensor is slow, the TUI doesn't freeze. Simpler than per-source threads for MVP.
 
 ### D4: macOS API strategy — IOReport + SMC + Mach
 **Choice**: Three primary data sources via FFI:
