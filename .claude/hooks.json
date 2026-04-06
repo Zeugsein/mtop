@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "TaskUpdate",
+        "command": "bash guard/scripts/gate-check.sh"
+      }
+    ]
+  }
+}
