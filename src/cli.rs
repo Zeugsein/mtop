@@ -40,7 +40,7 @@ pub enum Command {
     Pipe {
         /// Number of samples (0 = infinite)
         #[arg(short, long, default_value_t = 0)]
-        samples: u32,
+        samples: u64,
     },
 
     /// Start HTTP API server

@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Some(Command::Pipe { samples }) => {
             let mut sampler = Sampler::new()?;
-            let mut count = 0u32;
+            let mut count = 0u64;
 
             loop {
                 let snapshot = sampler.sample(args.interval)?;
