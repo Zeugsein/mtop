@@ -37,7 +37,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             loop {
                 match sampler.sample(args.interval) {
-                    Ok(s) => *shared.write().unwrap() = Some(s),
+                    Ok(s) => {
+                        if let Ok(mut guard) = shared.write() {
+                            *guard = Some(s);
+                        } else {
+                            eprintln!("metrics lock poisoned, skipping update");
+                        }
+                    }
                     Err(e) => eprintln!("sampling error: {e}"),
                 }
             }
