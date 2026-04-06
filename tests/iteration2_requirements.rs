@@ -1,9 +1,7 @@
 /// Tests for iteration 2 bug-fix requirements (C1, C2, H1-H5, M1-M8).
 /// Each test cites the spec requirement it validates.
 ///
-/// Tests for bugs that have NOT been fixed yet are marked #[ignore] with a
-/// comment indicating the requirement and expected fix. The executor will
-/// fix the code in phase 5c, then these tests should be un-ignored.
+/// All bugs have been fixed in phase 5c. Tests validate the fixes.
 
 // ---------------------------------------------------------------------------
 // C1: Process CPU% delta-based calculation
@@ -12,7 +10,6 @@
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [C1] — process.rs currently uses pti_numrunning heuristic
 /// Validates: metrics-collection [C1] - process CPU% delta calculation
 /// The process collector must NOT use pti_numrunning as CPU utilization.
 /// After fix, Sampler should store per-PID (mach_time, Instant) state and
@@ -38,7 +35,6 @@ fn process_cpu_delta_first_sample_reports_zero() {
 }
 
 #[test]
-#[ignore] // TODO: enable after bug fix [C1] — process.rs currently uses pti_numrunning heuristic
 /// Validates: metrics-collection [C1] - second sample produces non-zero CPU% for active processes
 fn process_cpu_delta_second_sample_has_nonzero_for_active() {
     // C1 spec: "WHEN a process consumes 50% of one core steadily across two
@@ -59,7 +55,6 @@ fn process_cpu_delta_second_sample_has_nonzero_for_active() {
 }
 
 #[test]
-#[ignore] // TODO: enable after bug fix [C1] — stale PID cleanup not implemented
 /// Validates: metrics-collection [C1] - stale PID cleanup prevents unbounded memory growth
 fn process_cpu_delta_stale_pid_cleanup() {
     // C1 spec: "WHEN a tracked PID no longer appears in the current process list,
@@ -84,7 +79,6 @@ fn process_cpu_delta_stale_pid_cleanup() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [C2] — disk.rs still has trigger_io() that writes probe files
 /// Validates: metrics-collection [C2] - disk I/O collection is read-only
 /// The disk collector must NOT create, write, or sync any files as part of measurement.
 /// Currently disk.rs contains trigger_io() which writes a probe file — this is the bug.
@@ -113,7 +107,6 @@ fn disk_io_collection_does_not_write_probe_files() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [H3] — power.rs uses hardcoded duration_ms = 100.0
 /// Validates: metrics-collection [H3] - power calculation uses measured elapsed time
 /// The power module must use Instant::now() delta, not hardcoded 100.0ms.
 /// This is a code-level requirement — the test validates behavior indirectly
@@ -139,7 +132,6 @@ fn power_calculation_uses_measured_elapsed_time() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [H5] — serve/mod.rs has no connection limit
 /// Validates: api-server [H5] - HTTP server limits concurrent connections to 64
 /// The server must not spawn unbounded threads. Currently serve/mod.rs spawns
 /// a thread per connection with no limit.
@@ -209,7 +201,6 @@ fn http_server_limits_concurrent_connections() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M1] — memory.rs has _padding instead of xsu_pagesize
 /// Validates: metrics-collection [M1] - XswUsage struct size is 32 bytes
 /// The XswUsage struct must be exactly 32 bytes to match Apple's xsw_usage.
 /// Fields: xsu_total(u64) + xsu_avail(u64) + xsu_used(u64) + xsu_encrypted(i32) + xsu_pagesize(i32) = 32 bytes
@@ -238,7 +229,6 @@ fn xsw_usage_struct_is_32_bytes() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M2] — memory.rs VmStatistics64 missing swapped_count field
 /// Validates: metrics-collection [M2] - VmStatistics64 struct size is 160 bytes
 /// The struct must include swapped_count at offset 152, making total size 160 bytes.
 /// Currently the struct is missing this field.
@@ -267,7 +257,6 @@ fn vm_statistics64_struct_produces_valid_memory_metrics() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M3] — types.rs uses Vec::remove(0) which is O(n)
 /// Validates: metrics-collection [M3] - MetricsHistory uses VecDeque for O(1) operations
 /// After fix, the history buffer fields should be VecDeque<f64>, not Vec<f64>.
 /// Vec::remove(0) is O(n) and shifts all elements; VecDeque::pop_front() is O(1).
@@ -298,7 +287,6 @@ fn metrics_history_uses_efficient_data_structure() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M6] — serve/mod.rs has no label escaping
 /// Validates: api-server [M6] - backslash in label value is escaped to double backslash
 fn prometheus_label_escapes_backslash() {
     // After fix, a chip name like "Apple\M4" should render as chip="Apple\\M4"
@@ -344,7 +332,6 @@ fn prometheus_label_escapes_backslash() {
 }
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M6] — serve/mod.rs has no label escaping
 /// Validates: api-server [M6] - double-quote in label value is escaped
 fn prometheus_label_escapes_double_quote() {
     use std::io::{Read, Write};
@@ -388,7 +375,6 @@ fn prometheus_label_escapes_double_quote() {
 }
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M6] — serve/mod.rs has no label escaping
 /// Validates: api-server [M6] - newline in label value is escaped to backslash-n
 fn prometheus_label_escapes_newline() {
     use std::io::{Read, Write};
@@ -482,7 +468,6 @@ fn prometheus_label_normal_values_unchanged() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // TODO: enable after bug fix [M8] — gpu.rs hardcodes power_w: 0.0
 /// Validates: metrics-collection [M8] - GPU power_w is wired from power collector
 /// When power collector reports GPU power, GpuMetrics.power_w must reflect it.
 /// Currently gpu.rs:183 hardcodes `power_w: 0.0`.
