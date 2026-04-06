@@ -1,11 +1,10 @@
 use crate::metrics::CpuMetrics;
 
 /// Read per-CPU utilization ticks via Mach host_processor_info
-pub fn collect_cpu(prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p_cores: u32) -> CpuMetrics {
+pub fn collect_cpu(host: u32, prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p_cores: u32) -> CpuMetrics {
     let mut metrics = CpuMetrics::default();
 
     unsafe {
-        let host = mach_host_self();
         let mut count: u32 = 0;
         let mut info: *mut i32 = std::ptr::null_mut();
         let mut msg_count: u32 = 0;
@@ -180,6 +179,5 @@ unsafe extern "C" {
         out_info: *mut *mut u8,
         out_info_count: *mut u32,
     ) -> i32;
-    fn mach_host_self() -> u32;
     fn mach_task_self() -> u32;
 }
