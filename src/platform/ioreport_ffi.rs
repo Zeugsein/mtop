@@ -16,6 +16,7 @@ pub type FnSimpleGetIntegerValue = unsafe extern "C" fn(CFDictionaryRef, *mut i3
 pub type FnStateGetCount = unsafe extern "C" fn(CFDictionaryRef) -> i32;
 pub type FnStateGetResidency = unsafe extern "C" fn(CFDictionaryRef, i32) -> u64;
 pub type FnStateGetNameForIndex = unsafe extern "C" fn(CFDictionaryRef, i32) -> CFStringRef;
+pub type FnChannelGetUnitLabel = unsafe extern "C" fn(CFDictionaryRef) -> CFStringRef;
 
 pub struct IOReportFns {
     pub copy_channels: FnCopyChannelsInGroup,
@@ -27,6 +28,7 @@ pub struct IOReportFns {
     pub state_get_count: FnStateGetCount,
     pub state_get_residency: FnStateGetResidency,
     pub state_get_name_for_index: FnStateGetNameForIndex,
+    pub channel_get_unit_label: FnChannelGetUnitLabel,
 }
 
 // SAFETY: IOReportFns only holds function pointers from a shared library,
@@ -77,6 +79,7 @@ fn load_ioreport() -> Option<IOReportFns> {
             state_get_count: sym!(b"IOReportStateGetCount\0", FnStateGetCount),
             state_get_residency: sym!(b"IOReportStateGetResidency\0", FnStateGetResidency),
             state_get_name_for_index: sym!(b"IOReportStateGetNameForIndex\0", FnStateGetNameForIndex),
+            channel_get_unit_label: sym!(b"IOReportChannelGetUnitLabel\0", FnChannelGetUnitLabel),
         })
     }
 }
