@@ -85,7 +85,7 @@ struct XswUsage {
     xsu_avail: u64,
     xsu_used: u64,
     xsu_encrypted: i32,
-    _padding: i32,
+    xsu_pagesize: i32,
 }
 
 #[repr(C)]
