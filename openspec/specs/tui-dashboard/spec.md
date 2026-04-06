@@ -39,9 +39,22 @@ The TUI SHALL display power metrics as sparkline history charts showing current,
 ### Requirement: GPU gauge display
 The TUI SHALL display GPU utilization as a gauge or bar with percentage and frequency in MHz, plus power draw in Watts.
 
+> Note: GPU frequency derives from IOReport state names (tech-spec/ioreport.md), not hardcoded estimates. GPU power derives from the power collector's gpu_w value.
+
 #### Scenario: GPU panel rendering
 - **WHEN** GPU metrics are available
 - **THEN** the TUI SHALL show GPU utilization %, frequency in MHz, and power in Watts
+
+### Requirement: GPU power display accuracy
+The GPU power display SHALL show actual measured power from the power collector, not a hardcoded 0.0 value.
+
+#### Scenario: GPU power rendering with active GPU
+- **WHEN** the power collector reports GPU power of 3.5W
+- **THEN** the TUI GPU panel SHALL display approximately 3.5W for power, not 0.0W
+
+#### Scenario: GPU power rendering with idle GPU
+- **WHEN** the GPU is fully idle and power is 0.0W
+- **THEN** the TUI GPU panel SHALL display 0.0W (the genuine measured value)
 
 ### Requirement: Temperature display
 The TUI SHALL display CPU average and GPU average temperatures in the configured unit (Celsius or Fahrenheit).
@@ -62,7 +75,7 @@ The TUI SHALL display current network upload and download rates with appropriate
 
 #### Scenario: Network panel rendering
 - **WHEN** network metrics are available
-- **THEN** the TUI SHALL show upload rate (↑) and download rate (↓) in auto-scaled units (B/s, KB/s, MB/s, GB/s)
+- **THEN** the TUI SHALL show upload rate (up arrow) and download rate (down arrow) in auto-scaled units (B/s, KB/s, MB/s, GB/s)
 
 ### Requirement: Process list table
 The TUI SHALL display a sortable table of running processes showing PID, name, CPU %, memory, and user columns.
@@ -114,4 +127,3 @@ The TUI SHALL display a header line showing the chip model name, core configurat
 #### Scenario: Header rendering
 - **WHEN** the TUI starts
 - **THEN** the header SHALL show e.g., "mtop — Apple M4 Pro — 10C (4E+6P) / 16GPU — 24GB"
-

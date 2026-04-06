@@ -58,3 +58,33 @@ The HTTP server SHALL return HTTP 404 for any path other than `/json` and `/metr
 - **WHEN** a client sends `GET /foo`
 - **THEN** the server SHALL respond with HTTP 404
 
+### Requirement: HTTP connection limit [H5]
+The HTTP server SHALL limit concurrent connections to a maximum of 64. Connections beyond the limit SHALL be rejected or queued, not spawn unbounded threads.
+
+#### Scenario: Connection limit enforcement
+- **WHEN** 64 clients are connected simultaneously and a 65th client attempts to connect
+- **THEN** the server SHALL either reject the connection with an appropriate error or queue it until a slot is available, not spawn a 65th handler thread
+
+#### Scenario: Normal operation under limit
+- **WHEN** fewer than 64 clients are connected
+- **THEN** each connection SHALL be handled normally with no artificial delay
+
+### Requirement: Prometheus label value escaping [M6]
+Prometheus label values SHALL escape backslash, double-quote, and newline characters per the Prometheus exposition format specification.
+
+> Reference: tech-spec/prometheus.md — "Label Rules" section; escape_label_value: replace \ with \\, " with \", newline with \n
+
+#### Scenario: Label value with special characters
+- **WHEN** a label value contains a backslash, double-quote, or newline
+- **THEN** the output SHALL contain the escaped form (\\, \", \n) in the label value string
+
+#### Scenario: Normal label values
+- **WHEN** label values contain only alphanumeric characters and common symbols
+- **THEN** the values SHALL be output unchanged (escaping has no effect)
+
+### Requirement: Pipe mode sample counter overflow safety
+The pipe mode sample counter SHALL use u64 to prevent overflow. At 1 sample/second, u64 provides over 584 billion years of operation.
+
+#### Scenario: Long-running pipe session
+- **WHEN** the pipe mode has emitted more than 2^32 samples
+- **THEN** the sample counter SHALL continue incrementing correctly without overflow or wrap-around
