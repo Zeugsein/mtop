@@ -86,7 +86,7 @@ fn cpu_cluster_split_matches_soc_e_cores() {
 }
 
 #[test]
-#[ignore] // FR-1 (PARTIAL): CPU power requires IOReport — stub returns 0
+#[ignore] // FR-1: CPU power requires IOReport — returns 0 in VMs without IOReport
 /// FR-1: CPU power draw in Watts is reported (non-zero on loaded Apple Silicon)
 fn cpu_power_is_nonzero_on_apple_silicon() {
     let mut sampler = Sampler::new().expect("sampler init");
@@ -100,7 +100,6 @@ fn cpu_power_is_nonzero_on_apple_silicon() {
 }
 
 #[test]
-#[ignore] // FR-1 (PARTIAL): cluster frequency requires IOReport — stub returns 0
 /// FR-1: e_cluster and p_cluster frequencies are non-zero on Apple Silicon
 fn cpu_cluster_freq_nonzero_on_apple_silicon() {
     let mut sampler = Sampler::new().expect("sampler init");

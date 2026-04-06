@@ -87,6 +87,83 @@ pub fn collect_cpu(prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p_cores: u32
     metrics
 }
 
+/// Read CPU frequency from sysctl for a given perflevel (0=P-cores, 1=E-cores).
+/// Returns the nominal frequency in MHz, or 0 if unavailable.
+pub fn sysctl_cpu_freq(perflevel: u32) -> u32 {
+    let name = format!("hw.perflevel{}.cpuspeeds", perflevel);
+    let cname = match std::ffi::CString::new(name) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+
+    // Try cpuspeeds first (array of frequencies)
+    let mut val: u64 = 0;
+    let mut size = std::mem::size_of::<u64>() as libc::size_t;
+    let ret = unsafe {
+        libc::sysctlbyname(
+            cname.as_ptr(),
+            &mut val as *mut u64 as *mut libc::c_void,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if ret == 0 && val > 0 {
+        return (val / 1_000_000) as u32; // Hz to MHz
+    }
+
+    // Fallback: try hw.cpufrequency
+    let fallback = std::ffi::CString::new("hw.cpufrequency").unwrap_or_default();
+    let mut freq: u64 = 0;
+    let mut fsize = std::mem::size_of::<u64>() as libc::size_t;
+    let ret = unsafe {
+        libc::sysctlbyname(
+            fallback.as_ptr(),
+            &mut freq as *mut u64 as *mut libc::c_void,
+            &mut fsize,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if ret == 0 && freq > 0 {
+        return (freq / 1_000_000) as u32;
+    }
+
+    // Last fallback: estimate from chip name
+    let chip_name = std::ffi::CString::new("machdep.cpu.brand_string").unwrap_or_default();
+    let mut size: libc::size_t = 0;
+    unsafe {
+        libc::sysctlbyname(chip_name.as_ptr(), std::ptr::null_mut(), &mut size, std::ptr::null_mut(), 0);
+        if size > 0 {
+            let mut buf = vec![0u8; size];
+            libc::sysctlbyname(
+                chip_name.as_ptr(),
+                buf.as_mut_ptr() as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            );
+            let name = String::from_utf8_lossy(&buf).to_lowercase();
+            // Estimate nominal frequencies for known Apple Silicon chips
+            if perflevel == 0 {
+                // P-cores
+                if name.contains("m4") { return 4400; }
+                if name.contains("m3") { return 4050; }
+                if name.contains("m2") { return 3490; }
+                if name.contains("m1") { return 3200; }
+            } else {
+                // E-cores
+                if name.contains("m4") { return 2800; }
+                if name.contains("m3") { return 2750; }
+                if name.contains("m2") { return 2420; }
+                if name.contains("m1") { return 2064; }
+            }
+        }
+    }
+
+    0
+}
+
 // Mach API constants and extern
 const PROCESSOR_CPU_LOAD_INFO: i32 = 2;
 const CPU_STATE_USER: i32 = 0;
