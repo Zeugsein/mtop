@@ -31,8 +31,8 @@ jobs:
 
       - name: Contamination check
         run: |
-          echo "Checking for AI contamination markers..."
-          ! grep -r "TODO.*implement" src/ --include="*.rs" || true
-          ! grep -r "placeholder" src/ --include="*.rs" -i || true
-          ! grep -r "stub" src/ --include="*.rs" -i || true
-          echo "Contamination check complete"
+          if [ -f guard/forbidden-patterns.txt ]; then
+            guard/scripts/grep-forbidden.sh src/ guard/forbidden-patterns.txt
+          else
+            echo "No forbidden-patterns.txt found, skipping contamination check"
+          fi
