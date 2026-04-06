@@ -6,6 +6,7 @@ pub struct Sampler {
     cpu_ticks: Vec<(u64, u64)>,
     net_state: platform::network::NetworkState,
     disk_state: platform::disk::DiskState,
+    proc_cpu_state: platform::process::ProcessCpuState,
 }
 
 impl Sampler {
@@ -16,6 +17,7 @@ impl Sampler {
             cpu_ticks: Vec::new(),
             net_state: platform::network::NetworkState::new(),
             disk_state: platform::disk::DiskState::new(),
+            proc_cpu_state: platform::process::ProcessCpuState::new(),
         })
     }
 
@@ -35,7 +37,7 @@ impl Sampler {
         let temperature = platform::temperature::collect_temperature();
         let memory = platform::memory::collect_memory();
         let network = self.net_state.collect();
-        let processes = platform::process::collect_processes();
+        let processes = platform::process::collect_processes(&mut self.proc_cpu_state);
 
         // Cross-reference: CPU power from power module
         cpu.power_w = power.cpu_w;
