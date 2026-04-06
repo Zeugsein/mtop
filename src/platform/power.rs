@@ -126,11 +126,11 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
         return None;
     }
 
-    let mut cpu_energy: i64 = 0;
-    let mut gpu_energy: i64 = 0;
-    let mut ane_energy: i64 = 0;
-    let mut dram_energy: i64 = 0;
-    let mut last_unit = "nJ".to_string();
+    // Accumulate energy in joules (converted per-channel using each channel's unit label)
+    let mut cpu_joules: f64 = 0.0;
+    let mut gpu_joules: f64 = 0.0;
+    let mut ane_joules: f64 = 0.0;
+    let mut dram_joules: f64 = 0.0;
 
     for i in 0..count {
         let item = unsafe { ioreport_ffi::CFArrayGetValueAtIndex(items as CFArrayRef, i) };
@@ -147,55 +147,46 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
         let mut err: i32 = 0;
         let value = unsafe { (fns.simple_get_integer_value)(item, &mut err) };
 
-        if err != 0 {
+        if err != 0 || value <= 0 {
             continue;
         }
 
-        if name_str.ends_with("CPU Energy") {
-            cpu_energy += value;
-        } else if name_str == "GPU Energy" {
-            gpu_energy += value;
-        } else if name_str.starts_with("ANE") {
-            ane_energy += value;
-        } else if name_str.starts_with("DRAM") {
-            dram_energy += value;
-        } else {
-            continue;
-        }
-
-        // Read unit label dynamically for this channel
+        // Read unit label dynamically for THIS channel
         let unit_cf = unsafe { (fns.channel_get_unit_label)(item) };
         let unit_str = if !unit_cf.is_null() {
             unsafe { ioreport_ffi::cfstring_to_string(unit_cf) }
-            // Do NOT CFRelease unit_cf — it is a borrowed reference (Get rule)
+            // Do NOT CFRelease unit_cf — borrowed reference (Get rule)
         } else {
-            "nJ".to_string() // default fallback
+            String::new()
         };
 
-        // Track unit per-channel; store for conversion below
-        // For simplicity, use last-seen unit (all channels in Energy Model use same unit)
-        last_unit = unit_str;
+        // Convert to joules using this channel's unit
+        let joules = match unit_str.as_str() {
+            "uJ" => value as f64 / 1e6,
+            "mJ" => value as f64 / 1e3,
+            _ => value as f64 / 1e9, // nJ default
+        };
+
+        if name_str.ends_with("CPU Energy") {
+            cpu_joules += joules;
+        } else if name_str == "GPU Energy" {
+            gpu_joules += joules;
+        } else if name_str.starts_with("ANE") {
+            ane_joules += joules;
+        } else if name_str.starts_with("DRAM") {
+            dram_joules += joules;
+        }
     }
 
     let duration_s = duration_ms / 1000.0;
     if duration_s < 1e-6 {
         return Some(PowerMetrics { available: true, ..Default::default() });
     }
-    // Convert energy to watts based on unit
-    let energy_to_watts = |energy: i64| -> f32 {
-        if energy <= 0 { return 0.0; }
-        let joules = match last_unit.as_str() {
-            "uJ" => energy as f64 / 1e6,
-            "mJ" => energy as f64 / 1e3,
-            _ => energy as f64 / 1e9, // nJ default
-        };
-        (joules / duration_s) as f32
-    };
 
-    let cpu_w = energy_to_watts(cpu_energy);
-    let gpu_w = energy_to_watts(gpu_energy);
-    let ane_w = energy_to_watts(ane_energy);
-    let dram_w = energy_to_watts(dram_energy);
+    let cpu_w = (cpu_joules / duration_s) as f32;
+    let gpu_w = (gpu_joules / duration_s) as f32;
+    let ane_w = (ane_joules / duration_s) as f32;
+    let dram_w = (dram_joules / duration_s) as f32;
     let package_w = cpu_w + gpu_w + ane_w;
     let system_w = package_w + dram_w;
 

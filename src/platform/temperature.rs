@@ -30,21 +30,35 @@ pub fn collect_temperature() -> ThermalMetrics {
 }
 
 fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
-    // CPU temperature keys — try multiple common keys
-    let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
-    let gpu_keys = ["TG0P", "TG0D", "TG1D", "Tg05", "Tg0f", "Tg0j"];
+    // Try dynamic key enumeration first, fall back to static list
+    let (cpu_keys_dyn, gpu_keys_dyn) = smc_enumerate_temp_keys(conn);
 
-    let cpu_temps: Vec<f32> = cpu_keys
-        .iter()
-        .filter_map(|k| smc_read_temp(conn, k))
-        .filter(|&t| t > 0.0 && t < 130.0) // filter implausible values
-        .collect();
+    let cpu_temps: Vec<f32> = if !cpu_keys_dyn.is_empty() {
+        cpu_keys_dyn.iter()
+            .filter_map(|k| smc_read_temp(conn, k))
+            .filter(|&t| t > 0.0 && t < 130.0)
+            .collect()
+    } else {
+        // Static fallback
+        let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
+        cpu_keys.iter()
+            .filter_map(|k| smc_read_temp(conn, k))
+            .filter(|&t| t > 0.0 && t < 130.0)
+            .collect()
+    };
 
-    let gpu_temps: Vec<f32> = gpu_keys
-        .iter()
-        .filter_map(|k| smc_read_temp(conn, k))
-        .filter(|&t| t > 0.0 && t < 130.0)
-        .collect();
+    let gpu_temps: Vec<f32> = if !gpu_keys_dyn.is_empty() {
+        gpu_keys_dyn.iter()
+            .filter_map(|k| smc_read_temp(conn, k))
+            .filter(|&t| t > 0.0 && t < 130.0)
+            .collect()
+    } else {
+        let gpu_keys = ["TG0P", "TG0D", "TG1D", "Tg05", "Tg0f", "Tg0j"];
+        gpu_keys.iter()
+            .filter_map(|k| smc_read_temp(conn, k))
+            .filter(|&t| t > 0.0 && t < 130.0)
+            .collect()
+    };
 
     let cpu_avg = if cpu_temps.is_empty() {
         return None;
@@ -64,6 +78,101 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
         gpu_avg_c: gpu_avg,
         available: true,
     })
+}
+
+/// Dynamically enumerate SMC temperature keys via SMC_CMD_READ_INDEX.
+/// Returns (cpu_keys, gpu_keys) filtered by prefix and flt /sp78 data type.
+/// Returns empty vecs if enumeration fails (caller falls back to static list).
+fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>) {
+    // Read "#KEY" to get total key count
+    let total = match smc_read_key_count(conn) {
+        Some(n) => n,
+        None => return (Vec::new(), Vec::new()),
+    };
+
+    let mut cpu_keys = Vec::new();
+    let mut gpu_keys = Vec::new();
+
+    for idx in 0..total {
+        unsafe {
+            let mut input = SmcKeyData::zeroed();
+            let mut output = SmcKeyData::zeroed();
+            input.data8 = SMC_CMD_READ_INDEX;
+            input.data32 = idx;
+
+            if smc_call(conn, KERNEL_INDEX_SMC, &mut input, &mut output) != 0 {
+                continue;
+            }
+
+            let key_bytes = output.key.to_be_bytes();
+            let key_str = match std::str::from_utf8(&key_bytes) {
+                Ok(s) => s.to_string(),
+                Err(_) => continue,
+            };
+
+            // Filter: must start with 'T' (temperature category)
+            if !key_str.starts_with('T') {
+                continue;
+            }
+
+            // Get key info to check data type
+            let mut info_input = SmcKeyData::zeroed();
+            let mut info_output = SmcKeyData::zeroed();
+            info_input.key = output.key;
+            info_input.data8 = SMC_CMD_READ_KEYINFO;
+
+            if smc_call(conn, KERNEL_INDEX_SMC, &mut info_input, &mut info_output) != 0 {
+                continue;
+            }
+
+            let type_bytes = info_output.key_info.data_type.to_be_bytes();
+            let type_str = std::str::from_utf8(&type_bytes).unwrap_or("");
+
+            // Only accept temperature types: flt (Apple Silicon) or sp78 (Intel)
+            if type_str != "flt " && type_str != "sp78" {
+                continue;
+            }
+
+            // Classify by prefix: Tp/Te = CPU, Tg = GPU, TC = CPU (Intel), TG = GPU (Intel)
+            if key_str.starts_with("Tp") || key_str.starts_with("Te") || key_str.starts_with("Ts")
+                || key_str.starts_with("TC") {
+                cpu_keys.push(key_str);
+            } else if key_str.starts_with("Tg") || key_str.starts_with("TG") {
+                gpu_keys.push(key_str);
+            }
+        }
+    }
+
+    (cpu_keys, gpu_keys)
+}
+
+fn smc_read_key_count(conn: u32) -> Option<u32> {
+    unsafe {
+        let mut input = SmcKeyData::zeroed();
+        let mut output = SmcKeyData::zeroed();
+        input.key = u32::from_be_bytes([b'#', b'K', b'E', b'Y']);
+        input.data8 = SMC_CMD_READ_KEYINFO;
+
+        if smc_call(conn, KERNEL_INDEX_SMC, &mut input, &mut output) != 0 {
+            return None;
+        }
+
+        let data_size = output.key_info.data_size;
+
+        input = SmcKeyData::zeroed();
+        output = SmcKeyData::zeroed();
+        input.key = u32::from_be_bytes([b'#', b'K', b'E', b'Y']);
+        input.key_info.data_size = data_size;
+        input.data8 = SMC_CMD_READ_BYTES;
+
+        if smc_call(conn, KERNEL_INDEX_SMC, &mut input, &mut output) != 0 {
+            return None;
+        }
+
+        Some(u32::from_be_bytes([
+            output.bytes[0], output.bytes[1], output.bytes[2], output.bytes[3],
+        ]))
+    }
 }
 
 fn smc_open() -> Option<u32> {
@@ -211,6 +320,7 @@ unsafe fn smc_call(conn: u32, index: u8, input: &mut SmcKeyData, output: &mut Sm
 
 // --- SMC data structures ---
 const SMC_CMD_READ_BYTES: u8 = 5;
+const SMC_CMD_READ_INDEX: u8 = 8;
 const SMC_CMD_READ_KEYINFO: u8 = 9;
 const KERNEL_INDEX_SMC: u8 = 2;
 const MASTER_PORT: u32 = 0;

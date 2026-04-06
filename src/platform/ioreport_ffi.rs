@@ -100,7 +100,11 @@ pub unsafe fn cfstring_to_string(cf: CFStringRef) -> String {
     if len <= 0 {
         return String::new();
     }
-    let max_size = unsafe { CFStringGetMaximumSizeForEncoding(len, 0x08000100) } + 1;
+    let max_size = unsafe { CFStringGetMaximumSizeForEncoding(len, 0x08000100) };
+    if max_size < 0 {
+        return String::new();
+    }
+    let max_size = max_size + 1;
     let mut buf = vec![0u8; max_size as usize];
     let ok = unsafe { CFStringGetCString(cf, buf.as_mut_ptr() as *mut i8, max_size, 0x08000100) };
     if ok {
