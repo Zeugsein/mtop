@@ -7,6 +7,12 @@ pub struct DiskState {
     prev_time: std::time::Instant,
 }
 
+impl Default for DiskState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DiskState {
     pub fn new() -> Self {
         let (r, w) = read_disk_bytes();
@@ -57,7 +63,7 @@ fn read_disk_bytes() -> (u64, u64) {
         let mut total_read: u64 = 0;
         let mut total_write: u64 = 0;
 
-        let matching = IOServiceMatching(b"IOBlockStorageDriver\0".as_ptr() as *const i8);
+        let matching = IOServiceMatching(c"IOBlockStorageDriver".as_ptr());
         if matching.is_null() {
             return (0, 0);
         }
@@ -106,7 +112,7 @@ fn read_disk_bytes() -> (u64, u64) {
 
 unsafe fn cfstring_from_static(bytes: &[u8]) -> CFStringRef {
     // bytes includes null terminator
-    CFStringCreateWithCString(std::ptr::null(), bytes.as_ptr() as *const i8, 0x08000100) // kCFStringEncodingUTF8
+    unsafe { CFStringCreateWithCString(std::ptr::null(), bytes.as_ptr() as *const i8, 0x08000100) } // kCFStringEncodingUTF8
 }
 
 unsafe fn cf_number_value(val: *const libc::c_void) -> u64 {
@@ -115,7 +121,7 @@ unsafe fn cf_number_value(val: *const libc::c_void) -> u64 {
     }
     let mut out: i64 = 0;
     // kCFNumberSInt64Type = 4
-    let ok = CFNumberGetValue(val as CFNumberRef, 4, &mut out as *mut _ as *mut libc::c_void);
+    let ok = unsafe { CFNumberGetValue(val as CFNumberRef, 4, &mut out as *mut _ as *mut libc::c_void) };
     if ok {
         out as u64
     } else {
@@ -133,7 +139,6 @@ type CFNumberRef = *const libc::c_void;
 type CFAllocatorRef = *const libc::c_void;
 
 #[link(name = "IOKit", kind = "framework")]
-#[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     fn IOServiceMatching(name: *const i8) -> CFMutableDictionaryRef;
     fn IOServiceGetMatchingServices(
@@ -149,7 +154,10 @@ unsafe extern "C" {
         allocator: CFAllocatorRef,
         options: u32,
     ) -> *const libc::c_void;
+}
 
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
     fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void) -> *const libc::c_void;
     fn CFStringCreateWithCString(
         alloc: CFAllocatorRef,

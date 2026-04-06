@@ -5,7 +5,7 @@ pub fn collect_cpu(prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p_cores: u32
     let mut metrics = CpuMetrics::default();
 
     unsafe {
-        let host = libc::mach_host_self();
+        let host = mach_host_self();
         let mut count: u32 = 0;
         let mut info: *mut i32 = std::ptr::null_mut();
         let mut msg_count: u32 = 0;
@@ -78,7 +78,7 @@ pub fn collect_cpu(prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p_cores: u32
 
         // Deallocate
         libc::vm_deallocate(
-            libc::mach_task_self(),
+            mach_task_self(),
             info as libc::vm_address_t,
             (msg_count as usize * std::mem::size_of::<i32>()) as libc::vm_size_t,
         );
@@ -180,4 +180,6 @@ unsafe extern "C" {
         out_info: *mut *mut u8,
         out_info_count: *mut u32,
     ) -> i32;
+    fn mach_host_self() -> u32;
+    fn mach_task_self() -> u32;
 }

@@ -5,7 +5,7 @@ pub fn collect_memory() -> MemoryMetrics {
 
     // Get VM statistics via Mach API
     let (ram_used, swap_total, swap_used) = unsafe {
-        let host = libc::mach_host_self();
+        let host = mach_host_self();
         let mut vm_stat: VmStatistics64 = std::mem::zeroed();
         let mut count = (std::mem::size_of::<VmStatistics64>() / std::mem::size_of::<i32>()) as u32;
 
@@ -122,4 +122,5 @@ const HOST_VM_INFO64: i32 = 4;
 
 unsafe extern "C" {
     fn host_statistics64(host: u32, flavor: i32, info: *mut i32, count: *mut u32) -> i32;
+    fn mach_host_self() -> u32;
 }

@@ -4,10 +4,7 @@ use crate::metrics::PowerMetrics;
 /// Uses dlopen/dlsym to dynamically load IOReport symbols.
 /// Falls back gracefully to default values if IOReport is unavailable.
 pub fn collect_power() -> PowerMetrics {
-    match read_power_ioreport() {
-        Some(m) => m,
-        None => PowerMetrics::default(),
-    }
+    read_power_ioreport().unwrap_or_default()
 }
 
 type CFStringRef = *const libc::c_void;
@@ -19,8 +16,6 @@ type FnCopyChannelsInGroup = unsafe extern "C" fn(CFStringRef, CFStringRef, u64,
 type FnCreateSubscription = unsafe extern "C" fn(*const libc::c_void, CFDictionaryRef, *mut i32, u64, *const libc::c_void) -> *const libc::c_void;
 type FnCreateSamples = unsafe extern "C" fn(*const libc::c_void, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
 type FnCreateSamplesDelta = unsafe extern "C" fn(CFDictionaryRef, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
-type FnChannelGetGroup = unsafe extern "C" fn(CFDictionaryRef) -> CFStringRef;
-type FnChannelGetSubGroup = unsafe extern "C" fn(CFDictionaryRef) -> CFStringRef;
 type FnChannelGetChannelName = unsafe extern "C" fn(CFDictionaryRef) -> CFStringRef;
 type FnSimpleGetIntegerValue = unsafe extern "C" fn(CFDictionaryRef, *mut i32) -> i64;
 
@@ -29,8 +24,6 @@ struct IOReportFns {
     create_subscription: FnCreateSubscription,
     create_samples: FnCreateSamples,
     create_samples_delta: FnCreateSamplesDelta,
-    channel_get_group: FnChannelGetGroup,
-    channel_get_sub_group: FnChannelGetSubGroup,
     channel_get_channel_name: FnChannelGetChannelName,
     simple_get_integer_value: FnSimpleGetIntegerValue,
 }
@@ -38,8 +31,8 @@ struct IOReportFns {
 fn load_ioreport() -> Option<IOReportFns> {
     unsafe {
         let paths = [
-            b"/System/Library/PrivateFrameworks/IOReport.framework/IOReport\0".as_ptr() as *const i8,
-            b"/usr/lib/libIOReport.dylib\0".as_ptr() as *const i8,
+            c"/System/Library/PrivateFrameworks/IOReport.framework/IOReport".as_ptr(),
+            c"/usr/lib/libIOReport.dylib".as_ptr(),
         ];
 
         let mut handle: *mut libc::c_void = std::ptr::null_mut();
@@ -58,7 +51,7 @@ fn load_ioreport() -> Option<IOReportFns> {
             ($name:literal, $ty:ty) => {{
                 let p = libc::dlsym(handle, $name.as_ptr() as *const i8);
                 if p.is_null() { return None; }
-                std::mem::transmute::<_, $ty>(p)
+                std::mem::transmute::<*mut libc::c_void, $ty>(p)
             }};
         }
 
@@ -67,8 +60,6 @@ fn load_ioreport() -> Option<IOReportFns> {
             create_subscription: sym!(b"IOReportCreateSubscription\0", FnCreateSubscription),
             create_samples: sym!(b"IOReportCreateSamples\0", FnCreateSamples),
             create_samples_delta: sym!(b"IOReportCreateSamplesDelta\0", FnCreateSamplesDelta),
-            channel_get_group: sym!(b"IOReportChannelGetGroup\0", FnChannelGetGroup),
-            channel_get_sub_group: sym!(b"IOReportChannelGetSubGroup\0", FnChannelGetSubGroup),
             channel_get_channel_name: sym!(b"IOReportChannelGetChannelName\0", FnChannelGetChannelName),
             simple_get_integer_value: sym!(b"IOReportSimpleGetIntegerValue\0", FnSimpleGetIntegerValue),
         })
@@ -143,15 +134,15 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option
     // Each channel has a name like "CPU Energy", "GPU Energy", etc.
     // Values are in energy units (nJ typically); divide by duration to get watts
 
-    let items_key = cfstring("IOReportChannels");
-    let items = CFDictionaryGetValue(delta, items_key as *const _);
-    CFRelease(items_key as *const _);
+    let items_key = unsafe { cfstring("IOReportChannels") };
+    let items = unsafe { CFDictionaryGetValue(delta, items_key as *const _) };
+    unsafe { CFRelease(items_key as *const _) };
 
     if items.is_null() {
         return None;
     }
 
-    let count = CFArrayGetCount(items as CFArrayRef);
+    let count = unsafe { CFArrayGetCount(items as CFArrayRef) };
     if count <= 0 {
         return None;
     }
@@ -164,19 +155,19 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option
     let duration_ms: f64 = 100.0; // Our sample interval
 
     for i in 0..count {
-        let item = CFArrayGetValueAtIndex(items as CFArrayRef, i);
+        let item = unsafe { CFArrayGetValueAtIndex(items as CFArrayRef, i) };
         if item.is_null() {
             continue;
         }
 
-        let name = (fns.channel_get_channel_name)(item);
+        let name = unsafe { (fns.channel_get_channel_name)(item) };
         if name.is_null() {
             continue;
         }
 
-        let name_str = cfstring_to_string(name);
+        let name_str = unsafe { cfstring_to_string(name) };
         let mut err: i32 = 0;
-        let value = (fns.simple_get_integer_value)(item, &mut err);
+        let value = unsafe { (fns.simple_get_integer_value)(item, &mut err) };
 
         if err != 0 {
             continue;
@@ -219,19 +210,19 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option
 
 unsafe fn cfstring(s: &str) -> CFStringRef {
     let cstr = std::ffi::CString::new(s).unwrap_or_default();
-    CFStringCreateWithCString(std::ptr::null(), cstr.as_ptr(), 0x08000100)
+    unsafe { CFStringCreateWithCString(std::ptr::null(), cstr.as_ptr(), 0x08000100) }
 }
 
 unsafe fn cfstring_to_string(cf: CFStringRef) -> String {
-    let len = CFStringGetLength(cf);
+    let len = unsafe { CFStringGetLength(cf) };
     if len <= 0 {
         return String::new();
     }
-    let max_size = CFStringGetMaximumSizeForEncoding(len, 0x08000100) + 1;
+    let max_size = unsafe { CFStringGetMaximumSizeForEncoding(len, 0x08000100) } + 1;
     let mut buf = vec![0u8; max_size as usize];
-    let ok = CFStringGetCString(cf, buf.as_mut_ptr() as *mut i8, max_size, 0x08000100);
+    let ok = unsafe { CFStringGetCString(cf, buf.as_mut_ptr() as *mut i8, max_size, 0x08000100) };
     if ok {
-        let cstr = std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8);
+        let cstr = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8) };
         cstr.to_string_lossy().to_string()
     } else {
         String::new()
