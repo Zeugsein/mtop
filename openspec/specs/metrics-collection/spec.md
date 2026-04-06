@@ -228,6 +228,20 @@ GPU power_w in GpuMetrics SHALL be populated from the power collector's gpu_w va
 - **WHEN** the power collector reports GPU power of 3.5W
 - **THEN** GpuMetrics.power_w SHALL be 3.5, not 0.0
 
+### Requirement: XswUsage struct field accuracy [M1]
+The XswUsage struct field names SHALL match Apple's xsw_usage header definition. The final field SHALL be named xsu_pagesize (not _padding) to accurately reflect its meaning.
+
+#### Scenario: Struct field naming
+- **WHEN** the XswUsage struct is defined for swap usage collection
+- **THEN** all field names SHALL match the Apple header: xsu_total, xsu_avail, xsu_used, xsu_encrypted, xsu_pagesize
+
+### Requirement: Efficient metrics history buffer [M3]
+MetricsHistory SHALL use an O(1) push/pop data structure (VecDeque or ring buffer) for storing historical data points. The system SHALL NOT use Vec::remove(0) which is O(n).
+
+#### Scenario: History buffer performance
+- **WHEN** the history buffer is at capacity (128 points) and a new sample arrives
+- **THEN** the oldest sample SHALL be removed and the new sample added, both in O(1) time
+
 ### Requirement: Memory page size validation [sysconf]
 Memory collection SHALL validate the return value of sysconf(_SC_PAGESIZE) before using it in calculations. A return value of -1 SHALL be handled by falling back to vm_page_size or a safe default, not by casting -1 to u64.
 
