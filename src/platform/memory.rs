@@ -16,7 +16,8 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         );
 
         let ram_used = if ret == 0 {
-            let page_size = libc::sysconf(libc::_SC_PAGESIZE) as u64;
+            let raw = libc::sysconf(libc::_SC_PAGESIZE);
+            let page_size = if raw <= 0 { 16384u64 } else { raw as u64 };
             (vm_stat.active_count as u64
                 + vm_stat.inactive_count as u64
                 + vm_stat.wire_count as u64
