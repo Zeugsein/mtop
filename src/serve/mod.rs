@@ -100,63 +100,73 @@ fn to_prometheus(m: &MetricsSnapshot, soc: &SocInfo) -> String {
 
     let mut out = String::new();
 
-    macro_rules! gauge {
-        ($name:literal, $help:literal, $value:expr) => {
-            out.push_str(&format!(
-                "# HELP {0} {1}\n# TYPE {0} gauge\n{0}{{{l}}} {2}\n\n",
-                $name, $help, $value
-            ));
-        };
-        ($name:literal, $help:literal, $value:expr, $labels:expr) => {
-            out.push_str(&format!(
-                "# HELP {0} {1}\n# TYPE {0} gauge\n{0}{{{l},{3}}} {2}\n\n",
-                $name, $help, $value, $labels
-            ));
-        };
-    }
+    // CPU usage ratio
+    out.push_str("# HELP mtop_cpu_usage_ratio CPU utilization ratio (0-1)\n");
+    out.push_str("# TYPE mtop_cpu_usage_ratio gauge\n");
+    out.push_str(&format!("mtop_cpu_usage_ratio{{{l}}} {}\n", m.cpu.total_usage));
+    out.push_str(&format!("mtop_cpu_usage_ratio{{{l},cluster=\"efficiency\"}} {}\n", m.cpu.e_cluster.usage));
+    out.push_str(&format!("mtop_cpu_usage_ratio{{{l},cluster=\"performance\"}} {}\n", m.cpu.p_cluster.usage));
+    out.push('\n');
 
-    // CPU
-    gauge!("mtop_cpu_usage_ratio", "Combined CPU utilization (0-1)", m.cpu.total_usage);
-    gauge!("mtop_cpu_usage_ratio", "E-cluster CPU utilization", m.cpu.e_cluster.usage, r#"cluster="efficiency""#);
-    gauge!("mtop_cpu_usage_ratio", "P-cluster CPU utilization", m.cpu.p_cluster.usage, r#"cluster="performance""#);
-    gauge!("mtop_cpu_freq_mhz", "E-cluster frequency MHz", m.cpu.e_cluster.freq_mhz, r#"cluster="efficiency""#);
-    gauge!("mtop_cpu_freq_mhz", "P-cluster frequency MHz", m.cpu.p_cluster.freq_mhz, r#"cluster="performance""#);
+    // CPU frequency
+    out.push_str("# HELP mtop_cpu_freq_mhz CPU cluster frequency in MHz\n");
+    out.push_str("# TYPE mtop_cpu_freq_mhz gauge\n");
+    out.push_str(&format!("mtop_cpu_freq_mhz{{{l},cluster=\"efficiency\"}} {}\n", m.cpu.e_cluster.freq_mhz));
+    out.push_str(&format!("mtop_cpu_freq_mhz{{{l},cluster=\"performance\"}} {}\n", m.cpu.p_cluster.freq_mhz));
+    out.push('\n');
 
     // GPU
-    gauge!("mtop_gpu_usage_ratio", "GPU utilization (0-1)", m.gpu.usage);
-    gauge!("mtop_gpu_freq_mhz", "GPU frequency MHz", m.gpu.freq_mhz);
+    out.push_str("# HELP mtop_gpu_usage_ratio GPU utilization ratio (0-1)\n");
+    out.push_str("# TYPE mtop_gpu_usage_ratio gauge\n");
+    out.push_str(&format!("mtop_gpu_usage_ratio{{{l}}} {}\n", m.gpu.usage));
+    out.push('\n');
+
+    out.push_str("# HELP mtop_gpu_freq_mhz GPU frequency in MHz\n");
+    out.push_str("# TYPE mtop_gpu_freq_mhz gauge\n");
+    out.push_str(&format!("mtop_gpu_freq_mhz{{{l}}} {}\n", m.gpu.freq_mhz));
+    out.push('\n');
 
     // Power
-    gauge!("mtop_power_watts", "CPU power", m.power.cpu_w, r#"component="cpu""#);
-    gauge!("mtop_power_watts", "GPU power", m.power.gpu_w, r#"component="gpu""#);
-    gauge!("mtop_power_watts", "ANE power", m.power.ane_w, r#"component="ane""#);
-    gauge!("mtop_power_watts", "DRAM power", m.power.dram_w, r#"component="dram""#);
-    gauge!("mtop_power_watts", "Package power", m.power.package_w, r#"component="package""#);
-    gauge!("mtop_power_watts", "System power", m.power.system_w, r#"component="system""#);
+    out.push_str("# HELP mtop_power_watts Power consumption in watts\n");
+    out.push_str("# TYPE mtop_power_watts gauge\n");
+    out.push_str(&format!("mtop_power_watts{{{l},component=\"cpu\"}} {}\n", m.power.cpu_w));
+    out.push_str(&format!("mtop_power_watts{{{l},component=\"gpu\"}} {}\n", m.power.gpu_w));
+    out.push_str(&format!("mtop_power_watts{{{l},component=\"ane\"}} {}\n", m.power.ane_w));
+    out.push_str(&format!("mtop_power_watts{{{l},component=\"dram\"}} {}\n", m.power.dram_w));
+    out.push_str(&format!("mtop_power_watts{{{l},component=\"package\"}} {}\n", m.power.package_w));
+    out.push_str(&format!("mtop_power_watts{{{l},component=\"system\"}} {}\n", m.power.system_w));
+    out.push('\n');
 
     // Temperature
-    gauge!("mtop_temperature_celsius", "CPU avg temp", m.temperature.cpu_avg_c, r#"sensor="cpu_avg""#);
-    gauge!("mtop_temperature_celsius", "GPU avg temp", m.temperature.gpu_avg_c, r#"sensor="gpu_avg""#);
+    out.push_str("# HELP mtop_temperature_celsius Temperature in degrees Celsius\n");
+    out.push_str("# TYPE mtop_temperature_celsius gauge\n");
+    out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"cpu_avg\"}} {}\n", m.temperature.cpu_avg_c));
+    out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"gpu_avg\"}} {}\n", m.temperature.gpu_avg_c));
+    out.push('\n');
 
     // Memory
-    gauge!("mtop_memory_bytes", "RAM total", m.memory.ram_total, r#"type="ram_total""#);
-    gauge!("mtop_memory_bytes", "RAM used", m.memory.ram_used, r#"type="ram_used""#);
-    gauge!("mtop_memory_bytes", "Swap total", m.memory.swap_total, r#"type="swap_total""#);
-    gauge!("mtop_memory_bytes", "Swap used", m.memory.swap_used, r#"type="swap_used""#);
+    out.push_str("# HELP mtop_memory_bytes Memory in bytes\n");
+    out.push_str("# TYPE mtop_memory_bytes gauge\n");
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"ram_total\"}} {}\n", m.memory.ram_total));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"ram_used\"}} {}\n", m.memory.ram_used));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"swap_total\"}} {}\n", m.memory.swap_total));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"swap_used\"}} {}\n", m.memory.swap_used));
+    out.push('\n');
 
     // Network
+    out.push_str("# HELP mtop_network_bytes_per_second Network throughput in bytes per second\n");
+    out.push_str("# TYPE mtop_network_bytes_per_second gauge\n");
     for iface in &m.network.interfaces {
-        let il = format!(r#"interface="{}",direction="rx""#, iface.name);
         out.push_str(&format!(
-            "mtop_network_bytes_per_second{{{l},{il}}} {}\n",
-            iface.rx_bytes_sec
+            "mtop_network_bytes_per_second{{{l},interface=\"{}\",direction=\"rx\"}} {}\n",
+            iface.name, iface.rx_bytes_sec
         ));
-        let il = format!(r#"interface="{}",direction="tx""#, iface.name);
         out.push_str(&format!(
-            "mtop_network_bytes_per_second{{{l},{il}}} {}\n",
-            iface.tx_bytes_sec
+            "mtop_network_bytes_per_second{{{l},interface=\"{}\",direction=\"tx\"}} {}\n",
+            iface.name, iface.tx_bytes_sec
         ));
     }
+    out.push('\n');
 
     out
 }

@@ -243,7 +243,6 @@ fn prometheus_endpoint_power_has_component_labels() {
 }
 
 #[test]
-#[ignore] // FR-2 (PARTIAL): duplicate HELP/TYPE lines — each metric name should appear exactly once
 /// FR-2: each metric name has exactly one # HELP and one # TYPE declaration
 fn prometheus_endpoint_no_duplicate_help_type() {
     let port = spawn_server_with_data(Some(make_snapshot()));
