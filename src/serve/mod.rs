@@ -40,20 +40,17 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
                     }
                 };
 
+                // Atomically check and increment per-IP count (single lock scope)
                 {
-                    let counts = per_ip.lock().unwrap();
-                    if *counts.get(&peer_ip).unwrap_or(&0) >= MAX_PER_IP {
+                    let mut counts = per_ip.lock().unwrap_or_else(|e| e.into_inner());
+                    let count = counts.entry(peer_ip).or_insert(0);
+                    if *count >= MAX_PER_IP {
                         active.fetch_sub(1, Ordering::Release);
                         let mut s = stream;
                         write_response(&mut s, 429, "text/plain", "too many connections from your IP\n");
                         continue;
                     }
-                }
-
-                // Increment per-IP count
-                {
-                    let mut counts = per_ip.lock().unwrap();
-                    *counts.entry(peer_ip).or_insert(0) += 1;
+                    *count += 1;
                 }
 
                 let shared = Arc::clone(&shared);
@@ -63,7 +60,7 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
                 std::thread::spawn(move || {
                     process_request(stream, &shared, &soc);
                     active.fetch_sub(1, Ordering::Release);
-                    let mut counts = per_ip.lock().unwrap();
+                    let mut counts = per_ip.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(c) = counts.get_mut(&peer_ip) {
                         *c = c.saturating_sub(1);
                         if *c == 0 {
