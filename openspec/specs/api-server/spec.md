@@ -1,7 +1,7 @@
 # api-server Specification
 
 ## Purpose
-TBD - created by archiving change mvp-core. Update Purpose after archive.
+Define requirements for the HTTP API server exposing system metrics in JSON and Prometheus formats.
 ## Requirements
 ### Requirement: JSON metrics endpoint
 The HTTP server SHALL expose a `GET /json` endpoint that returns the current metrics snapshot as a JSON object with timestamp, soc info, and all metric categories.

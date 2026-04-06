@@ -1,7 +1,7 @@
 # cli-interface Specification
 
 ## Purpose
-TBD - created by archiving change mvp-core. Update Purpose after archive.
+Define requirements for command-line argument parsing, output modes (TUI, pipe, serve, debug), and configuration options.
 ## Requirements
 ### Requirement: Default TUI mode
 When invoked with no subcommand, mtop SHALL launch in TUI dashboard mode.

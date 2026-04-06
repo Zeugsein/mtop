@@ -1,7 +1,7 @@
 # tui-dashboard Specification
 
 ## Purpose
-TBD - created by archiving change mvp-core. Update Purpose after archive.
+Define requirements for the terminal user interface dashboard displaying real-time system metrics with keyboard navigation and theming.
 ## Requirements
 ### Requirement: Multi-panel dashboard layout
 The TUI SHALL display a multi-panel dashboard with sections for CPU, GPU, power, temperature, memory, network, and process list. Panels SHALL be arranged to maximize information density while remaining readable at 80x24 minimum terminal size.

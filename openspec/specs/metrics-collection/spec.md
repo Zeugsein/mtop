@@ -1,7 +1,7 @@
 # metrics-collection Specification
 
 ## Purpose
-TBD - created by archiving change mvp-core. Update Purpose after archive.
+Define requirements for collecting macOS system metrics (CPU, GPU, memory, disk, network, power, temperature, process) via native APIs without requiring elevated privileges.
 ## Requirements
 ### Requirement: CPU metrics collection
 The system SHALL collect CPU metrics from macOS system APIs without requiring sudo privileges. Metrics SHALL include per-core utilization percentage, per-cluster (efficiency/performance) aggregate utilization and frequency in MHz, combined weighted CPU utilization, and CPU power draw in Watts.
