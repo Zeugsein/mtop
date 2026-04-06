@@ -398,7 +398,6 @@ fn network_loopback_excluded() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore] // FR-9 (FAIL): Disk I/O requires IOKit — stub returns 0
 /// FR-9: disk read_bytes_sec is non-negative
 fn disk_read_bytes_sec_nonnegative() {
     let mut sampler = Sampler::new().expect("sampler init");
@@ -411,7 +410,6 @@ fn disk_read_bytes_sec_nonnegative() {
 }
 
 #[test]
-#[ignore] // FR-9 (FAIL): Disk I/O stub — not yet implemented (always 0)
 /// FR-9: disk write_bytes_sec produces a real value (not always zero) on an active system
 fn disk_write_bytes_sec_is_implemented() {
     let mut sampler = Sampler::new().expect("sampler init");
