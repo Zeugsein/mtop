@@ -21,8 +21,9 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                if active.load(Ordering::Relaxed) >= MAX_CONNECTIONS {
-                    // Reject with 503 when at capacity
+                let prev = active.fetch_add(1, Ordering::AcqRel);
+                if prev >= MAX_CONNECTIONS {
+                    active.fetch_sub(1, Ordering::Release);
                     let mut s = stream;
                     write_response(&mut s, 503, "text/plain", "too many connections\n");
                     continue;
@@ -30,10 +31,9 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
                 let shared = Arc::clone(&shared);
                 let soc = soc.clone();
                 let active = Arc::clone(&active);
-                active.fetch_add(1, Ordering::Relaxed);
                 std::thread::spawn(move || {
                     process_request(stream, &shared, &soc);
-                    active.fetch_sub(1, Ordering::Relaxed);
+                    active.fetch_sub(1, Ordering::Release);
                 });
             }
             Err(e) => eprintln!("connection error: {e}"),
