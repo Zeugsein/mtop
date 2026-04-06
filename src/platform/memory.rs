@@ -115,6 +115,7 @@ struct VmStatistics64 {
     external_page_count: u32,
     internal_page_count: u32,
     total_uncompressed_pages_in_compressor: u64,
+    swapped_count: u64,
 }
 
 const HOST_VM_INFO64: i32 = 4;
