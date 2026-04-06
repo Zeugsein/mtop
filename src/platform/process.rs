@@ -159,11 +159,23 @@ fn get_proc_user(pid: i32) -> String {
 
 fn uid_to_username(uid: u32) -> String {
     unsafe {
-        let pw = libc::getpwuid(uid);
-        if pw.is_null() {
+        let mut pwd: libc::passwd = std::mem::zeroed();
+        let mut result: *mut libc::passwd = std::ptr::null_mut();
+        let mut buf = vec![0u8; 1024];
+
+        let ret = libc::getpwuid_r(
+            uid,
+            &mut pwd,
+            buf.as_mut_ptr() as *mut libc::c_char,
+            buf.len(),
+            &mut result,
+        );
+
+        if ret != 0 || result.is_null() {
             return uid.to_string();
         }
-        std::ffi::CStr::from_ptr((*pw).pw_name)
+
+        std::ffi::CStr::from_ptr(pwd.pw_name)
             .to_string_lossy()
             .to_string()
     }
