@@ -111,7 +111,9 @@ fn read_power_ioreport() -> Option<PowerMetrics> {
             return None;
         }
 
+        let before_sleep = std::time::Instant::now();
         std::thread::sleep(std::time::Duration::from_millis(100));
+        let actual_duration_ms = before_sleep.elapsed().as_secs_f64() * 1000.0;
 
         let sample2 = (fns.create_samples)(subscription, channel, std::ptr::null());
         if sample2.is_null() {
@@ -131,7 +133,7 @@ fn read_power_ioreport() -> Option<PowerMetrics> {
             return None;
         }
 
-        let result = parse_power_delta(fns, delta);
+        let result = parse_power_delta(fns, delta, actual_duration_ms);
 
         CFRelease(delta as *const _);
         CFRelease(channel as *const _);
@@ -141,7 +143,7 @@ fn read_power_ioreport() -> Option<PowerMetrics> {
     }
 }
 
-unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<PowerMetrics> {
+unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_ms: f64) -> Option<PowerMetrics> {
     // The delta is a CFDictionary containing an array of channel samples
     // Each channel has a name like "CPU Energy", "GPU Energy", etc.
     // Values are in energy units (nJ typically); divide by duration to get watts
@@ -163,8 +165,6 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option
     let mut gpu_energy: i64 = 0;
     let mut ane_energy: i64 = 0;
     let mut dram_energy: i64 = 0;
-
-    let duration_ms: f64 = 100.0; // Our sample interval
 
     for i in 0..count {
         let item = unsafe { CFArrayGetValueAtIndex(items as CFArrayRef, i) };
