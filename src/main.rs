@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", sampler.debug_info());
         }
         None => {
-            tui::run(args.interval, &args.color, &args.temp_unit)?;
+            tui::run(args.interval, &args.color, &args.temp_unit.to_string())?;
         }
     }
 
