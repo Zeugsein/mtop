@@ -69,4 +69,4 @@
 - [ ] 7.3 Test TUI at 80x24 minimum terminal size
 - [ ] 7.4 Test pipe mode output with jq
 - [ ] 7.5 Test HTTP endpoints with curl
-- [ ] 7.6 Run forbidden-tokens grep against all implementation source files
+- [ ] 7.6 Run lint and verify all code paths

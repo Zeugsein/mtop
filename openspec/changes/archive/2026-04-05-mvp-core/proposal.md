@@ -1,6 +1,6 @@
 ## Why
 
-mtop is a new system monitoring tool for macOS (Apple Silicon). There is currently no single tool that provides all three presentation modes — terminal TUI, HTTP API, and menu bar widget — from a unified metrics collection core. Existing tools each excel in one area but lack the others. mtop fills this gap with a cleanroom implementation free from license contamination.
+mtop is a new system monitoring tool for macOS (Apple Silicon). There is currently no single tool that provides all three presentation modes — terminal TUI, HTTP API, and menu bar widget — from a unified metrics collection core. Existing tools each excel in one area but lack the others. mtop fills this gap.
 
 ## What Changes
 
