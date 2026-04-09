@@ -35,8 +35,7 @@ pub fn collect_temperature() -> ThermalMetrics {
 }
 
 fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
-    // Try dynamic key enumeration first, fall back to static list
-    let (cpu_keys_dyn, gpu_keys_dyn) = smc_enumerate_temp_keys(conn);
+    let (cpu_keys_dyn, gpu_keys_dyn, ssd_keys_dyn, battery_keys_dyn) = smc_enumerate_temp_keys(conn);
 
     let cpu_temps: Vec<f32> = if !cpu_keys_dyn.is_empty() {
         cpu_keys_dyn.iter()
@@ -44,7 +43,6 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
             .filter(|&t| t > 0.0 && t < 130.0)
             .collect()
     } else {
-        // Static fallback
         let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
         cpu_keys.iter()
             .filter_map(|k| smc_read_temp(conn, k))
@@ -65,6 +63,16 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
             .collect()
     };
 
+    let ssd_temps: Vec<f32> = ssd_keys_dyn.iter()
+        .filter_map(|k| smc_read_temp(conn, k))
+        .filter(|&t| t > 0.0 && t < 130.0)
+        .collect();
+
+    let battery_temps: Vec<f32> = battery_keys_dyn.iter()
+        .filter_map(|k| smc_read_temp(conn, k))
+        .filter(|&t| t > 0.0 && t < 130.0)
+        .collect();
+
     let cpu_avg = if cpu_temps.is_empty() {
         return None;
     } else {
@@ -72,32 +80,95 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
     };
 
     let gpu_avg = if gpu_temps.is_empty() {
-        // GPU temps might not be available on all models; use CPU as fallback
         cpu_avg
     } else {
         gpu_temps.iter().sum::<f32>() / gpu_temps.len() as f32
     };
 
+    let ssd_avg = if ssd_temps.is_empty() {
+        0.0
+    } else {
+        ssd_temps.iter().sum::<f32>() / ssd_temps.len() as f32
+    };
+
+    let battery_avg = if battery_temps.is_empty() {
+        0.0
+    } else {
+        battery_temps.iter().sum::<f32>() / battery_temps.len() as f32
+    };
+
+    let fan_speeds = read_fan_speeds(conn);
+
     Some(ThermalMetrics {
         cpu_avg_c: cpu_avg,
         gpu_avg_c: gpu_avg,
+        ssd_avg_c: ssd_avg,
+        battery_avg_c: battery_avg,
+        fan_speeds,
         available: true,
     })
+}
+
+/// Read fan speeds from SMC keys F0Ac, F1Ac, etc.
+fn read_fan_speeds(conn: u32) -> Vec<u32> {
+    let mut speeds = Vec::new();
+    for i in 0..4 {
+        let key = format!("F{}Ac", i);
+        if let Some(rpm) = smc_read_fan_rpm(conn, &key) {
+            if rpm > 0 {
+                speeds.push(rpm);
+            }
+        } else {
+            break;
+        }
+    }
+    speeds
+}
+
+fn smc_read_fan_rpm(conn: u32, key: &str) -> Option<u32> {
+    if key.len() != 4 { return None; }
+    let key_bytes: [u8; 4] = [
+        key.as_bytes()[0], key.as_bytes()[1], key.as_bytes()[2], key.as_bytes()[3],
+    ];
+    unsafe {
+        let mut input = SmcKeyData::zeroed();
+        let mut output = SmcKeyData::zeroed();
+        input.key = u32::from_be_bytes(key_bytes);
+        input.data8 = SMC_CMD_READ_KEYINFO;
+        if smc_call(conn, KERNEL_INDEX_SMC, &mut input, &mut output) != 0 {
+            return None;
+        }
+        let data_size = output.key_info.data_size;
+        input = SmcKeyData::zeroed();
+        output = SmcKeyData::zeroed();
+        input.key = u32::from_be_bytes(key_bytes);
+        input.key_info.data_size = data_size;
+        input.data8 = SMC_CMD_READ_BYTES;
+        if smc_call(conn, KERNEL_INDEX_SMC, &mut input, &mut output) != 0 {
+            return None;
+        }
+        // fpe2: unsigned 14.2 fixed point (big-endian)
+        let raw = ((output.bytes[0] as u16) << 8) | (output.bytes[1] as u16);
+        Some((raw as f32 / 4.0) as u32)
+    }
 }
 
 /// Dynamically enumerate SMC temperature keys via SMC_CMD_READ_INDEX.
 /// Returns (cpu_keys, gpu_keys) filtered by prefix and flt /sp78 data type.
 /// Returns empty vecs if enumeration fails (caller falls back to static list).
 /// Dynamically enumerate SMC temperature keys. Public for debug_info().
-pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>) {
-    // Read "#KEY" to get total key count
+/// Dynamically enumerate SMC temperature keys.
+/// Returns (cpu_keys, gpu_keys, ssd_keys, battery_keys).
+pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
     let total = match smc_read_key_count(conn) {
         Some(n) => n,
-        None => return (Vec::new(), Vec::new()),
+        None => return (Vec::new(), Vec::new(), Vec::new(), Vec::new()),
     };
 
     let mut cpu_keys = Vec::new();
     let mut gpu_keys = Vec::new();
+    let mut ssd_keys = Vec::new();
+    let mut battery_keys = Vec::new();
 
     for idx in 0..total {
         unsafe {
@@ -116,12 +187,10 @@ pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>) {
                 Err(_) => continue,
             };
 
-            // Filter: must start with 'T' (temperature category)
             if !key_str.starts_with('T') {
                 continue;
             }
 
-            // Get key info to check data type
             let mut info_input = SmcKeyData::zeroed();
             let mut info_output = SmcKeyData::zeroed();
             info_input.key = output.key;
@@ -134,22 +203,24 @@ pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>) {
             let type_bytes = info_output.key_info.data_type.to_be_bytes();
             let type_str = std::str::from_utf8(&type_bytes).unwrap_or("");
 
-            // Only accept temperature types: flt (Apple Silicon) or sp78 (Intel)
             if type_str != "flt " && type_str != "sp78" {
                 continue;
             }
 
-            // Classify by prefix: Tp/Te = CPU, Tg = GPU, TC = CPU (Intel), TG = GPU (Intel)
-            if key_str.starts_with("Tp") || key_str.starts_with("Te") || key_str.starts_with("Ts")
-                || key_str.starts_with("TC") {
+            // Classify by prefix
+            if key_str.starts_with("Tp") || key_str.starts_with("Te") || key_str.starts_with("TC") {
                 cpu_keys.push(key_str);
             } else if key_str.starts_with("Tg") || key_str.starts_with("TG") {
                 gpu_keys.push(key_str);
+            } else if key_str.starts_with("Ts") || key_str.starts_with("TH") {
+                ssd_keys.push(key_str);
+            } else if key_str.starts_with("TB") {
+                battery_keys.push(key_str);
             }
         }
     }
 
-    (cpu_keys, gpu_keys)
+    (cpu_keys, gpu_keys, ssd_keys, battery_keys)
 }
 
 fn smc_read_key_count(conn: u32) -> Option<u32> {

@@ -70,6 +70,7 @@ fn weighted_score_high_cpu_ranks_above_split_load() {
         energy_nj: 0,
         power_w: 0.0,
         user: "user".to_string(),
+        ..Default::default()
     };
 
     let split_load = ProcessInfo {
@@ -80,6 +81,7 @@ fn weighted_score_high_cpu_ranks_above_split_load() {
         energy_nj: 0,
         power_w: 0.0,
         user: "user".to_string(),
+        ..Default::default()
     };
 
     let max_cpu = 1.0_f32;
@@ -118,6 +120,7 @@ fn weighted_score_multi_dimension_beats_sub_threshold_spike() {
         energy_nj: 0,
         power_w: 0.0,
         user: "user".to_string(),
+        ..Default::default()
     };
 
     // Process B: 70% CPU + 70% mem + 70% power
@@ -130,6 +133,7 @@ fn weighted_score_multi_dimension_beats_sub_threshold_spike() {
         energy_nj: 0,
         power_w: 14.0, // 70% of 20 W max
         user: "user".to_string(),
+        ..Default::default()
     };
 
     let max_cpu = 1.0_f32;
@@ -160,6 +164,7 @@ fn weighted_score_all_zeros_returns_zero() {
         energy_nj: 0,
         power_w: 0.0,
         user: "user".to_string(),
+        ..Default::default()
     };
 
     let score = weighted_score(&idle, 1.0, 1_000_000, 20.0);
@@ -182,6 +187,7 @@ fn weighted_score_max_power_zero_is_finite() {
         energy_nj: 0,
         power_w: 5.0,
         user: "user".to_string(),
+        ..Default::default()
     };
 
     // max_power = 0.0 must not cause division by zero or NaN/infinity

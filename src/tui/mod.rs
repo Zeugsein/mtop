@@ -18,7 +18,7 @@ use crossterm::{
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::metrics::{MetricsHistory, MetricsSnapshot, Sampler};
+use crate::metrics::{MetricsHistory, MetricsSnapshot, Sampler, SortMode};
 use crate::platform::network::speed_tier_from_baudrate;
 
 // Re-export for tests
@@ -47,6 +47,7 @@ struct AppState {
     theme_idx: usize,
     selected_panel: PanelId,
     expanded_panel: Option<PanelId>,
+    sort_mode: SortMode,
     history: MetricsHistory,
     snapshot: MetricsSnapshot,
 }
@@ -68,6 +69,7 @@ pub fn run(interval_ms: u32, color: &str, _temp_unit: &str) -> Result<(), Box<dy
         theme_idx: initial_theme,
         selected_panel: PanelId::Cpu,
         expanded_panel: None,
+        sort_mode: SortMode::default(),
         history: MetricsHistory::new(),
         snapshot: MetricsSnapshot::default(),
     };
@@ -770,11 +772,12 @@ fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 }
 
 fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
-    use crate::platform::process::weighted_score;
-
     let block = Block::default()
-        .title(" Processes (weighted) ")
-        .title_style(Style::default().fg(theme.fg).bold())
+        .title(Line::from(vec![
+            Span::styled(" Processes ", Style::default().fg(theme.fg).bold()),
+            Span::styled(format!("({})", state.sort_mode.label()), Style::default().fg(theme.muted)),
+            Span::raw(" "),
+        ]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme.border));
@@ -797,18 +800,14 @@ fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     ]);
     f.render_widget(Paragraph::new(legend), Rect::new(inner.x, inner.y, inner.width, 1));
 
-    // Sort processes by weighted_score descending (index-based to avoid clone)
+    // Sort processes using current sort mode
     let procs = &s.processes;
     let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
     let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
     let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
 
     let mut indices: Vec<usize> = (0..procs.len()).collect();
-    indices.sort_by(|&a, &b| {
-        let sa = weighted_score(&procs[a], max_cpu, max_mem, max_power);
-        let sb = weighted_score(&procs[b], max_cpu, max_mem, max_power);
-        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    helpers::sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
 
     // Empty state
     if indices.is_empty() {

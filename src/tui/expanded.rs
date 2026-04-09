@@ -6,7 +6,7 @@ use ratatui::widgets::*;
 use crate::metrics::MetricsSnapshot;
 use crate::platform::network::speed_tier_from_baudrate;
 use super::{AppState, PanelId, theme, braille, gauge, gradient};
-use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate};
+use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, temp_color, sort_indices, CPU_TEMP_WARN, CPU_TEMP_CRIT, GPU_TEMP_WARN, GPU_TEMP_CRIT};
 
 
 pub(crate) fn draw_expanded_panel(f: &mut Frame, area: Rect, panel: PanelId, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -22,10 +22,20 @@ pub(crate) fn draw_expanded_panel(f: &mut Frame, area: Rect, panel: PanelId, s: 
 
 fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let cpu_pct = s.cpu.total_usage * 100.0;
+    let temp_col = if s.temperature.available {
+        temp_color(s.temperature.cpu_avg_c, CPU_TEMP_WARN, CPU_TEMP_CRIT)
+    } else {
+        theme.muted
+    };
     let title_spans = vec![
         Span::styled(" CPU [expanded]  ", Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
+        if s.temperature.available {
+            Span::styled(format!("  {:.0}°C", s.temperature.cpu_avg_c), Style::default().fg(temp_col))
+        } else {
+            Span::raw("")
+        },
         Span::raw(" "),
     ];
 
@@ -86,9 +96,19 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 }
 
 fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let temp_col = if s.temperature.available {
+        temp_color(s.temperature.gpu_avg_c, GPU_TEMP_WARN, GPU_TEMP_CRIT)
+    } else {
+        theme.muted
+    };
     let title_spans = vec![
         Span::styled(" GPU [expanded]  ", Style::default().fg(theme.gpu_accent).bold()),
         Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)),
+        if s.temperature.available {
+            Span::styled(format!("  {:.0}°C", s.temperature.gpu_avg_c), Style::default().fg(temp_col))
+        } else {
+            Span::raw("")
+        },
         Span::raw(" "),
     ];
 
@@ -103,11 +123,11 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Sparkline at top
+    // Sparkline at top (gradient coloring like CPU)
     let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
     let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, inner.width as usize);
     let spark_spans: Vec<Span> = spark.iter()
-        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.gpu_accent)))
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
     if !spark_spans.is_empty() {
         f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, inner.y, inner.width, 1));
@@ -182,33 +202,56 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
         f.render_widget(Paragraph::new(Line::from(swap_gauge)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
     }
 
-    // Memory pressure breakdown (W2A)
+    // Memory pressure stacked gauge
     let mut pressure_y = inner.y + 6;
-    if inner.height > 6 {
+    if inner.height > 6 && (s.memory.wired > 0 || s.memory.app > 0 || s.memory.compressed > 0) {
         let wired_gb = s.memory.wired as f64 / gb;
         let app_gb = s.memory.app as f64 / gb;
         let compressed_gb = s.memory.compressed as f64 / gb;
+        let total = ram_total_gb.max(0.01);
 
-        if s.memory.wired > 0 || s.memory.app > 0 || s.memory.compressed > 0 {
-            f.render_widget(
-                Paragraph::new("Memory Pressure").style(Style::default().fg(theme.muted)),
-                Rect::new(inner.x, pressure_y, inner.width, 1),
-            );
+        f.render_widget(
+            Paragraph::new("Memory Pressure").style(Style::default().fg(theme.muted)),
+            Rect::new(inner.x, pressure_y, inner.width, 1),
+        );
+        pressure_y += 1;
+
+        // Stacked gauge: [wired|app|compressed|free]
+        let gauge_width = inner.width.saturating_sub(2) as usize;
+        if pressure_y < inner.y + inner.height && gauge_width > 0 {
+            let w_frac = (wired_gb / total).clamp(0.0, 1.0);
+            let a_frac = (app_gb / total).clamp(0.0, 1.0);
+            let c_frac = (compressed_gb / total).clamp(0.0, 1.0);
+            let w_chars = (gauge_width as f64 * w_frac) as usize;
+            let a_chars = (gauge_width as f64 * a_frac) as usize;
+            let c_chars = (gauge_width as f64 * c_frac) as usize;
+            let free_chars = gauge_width.saturating_sub(w_chars + a_chars + c_chars);
+
+            let line = Line::from(vec![
+                Span::styled("▓".repeat(w_chars), Style::default().fg(Color::Red)),
+                Span::styled("▓".repeat(a_chars), Style::default().fg(Color::Blue)),
+                Span::styled("▓".repeat(c_chars), Style::default().fg(Color::Yellow)),
+                Span::styled("░".repeat(free_chars), Style::default().fg(theme.border)),
+            ]);
+            f.render_widget(Paragraph::new(line), Rect::new(inner.x, pressure_y, inner.width, 1));
             pressure_y += 1;
+        }
 
-            let pressure_items = [
-                ("Wired:      ", wired_gb),
-                ("App:        ", app_gb),
-                ("Compressed: ", compressed_gb),
-            ];
-            for (label, val) in &pressure_items {
-                if pressure_y >= inner.y + inner.height { break; }
-                f.render_widget(
-                    Paragraph::new(format!("{}{:.1} GB", label, val)).style(Style::default().fg(theme.fg)),
-                    Rect::new(inner.x, pressure_y, inner.width, 1),
-                );
-                pressure_y += 1;
-            }
+        // Legend
+        let pressure_items = [
+            ("■ Wired: ", wired_gb, Color::Red),
+            ("  ■ App: ", app_gb, Color::Blue),
+            ("  ■ Compressed: ", compressed_gb, Color::Yellow),
+        ];
+        if pressure_y < inner.y + inner.height {
+            let legend: Vec<Span> = pressure_items.iter().flat_map(|(label, val, color)| {
+                vec![
+                    Span::styled(*label, Style::default().fg(*color)),
+                    Span::styled(format!("{:.1}G", val), Style::default().fg(theme.fg)),
+                ]
+            }).collect();
+            f.render_widget(Paragraph::new(Line::from(legend)), Rect::new(inner.x, pressure_y, inner.width, 1));
+            pressure_y += 1;
         }
     }
 
@@ -407,13 +450,27 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 
+    // Fan speeds
+    let mut fan_y = inner.y.saturating_add(14);
+    if !s.temperature.fan_speeds.is_empty() && fan_y < inner.y.saturating_add(inner.height) {
+        let fan_text: String = s.temperature.fan_speeds.iter().enumerate()
+            .map(|(i, rpm)| format!("Fan {}: {} RPM", i, rpm))
+            .collect::<Vec<_>>()
+            .join("  ");
+        f.render_widget(
+            Paragraph::new(fan_text).style(Style::default().fg(theme.muted)),
+            Rect::new(inner.x, fan_y, inner.width, 1),
+        );
+        fan_y += 1;
+    }
+
     // Per-process energy ranking
     let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
         .filter(|p| p.power_w > 0.0)
         .collect();
     procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
 
-    let proc_start_y = inner.y.saturating_add(14);
+    let proc_start_y = fan_y.saturating_add(1);
     if proc_start_y < inner.y.saturating_add(inner.height) {
         f.render_widget(
             Paragraph::new("Top Processes by Power").style(Style::default().fg(theme.muted)),
@@ -433,11 +490,12 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 }
 
 fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
-    use crate::platform::process::weighted_score;
-
+    let sort_label = state.sort_mode.label();
     let block = Block::default()
-        .title(" Processes [expanded] ")
-        .title_style(Style::default().fg(theme.fg).bold())
+        .title(Line::from(vec![
+            Span::styled(" Processes [expanded] ", Style::default().fg(theme.fg).bold()),
+            Span::styled(format!(" sort: {} ", sort_label), Style::default().fg(theme.muted)),
+        ]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme.border));
@@ -447,31 +505,30 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     if inner.width == 0 || inner.height == 0 { return; }
 
-    // Header row
     let gb = 1024.0 * 1024.0 * 1024.0;
     let mb = 1024.0 * 1024.0;
+
+    // Header row with thread count and I/O
     let header = Line::from(vec![
-        Span::styled(format!("{:<20}", "Name"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "CPU%"), Style::default().fg(theme.cpu_accent).bold()),
-        Span::styled(format!("{:>9}", "Memory"), Style::default().fg(theme.mem_accent).bold()),
-        Span::styled(format!("{:>8}", "Power"), Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!("{:<18}", "Name"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>6}", "CPU%"), Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(format!("{:>8}", "Mem"), Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{:>7}", "Power"), Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!("{:>4}", "Thr"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "IO R"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "IO W"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "PID"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("  {:<10}", "User"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!(" {:<8}", "User"), Style::default().fg(theme.muted).bold()),
     ]);
     f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));
 
-    // Sort by weighted score using indices
     let procs = &s.processes;
     let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
     let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
     let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
 
     let mut indices: Vec<usize> = (0..procs.len()).collect();
-    indices.sort_by(|&a, &b| {
-        let sa = weighted_score(&procs[a], max_cpu, max_mem, max_power);
-        let sb = weighted_score(&procs[b], max_cpu, max_mem, max_power);
-        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
-    });
+    sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
 
     if indices.is_empty() {
         if inner.height > 1 {
@@ -492,21 +549,25 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
         let proc = &procs[idx];
         let mem_display = if proc.mem_bytes as f64 >= gb {
-            format!("{:.1} GB", proc.mem_bytes as f64 / gb)
+            format!("{:.1}G", proc.mem_bytes as f64 / gb)
         } else {
-            format!("{:.0} MB", proc.mem_bytes as f64 / mb)
+            format!("{:.0}M", proc.mem_bytes as f64 / mb)
         };
 
         let cpu_norm = if max_cpu > 0.0 { (proc.cpu_pct / max_cpu).clamp(0.0, 1.0) as f64 } else { 0.0 };
 
         let line = Line::from(vec![
-            Span::styled(format!("{:<20}", truncate_with_ellipsis(&proc.name, 20)), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>6.1}%", proc.cpu_pct), Style::default().fg(gradient::value_to_color(cpu_norm))),
-            Span::styled(format!("{:>9}", mem_display), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>7.2}W", proc.power_w), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:<18}", truncate_with_ellipsis(&proc.name, 18)), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>5.1}%", proc.cpu_pct), Style::default().fg(gradient::value_to_color(cpu_norm))),
+            Span::styled(format!("{:>8}", mem_display), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>6.1}W", proc.power_w), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>4}", proc.thread_count), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:>7}", format_bytes_rate_compact(proc.io_read_bytes_sec)), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:>7}", format_bytes_rate_compact(proc.io_write_bytes_sec)), Style::default().fg(theme.muted)),
             Span::styled(format!("{:>7}", proc.pid), Style::default().fg(theme.muted)),
-            Span::styled(format!("  {:<10}", truncate_with_ellipsis(&proc.user, 10)), Style::default().fg(theme.muted)),
+            Span::styled(format!(" {:<8}", truncate_with_ellipsis(&proc.user, 8)), Style::default().fg(theme.muted)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 }
+

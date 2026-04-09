@@ -163,6 +163,9 @@ pub struct PowerMetrics {
 pub struct ThermalMetrics {
     pub cpu_avg_c: f32,
     pub gpu_avg_c: f32,
+    pub ssd_avg_c: f32,
+    pub battery_avg_c: f32,
+    pub fan_speeds: Vec<u32>,
     pub available: bool,
 }
 
@@ -202,6 +205,41 @@ pub struct DiskMetrics {
     pub used_bytes: u64,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub enum SortMode {
+    #[default]
+    WeightedScore,
+    Cpu,
+    Memory,
+    Power,
+    Pid,
+    Name,
+}
+
+impl SortMode {
+    pub fn next(self) -> Self {
+        match self {
+            SortMode::WeightedScore => SortMode::Cpu,
+            SortMode::Cpu => SortMode::Memory,
+            SortMode::Memory => SortMode::Power,
+            SortMode::Power => SortMode::Pid,
+            SortMode::Pid => SortMode::Name,
+            SortMode::Name => SortMode::WeightedScore,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SortMode::WeightedScore => "Score",
+            SortMode::Cpu => "CPU%",
+            SortMode::Memory => "Mem",
+            SortMode::Power => "Power",
+            SortMode::Pid => "PID",
+            SortMode::Name => "Name",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ProcessInfo {
     pub pid: i32,
@@ -211,6 +249,9 @@ pub struct ProcessInfo {
     pub energy_nj: u64,
     pub power_w: f32,
     pub user: String,
+    pub thread_count: i32,
+    pub io_read_bytes_sec: f64,
+    pub io_write_bytes_sec: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

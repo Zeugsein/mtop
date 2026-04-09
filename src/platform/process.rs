@@ -5,7 +5,7 @@ use std::time::Instant;
 /// Per-PID state for delta-based CPU% calculation.
 /// Stores previous cumulative CPU time (Mach absolute units) and wall-clock timestamp.
 pub struct ProcessCpuState {
-    prev: HashMap<i32, (u64, u64, Instant)>, // (cpu_mach_time, energy_nj, timestamp)
+    prev: HashMap<i32, (u64, u64, u64, u64, Instant)>, // (cpu_mach_time, energy_nj, io_read, io_write, timestamp)
     timebase_numer: u32,
     timebase_denom: u32,
 }
@@ -151,32 +151,43 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
 
     // Delta-based CPU%: compare cumulative task time against wall-clock elapsed
     let cur_mach_time = task_info.pti_total_user + task_info.pti_total_system;
-    let cur_energy_nj = read_process_energy(pid).unwrap_or(0);
+    let (cur_energy_nj, cur_io_read, cur_io_write) = read_process_rusage(pid)
+        .unwrap_or((0, 0, 0));
 
-    let (cpu_pct, power_w) = if let Some(&(prev_mach_time, prev_energy, prev_wall)) = cpu_state.prev.get(&pid) {
-        let delta_task_ns = cpu_state.mach_to_ns(cur_mach_time.saturating_sub(prev_mach_time));
-        let delta_wall_ns = now.duration_since(prev_wall).as_nanos() as u64;
-        let cpu = if delta_wall_ns > 0 {
-            (delta_task_ns as f64 / delta_wall_ns as f64 * 100.0) as f32
+    let (cpu_pct, power_w, io_read_bytes_sec, io_write_bytes_sec) =
+        if let Some(&(prev_mach_time, prev_energy, prev_io_r, prev_io_w, prev_wall)) = cpu_state.prev.get(&pid) {
+            let delta_task_ns = cpu_state.mach_to_ns(cur_mach_time.saturating_sub(prev_mach_time));
+            let delta_wall_ns = now.duration_since(prev_wall).as_nanos() as u64;
+            let cpu = if delta_wall_ns > 0 {
+                (delta_task_ns as f64 / delta_wall_ns as f64 * 100.0) as f32
+            } else {
+                0.0
+            };
+            let power = if delta_wall_ns > 0 {
+                cur_energy_nj.saturating_sub(prev_energy) as f32 / delta_wall_ns as f32
+            } else {
+                0.0
+            };
+            let delta_secs = delta_wall_ns as f64 / 1_000_000_000.0;
+            let io_r = if delta_secs > 0.0 {
+                cur_io_read.saturating_sub(prev_io_r) as f64 / delta_secs
+            } else {
+                0.0
+            };
+            let io_w = if delta_secs > 0.0 {
+                cur_io_write.saturating_sub(prev_io_w) as f64 / delta_secs
+            } else {
+                0.0
+            };
+            (cpu, power, io_r, io_w)
         } else {
-            0.0
+            (0.0, 0.0, 0.0, 0.0)
         };
-        // power_w = delta_energy_nj / delta_wall_ns  (nJ/ns = W)
-        let power = if delta_wall_ns > 0 {
-            cur_energy_nj.saturating_sub(prev_energy) as f32 / delta_wall_ns as f32
-        } else {
-            0.0
-        };
-        (cpu, power)
-    } else {
-        // First sample for this PID — report 0
-        (0.0, 0.0)
-    };
 
-    // Store current values for next delta
-    cpu_state.prev.insert(pid, (cur_mach_time, cur_energy_nj, now));
+    cpu_state.prev.insert(pid, (cur_mach_time, cur_energy_nj, cur_io_read, cur_io_write, now));
 
     let mem_bytes = task_info.pti_resident_size;
+    let thread_count = task_info.pti_threadnum;
 
     Some(ProcessInfo {
         pid,
@@ -186,6 +197,9 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
         energy_nj: cur_energy_nj,
         power_w,
         user,
+        thread_count,
+        io_read_bytes_sec,
+        io_write_bytes_sec,
     })
 }
 
@@ -268,25 +282,33 @@ fn uid_to_username(uid: u32) -> String {
 const RUSAGE_INFO_V4: i32 = 4;
 
 /// Padded repr(C) struct matching rusage_info_v4 layout.
-/// ri_billed_energy is at byte offset 152; total struct size is 296 bytes.
+/// Key fields at known byte offsets:
+///   ri_diskio_bytesread  at offset 136 (u64)
+///   ri_diskio_byteswritten at offset 144 (u64)
+///   ri_billed_energy at offset 152 (u64)
+/// Total struct size is 296 bytes.
 #[repr(C)]
 struct RusageInfoV4 {
-    _padding: [u8; 152],
+    _padding_pre_diskio: [u8; 136],
+    ri_diskio_bytesread: u64,
+    ri_diskio_byteswritten: u64,
     ri_billed_energy: u64,
-    _rest: [u8; 136], // 296 - 152 - 8
+    _rest: [u8; 136], // 296 - 136 - 8 - 8 - 8 = 136
 }
 
 // Compile-time assertion: RusageInfoV4 must be exactly 296 bytes to match macOS kernel struct.
 const _: () = assert!(std::mem::size_of::<RusageInfoV4>() == 296);
 
-fn read_process_energy(pid: i32) -> Option<u64> {
+/// Read energy + disk I/O from rusage_info_v4 in a single syscall.
+/// Returns (energy_nj, diskio_bytesread, diskio_byteswritten).
+fn read_process_rusage(pid: i32) -> Option<(u64, u64, u64)> {
     unsafe {
         let mut ri: RusageInfoV4 = std::mem::zeroed();
         let ret = proc_pid_rusage(pid, RUSAGE_INFO_V4, &mut ri as *mut _ as *mut libc::c_void);
         if ret != 0 {
-            return None; // EPERM for other-user processes, or process exited
+            return None;
         }
-        Some(ri.ri_billed_energy)
+        Some((ri.ri_billed_energy, ri.ri_diskio_bytesread, ri.ri_diskio_byteswritten))
     }
 }
 

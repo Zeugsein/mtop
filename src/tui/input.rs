@@ -44,6 +44,9 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Up | KeyCode::Char('k') => {
             state.process_scroll = state.process_scroll.saturating_sub(1);
         }
+        KeyCode::Char('s') => {
+            state.sort_mode = state.sort_mode.next();
+        }
         _ => {}
     }
     false
