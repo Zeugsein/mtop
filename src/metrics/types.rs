@@ -231,6 +231,8 @@ pub struct MetricsHistory {
     pub package_power: HistoryBuffer,
     pub system_power: HistoryBuffer,
     pub mem_usage: HistoryBuffer,
+    pub net_upload: HistoryBuffer,
+    pub net_download: HistoryBuffer,
     max_len: usize,
 }
 
@@ -252,6 +254,8 @@ impl MetricsHistory {
             package_power: HistoryBuffer::new(),
             system_power: HistoryBuffer::new(),
             mem_usage: HistoryBuffer::new(),
+            net_upload: HistoryBuffer::new(),
+            net_download: HistoryBuffer::new(),
             max_len: 128,
         }
     }
@@ -277,6 +281,15 @@ impl MetricsHistory {
                 self.max_len,
             );
         }
+        // Network aggregate rates (sum across all interfaces)
+        let total_upload: f64 = snapshot.network.interfaces.iter()
+            .map(|i| i.tx_bytes_sec)
+            .sum();
+        let total_download: f64 = snapshot.network.interfaces.iter()
+            .map(|i| i.rx_bytes_sec)
+            .sum();
+        Self::push_val(&mut self.net_upload, total_upload, self.max_len);
+        Self::push_val(&mut self.net_download, total_download, self.max_len);
     }
 
     fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {
