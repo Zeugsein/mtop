@@ -168,11 +168,11 @@ fn draw_dashboard(f: &mut Frame, state: &AppState) {
     draw_gpu_panel_v2(f, left_r2, s, theme);
     draw_mem_disk_panel_v2(f, left_r3, s, state, theme);
 
-    // Right column: Network (placeholder), Power, Process list
+    // Right column: Network, Power, Process list
     let (right_r1, right_r2, right_r3) = layout::split_column_3(page.right_column);
-    draw_network_panel(f, right_r1, s, theme.accent);
+    draw_network_panel_v2(f, right_r1, s, state, theme);
     draw_power_panel_v2(f, right_r2, s, state, theme);
-    draw_process_list(f, right_r3, s, state, theme.accent);
+    draw_process_panel_v2(f, right_r3, s, state, theme);
 
     // Footer (full width)
     let footer = Paragraph::new(format!(
@@ -953,6 +953,7 @@ fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     }
 }
 
+#[allow(dead_code)]
 fn draw_network_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, accent: Color) {
     let block = Block::default()
         .title(" Network ")
@@ -1059,6 +1060,7 @@ fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     }
 }
 
+#[allow(dead_code)]
 fn draw_process_list(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, accent: Color) {
     let block = Block::default()
         .title(format!(" Processes (sort: {}) ", SORT_COLS[state.sort_col]))
