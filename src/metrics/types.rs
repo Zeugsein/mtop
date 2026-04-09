@@ -185,6 +185,7 @@ pub struct NetInterface {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct NetworkMetrics {
     pub interfaces: Vec<NetInterface>,
+    pub primary_baudrate: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
