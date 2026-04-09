@@ -331,7 +331,7 @@ const SMC_CMD_READ_KEYINFO: u8 = 9;
 const KERNEL_INDEX_SMC: u8 = 2;
 const MASTER_PORT: u32 = 0;
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 struct SmcKeyInfoData {
     data_size: u32,
@@ -339,19 +339,25 @@ struct SmcKeyInfoData {
     data_attributes: u8,
 }
 
-#[repr(C)]
+// Compile-time assertions: SmcKeyInfoData must be exactly 9 bytes,
+// SmcKeyData must be exactly 80 bytes to match the macOS kernel struct layout.
+const _: () = assert!(std::mem::size_of::<SmcKeyInfoData>() == 9);
+const _: () = assert!(std::mem::size_of::<SmcKeyData>() == 80);
+
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 struct SmcKeyData {
-    key: u32,
-    vers: [u8; 6],
-    p_limit_data: [u8; 16],
-    key_info: SmcKeyInfoData,
-    result: u8,
-    status: u8,
-    data8: u8,
-    data32: u32,
-    bytes: [u8; 32],
-}
+    key: u32,               // offset 0, size 4
+    vers: [u8; 6],          // offset 4, size 6
+    p_limit_data: [u8; 16], // offset 10, size 16
+    key_info: SmcKeyInfoData, // offset 26, size 9
+    result: u8,             // offset 35, size 1
+    status: u8,             // offset 36, size 1
+    data8: u8,              // offset 37, size 1
+    data32: u32,            // offset 38, size 4
+    _pad: [u8; 6],          // offset 42, size 6 (padding to align bytes at offset 48)
+    bytes: [u8; 32],        // offset 48, size 32
+}                           // total: 80 bytes
 
 impl SmcKeyData {
     fn zeroed() -> Self {
