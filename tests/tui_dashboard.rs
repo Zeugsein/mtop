@@ -345,9 +345,9 @@ fn network_panel_renders_rates_with_units() {
 fn process_list_is_sorted_cpu_desc() {
     use mtop::metrics::types::ProcessInfo;
     let mut procs = vec![
-        ProcessInfo { pid: 1, name: "a".into(), cpu_pct: 10.0, mem_bytes: 100, user: "root".into() },
-        ProcessInfo { pid: 2, name: "b".into(), cpu_pct: 50.0, mem_bytes: 200, user: "root".into() },
-        ProcessInfo { pid: 3, name: "c".into(), cpu_pct: 30.0, mem_bytes: 300, user: "root".into() },
+        ProcessInfo { pid: 1, name: "a".into(), cpu_pct: 10.0, mem_bytes: 100, energy_nj: 0, power_w: 0.0, user: "root".into() },
+        ProcessInfo { pid: 2, name: "b".into(), cpu_pct: 50.0, mem_bytes: 200, energy_nj: 0, power_w: 0.0, user: "root".into() },
+        ProcessInfo { pid: 3, name: "c".into(), cpu_pct: 30.0, mem_bytes: 300, energy_nj: 0, power_w: 0.0, user: "root".into() },
     ];
     procs.sort_by(|a, b| b.cpu_pct.partial_cmp(&a.cpu_pct).unwrap());
     assert_eq!(procs[0].cpu_pct, 50.0);
