@@ -1,4 +1,5 @@
 pub mod braille;
+pub mod gauge;
 pub mod gradient;
 pub mod layout;
 pub mod theme;
@@ -160,16 +161,16 @@ fn draw_dashboard(f: &mut Frame, state: &AppState) {
         .style(Style::default().bg(theme.header_bg).fg(theme.header_fg).bold());
     f.render_widget(header, page.header);
 
-    // Left column: CPU, GPU, Mem+Disk (placeholder)
+    // Left column: CPU, GPU, Mem+Disk
     let (left_r1, left_r2, left_r3) = layout::split_column_3(page.left_column);
     draw_cpu_panel_v2(f, left_r1, s, state, theme);
     draw_gpu_panel_v2(f, left_r2, s, theme);
-    draw_memory_panel(f, left_r3, s, theme.accent);
+    draw_mem_disk_panel_v2(f, left_r3, s, state, theme);
 
     // Right column: Network (placeholder), Power, Process list
     let (right_r1, right_r2, right_r3) = layout::split_column_3(page.right_column);
     draw_network_panel(f, right_r1, s, theme.accent);
-    draw_power_panel(f, right_r2, s, state, theme.accent);
+    draw_power_panel_v2(f, right_r2, s, state, theme);
     draw_process_list(f, right_r3, s, state, theme.accent);
 
     // Footer (full width)
@@ -326,10 +327,7 @@ fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, theme: &the
 
     let (trend_area, detail_area) = layout::split_type_a(inner);
 
-    // Left: GPU usage braille sparkline
-    let _sparkline_data: Vec<f64> = state_gpu_history_iter(&s.gpu).collect();
-    // We don't have GPU history in this scope — use a simple approach
-    // For now render a static indicator; full history requires passing MetricsHistory
+    // Left: GPU usage — static indicator (history not in scope for this panel)
     if s.gpu.available {
         let gpu_norm = s.gpu.usage as f64;
         let color = gradient::value_to_color(gpu_norm);
@@ -371,9 +369,272 @@ fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, theme: &the
     }
 }
 
-/// Placeholder: iterate GPU usage values (will use MetricsHistory in full implementation)
-fn state_gpu_history_iter(_gpu: &crate::metrics::GpuMetrics) -> std::iter::Empty<f64> {
-    std::iter::empty()
+/// Memory+Disk panel: Type A layout (75% sparkline+gauges + 25% disk detail)
+fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    let ram_used_gb = s.memory.ram_used as f64 / gb;
+    let ram_total_gb = s.memory.ram_total as f64 / gb;
+    let ram_pct = if s.memory.ram_total > 0 {
+        (s.memory.ram_used as f64 / s.memory.ram_total as f64 * 100.0) as u32
+    } else {
+        0
+    };
+
+    let disk_used_gb = s.disk.used_bytes as f64 / gb;
+    let disk_total_gb = s.disk.total_bytes as f64 / gb;
+    let disk_pct = if s.disk.total_bytes > 0 {
+        (s.disk.used_bytes as f64 / s.disk.total_bytes as f64 * 100.0) as u32
+    } else {
+        0
+    };
+
+    // Frame top: Memory {used}/{total} GB {pct}%  |  Disk {used}/{total} GB {pct}%
+    let title_spans = vec![
+        Span::styled(" Memory  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0} GB  {ram_pct}%"), Style::default().fg(theme.fg)),
+        Span::styled("  Disk  ", Style::default().fg(theme.muted)),
+        Span::styled(format!("{disk_used_gb:.0}/{disk_total_gb:.0} GB  {disk_pct}%"), Style::default().fg(theme.fg)),
+        Span::raw(" "),
+    ];
+
+    // Frame bottom: Swap {used}/{total} GB  |  R: {r} MB/s  W: {w} MB/s
+    let swap_used_gb = s.memory.swap_used as f64 / gb;
+    let swap_total_gb = s.memory.swap_total as f64 / gb;
+    let bottom_left = vec![
+        Span::styled(format!(" Swap {swap_used_gb:.1}/{swap_total_gb:.1} GB"), Style::default().fg(theme.muted)),
+    ];
+    let bottom_right = vec![
+        Span::styled(
+            format!("R: {}  W: {} ", format_bytes_rate(s.disk.read_bytes_sec as f64), format_bytes_rate(s.disk.write_bytes_sec as f64)),
+            Style::default().fg(theme.muted),
+        ),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .title_bottom(Line::from(bottom_left).alignment(ratatui::layout::Alignment::Left))
+        .title_bottom(Line::from(bottom_right).alignment(ratatui::layout::Alignment::Right))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border))
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let (trend_area, detail_area) = layout::split_type_a(inner);
+
+    // Left 75%: RAM sparkline + RAM gauge + Swap gauge
+    let left_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),    // sparkline (fills remaining space)
+            Constraint::Length(1), // RAM gauge
+            Constraint::Length(1), // Swap gauge
+        ])
+        .split(trend_area);
+
+    // RAM sparkline
+    let sparkline_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
+    let spark_width = left_rows[0].width as usize;
+    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width);
+    let spark_spans: Vec<Span> = spark
+        .iter()
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
+        .collect();
+    if !spark_spans.is_empty() {
+        let y_offset = left_rows[0].height / 2;
+        let spark_rect = Rect::new(left_rows[0].x, left_rows[0].y + y_offset, left_rows[0].width, 1);
+        f.render_widget(Paragraph::new(Line::from(spark_spans)), spark_rect);
+    }
+
+    // RAM gauge bar
+    let ram_label = format!("{ram_used_gb:.1}/{ram_total_gb:.0} GB");
+    let ram_gauge_spans = gauge::render_gauge_bar(
+        s.memory.ram_used as f64, s.memory.ram_total as f64,
+        left_rows[1].width.saturating_sub(16) as usize,
+        &ram_label,
+    );
+    f.render_widget(Paragraph::new(Line::from(ram_gauge_spans)), left_rows[1]);
+
+    // Swap gauge bar
+    let swap_label = format!("{swap_used_gb:.1}/{swap_total_gb:.1} GB");
+    let swap_gauge_spans = gauge::render_gauge_bar(
+        s.memory.swap_used as f64, s.memory.swap_total as f64,
+        left_rows[2].width.saturating_sub(16) as usize,
+        &swap_label,
+    );
+    f.render_widget(Paragraph::new(Line::from(swap_gauge_spans)), left_rows[2]);
+
+    // Right 25%: Disk capacity gauge + IO rates
+    let right_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Disk gauge
+            Constraint::Length(1), // spacer
+            Constraint::Length(1), // IO read
+            Constraint::Length(1), // IO write
+        ])
+        .split(detail_area);
+
+    // Disk capacity gauge
+    let disk_gauge_spans = gauge::render_compact_gauge(
+        if s.disk.total_bytes > 0 { s.disk.used_bytes as f64 / s.disk.total_bytes as f64 } else { 0.0 },
+        right_rows[0].width as usize,
+    );
+    f.render_widget(Paragraph::new(Line::from(disk_gauge_spans)), right_rows[0]);
+
+    // IO read rate
+    if right_rows.len() > 2 {
+        let read_text = format!("R: {}", format_bytes_rate(s.disk.read_bytes_sec as f64));
+        f.render_widget(
+            Paragraph::new(read_text).style(Style::default().fg(theme.fg)),
+            right_rows[2],
+        );
+    }
+
+    // IO write rate
+    if right_rows.len() > 3 {
+        let write_text = format!("W: {}", format_bytes_rate(s.disk.write_bytes_sec as f64));
+        f.render_widget(
+            Paragraph::new(write_text).style(Style::default().fg(theme.fg)),
+            right_rows[3],
+        );
+    }
+}
+
+/// Power panel: Type B layout (37.5% CPU sparkline + 37.5% GPU sparkline + 25% per-process energy)
+fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    if !s.power.available {
+        let block = Block::default()
+            .title(" Power ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.border))
+            .border_type(ratatui::widgets::BorderType::Rounded);
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+        f.render_widget(
+            Paragraph::new("Power sensors: N/A").style(Style::default().fg(theme.muted)),
+            inner,
+        );
+        return;
+    }
+
+    // Frame top: Power  CPU {w}W  GPU {w}W
+    let title_spans = vec![
+        Span::styled(" Power  ", Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!("CPU {:.1}W", s.power.cpu_w), Style::default().fg(theme.cpu_accent)),
+        Span::styled("  ", Style::default()),
+        Span::styled(format!("GPU {:.1}W", s.power.gpu_w), Style::default().fg(theme.gpu_accent)),
+        Span::raw(" "),
+    ];
+
+    // Frame bottom: Total {w}W  Avg {w}W  Max {w}W
+    let total_w = s.power.package_w.max(s.power.cpu_w + s.power.gpu_w + s.power.ane_w + s.power.dram_w);
+    let avg_w = if !state.history.package_power.is_empty() {
+        let sum: f64 = state.history.package_power.iter().sum();
+        sum / state.history.package_power.len() as f64
+    } else {
+        total_w as f64
+    };
+    let max_w = state.history.package_power.iter().copied().fold(0.0_f64, f64::max);
+
+    let bottom_spans = vec![
+        Span::styled(
+            format!(" Total {total_w:.1}W  Avg {avg_w:.1}W  Max {max_w:.1}W "),
+            Style::default().fg(theme.muted),
+        ),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .title_bottom(Line::from(bottom_spans).alignment(ratatui::layout::Alignment::Left))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.border))
+        .border_type(ratatui::widgets::BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let (left, mid, right) = layout::split_type_b(inner);
+
+    // Left 37.5%: CPU power sparkline
+    let cpu_tdp = s.soc.cpu_tdp_w() as f64;
+    let cpu_power_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
+    let cpu_spark = braille::render_braille_sparkline(&cpu_power_data, cpu_tdp, left.width as usize);
+    let cpu_spark_spans: Vec<Span> = cpu_spark
+        .iter()
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
+        .collect();
+    if !cpu_spark_spans.is_empty() {
+        let y_offset = left.height / 2;
+        f.render_widget(
+            Paragraph::new(Line::from(cpu_spark_spans)),
+            Rect::new(left.x, left.y + y_offset, left.width, 1),
+        );
+    }
+    // Label
+    f.render_widget(
+        Paragraph::new("CPU").style(Style::default().fg(theme.cpu_accent)),
+        Rect::new(left.x, left.y, left.width, 1),
+    );
+
+    // Middle 37.5%: GPU power sparkline
+    let gpu_tdp = s.soc.gpu_tdp_w() as f64;
+    let gpu_power_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
+    let gpu_spark = braille::render_braille_sparkline(&gpu_power_data, gpu_tdp, mid.width as usize);
+    let gpu_spark_spans: Vec<Span> = gpu_spark
+        .iter()
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
+        .collect();
+    if !gpu_spark_spans.is_empty() {
+        let y_offset = mid.height / 2;
+        f.render_widget(
+            Paragraph::new(Line::from(gpu_spark_spans)),
+            Rect::new(mid.x, mid.y + y_offset, mid.width, 1),
+        );
+    }
+    // Label
+    f.render_widget(
+        Paragraph::new("GPU").style(Style::default().fg(theme.gpu_accent)),
+        Rect::new(mid.x, mid.y, mid.width, 1),
+    );
+
+    // Right 25%: Per-process energy ranking
+    let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
+        .filter(|p| p.power_w > 0.0)
+        .collect();
+    procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
+
+    let max_power = procs_by_power.first().map(|p| p.power_w).unwrap_or(1.0).max(0.01);
+    let max_rows = right.height.saturating_sub(1) as usize; // leave 1 row for footer note
+
+    for (i, proc) in procs_by_power.iter().take(max_rows).enumerate() {
+        let y = right.y + i as u16;
+        if y >= right.y + right.height.saturating_sub(1) {
+            break;
+        }
+
+        let name_width = right.width.saturating_sub(8) as usize;
+        let name: String = proc.name.chars().take(name_width).collect();
+        let power_norm = (proc.power_w / max_power).clamp(0.0, 1.0) as f64;
+
+        let line = Line::from(vec![
+            Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
+            Span::raw(" "),
+            Span::styled("●", Style::default().fg(gradient::value_to_color(power_norm))),
+            Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.muted)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
+    }
+
+    // Footer note
+    if right.height > 1 {
+        let note_y = right.y + right.height - 1;
+        f.render_widget(
+            Paragraph::new("(user procs)").style(Style::default().fg(theme.muted)),
+            Rect::new(right.x, note_y, right.width, 1),
+        );
+    }
 }
 
 // Keep old CPU panel for backward compatibility with tests
@@ -443,6 +704,7 @@ fn draw_cpu_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, accent: Color)
     f.render_widget(text, inner);
 }
 
+#[allow(dead_code)]
 fn draw_power_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, accent: Color) {
     let block = Block::default()
         .title(" Power ")
@@ -533,6 +795,7 @@ fn draw_temp_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppSt
     );
 }
 
+#[allow(dead_code)]
 fn draw_memory_panel(f: &mut Frame, area: Rect, s: &MetricsSnapshot, accent: Color) {
     let block = Block::default()
         .title(" Memory ")
@@ -648,6 +911,7 @@ fn draw_process_list(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     f.render_widget(table, area);
 }
 
+#[allow(dead_code)]
 fn power_color(watts: f32) -> Color {
     if watts > 10.0 {
         Color::Red

@@ -58,6 +58,73 @@ pub struct SocInfo {
     pub memory_gb: u32,
 }
 
+impl SocInfo {
+    /// Estimated CPU TDP in watts for sparkline scaling.
+    pub fn cpu_tdp_w(&self) -> f32 {
+        estimate_cpu_tdp(&self.chip)
+    }
+
+    /// Estimated GPU TDP in watts for sparkline scaling.
+    pub fn gpu_tdp_w(&self) -> f32 {
+        estimate_gpu_tdp(&self.chip)
+    }
+}
+
+#[allow(clippy::if_same_then_else)]
+fn estimate_cpu_tdp(chip: &str) -> f32 {
+    let lower = chip.to_lowercase();
+    if lower.contains("ultra") {
+        if lower.contains("m4") { 60.0 }
+        else if lower.contains("m3") { 50.0 }
+        else if lower.contains("m2") { 50.0 }
+        else { 40.0 } // M1 Ultra
+    } else if lower.contains("max") {
+        if lower.contains("m4") { 30.0 }
+        else if lower.contains("m3") { 25.0 }
+        else if lower.contains("m2") { 20.0 }
+        else { 20.0 } // M1 Max
+    } else if lower.contains("pro") {
+        if lower.contains("m4") { 25.0 }
+        else if lower.contains("m3") { 20.0 }
+        else if lower.contains("m2") { 20.0 }
+        else { 20.0 } // M1 Pro
+    } else {
+        // Base chips (M1, M2, M3, M4)
+        if lower.contains("m4") { 12.0 }
+        else if lower.contains("m3") { 10.0 }
+        else if lower.contains("m2") { 10.0 }
+        else if lower.contains("m1") { 10.0 }
+        else { 30.0 } // Unknown — conservative fallback
+    }
+}
+
+#[allow(clippy::if_same_then_else)]
+fn estimate_gpu_tdp(chip: &str) -> f32 {
+    let lower = chip.to_lowercase();
+    if lower.contains("ultra") {
+        if lower.contains("m4") { 100.0 }
+        else if lower.contains("m3") { 90.0 }
+        else if lower.contains("m2") { 76.0 }
+        else { 64.0 }
+    } else if lower.contains("max") {
+        if lower.contains("m4") { 50.0 }
+        else if lower.contains("m3") { 45.0 }
+        else if lower.contains("m2") { 40.0 }
+        else { 32.0 }
+    } else if lower.contains("pro") {
+        if lower.contains("m4") { 20.0 }
+        else if lower.contains("m3") { 15.0 }
+        else if lower.contains("m2") { 15.0 }
+        else { 12.0 }
+    } else {
+        if lower.contains("m4") { 10.0 }
+        else if lower.contains("m3") { 10.0 }
+        else if lower.contains("m2") { 8.0 }
+        else if lower.contains("m1") { 8.0 }
+        else { 30.0 } // Unknown — conservative fallback
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CoreClusterMetrics {
     pub freq_mhz: u32,
@@ -124,6 +191,8 @@ pub struct NetworkMetrics {
 pub struct DiskMetrics {
     pub read_bytes_sec: u64,
     pub write_bytes_sec: u64,
+    pub total_bytes: u64,
+    pub used_bytes: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -132,6 +201,8 @@ pub struct ProcessInfo {
     pub name: String,
     pub cpu_pct: f32,
     pub mem_bytes: u64,
+    pub energy_nj: u64,
+    pub power_w: f32,
     pub user: String,
 }
 
@@ -159,6 +230,7 @@ pub struct MetricsHistory {
     pub dram_power: HistoryBuffer,
     pub package_power: HistoryBuffer,
     pub system_power: HistoryBuffer,
+    pub mem_usage: HistoryBuffer,
     max_len: usize,
 }
 
@@ -179,6 +251,7 @@ impl MetricsHistory {
             dram_power: HistoryBuffer::new(),
             package_power: HistoryBuffer::new(),
             system_power: HistoryBuffer::new(),
+            mem_usage: HistoryBuffer::new(),
             max_len: 128,
         }
     }
@@ -196,6 +269,14 @@ impl MetricsHistory {
             Self::push_val(&mut self.package_power, snapshot.power.package_w as f64, self.max_len);
             Self::push_val(&mut self.system_power, snapshot.power.system_w as f64, self.max_len);
         }
+        // Memory usage as fraction (0.0 to 1.0)
+        if snapshot.memory.ram_total > 0 {
+            Self::push_val(
+                &mut self.mem_usage,
+                snapshot.memory.ram_used as f64 / snapshot.memory.ram_total as f64,
+                self.max_len,
+            );
+        }
     }
 
     fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {
@@ -203,5 +284,36 @@ impl MetricsHistory {
         if buf.len() > max {
             buf.pop_front();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cpu_tdp_m4_pro() {
+        assert_eq!(estimate_cpu_tdp("Apple M4 Pro"), 25.0);
+    }
+
+    #[test]
+    fn test_gpu_tdp_m1() {
+        assert_eq!(estimate_gpu_tdp("Apple M1"), 8.0);
+    }
+
+    #[test]
+    fn test_tdp_unknown_chip() {
+        assert_eq!(estimate_cpu_tdp("Intel Core i9"), 30.0);
+        assert_eq!(estimate_gpu_tdp("Intel Core i9"), 30.0);
+    }
+
+    #[test]
+    fn test_soc_info_tdp_methods() {
+        let soc = SocInfo {
+            chip: "Apple M3 Max".to_string(),
+            e_cores: 4, p_cores: 12, gpu_cores: 40, memory_gb: 36,
+        };
+        assert_eq!(soc.cpu_tdp_w(), 25.0);
+        assert_eq!(soc.gpu_tdp_w(), 45.0);
     }
 }

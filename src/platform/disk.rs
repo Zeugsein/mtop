@@ -35,10 +35,27 @@ impl DiskState {
         self.prev_write = cur_write;
         self.prev_time = now;
 
+        let (total_bytes, used_bytes) = read_disk_capacity();
         DiskMetrics {
             read_bytes_sec: read_bps,
             write_bytes_sec: write_bps,
+            total_bytes,
+            used_bytes,
         }
+    }
+}
+
+fn read_disk_capacity() -> (u64, u64) {
+    unsafe {
+        let mut stat: libc::statfs = std::mem::zeroed();
+        if libc::statfs(c"/".as_ptr(), &mut stat) != 0 {
+            return (0, 0);
+        }
+        let block_size = stat.f_bsize as u64;
+        let total = stat.f_blocks * block_size;
+        let available = stat.f_bavail * block_size;
+        let used = total.saturating_sub(available);
+        (total, used)
     }
 }
 

@@ -5,7 +5,7 @@ use std::time::Instant;
 /// Per-PID state for delta-based CPU% calculation.
 /// Stores previous cumulative CPU time (Mach absolute units) and wall-clock timestamp.
 pub struct ProcessCpuState {
-    prev: HashMap<i32, (u64, Instant)>,
+    prev: HashMap<i32, (u64, u64, Instant)>, // (cpu_mach_time, energy_nj, timestamp)
     timebase_numer: u32,
     timebase_denom: u32,
 }
@@ -119,21 +119,30 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
 
     // Delta-based CPU%: compare cumulative task time against wall-clock elapsed
     let cur_mach_time = task_info.pti_total_user + task_info.pti_total_system;
-    let cpu_pct = if let Some(&(prev_mach_time, prev_wall)) = cpu_state.prev.get(&pid) {
+    let cur_energy_nj = read_process_energy(pid).unwrap_or(0);
+
+    let (cpu_pct, power_w) = if let Some(&(prev_mach_time, prev_energy, prev_wall)) = cpu_state.prev.get(&pid) {
         let delta_task_ns = cpu_state.mach_to_ns(cur_mach_time.saturating_sub(prev_mach_time));
         let delta_wall_ns = now.duration_since(prev_wall).as_nanos() as u64;
-        if delta_wall_ns > 0 {
+        let cpu = if delta_wall_ns > 0 {
             (delta_task_ns as f64 / delta_wall_ns as f64 * 100.0) as f32
         } else {
             0.0
-        }
+        };
+        // power_w = delta_energy_nj / delta_wall_ns  (nJ/ns = W)
+        let power = if delta_wall_ns > 0 {
+            cur_energy_nj.saturating_sub(prev_energy) as f32 / delta_wall_ns as f32
+        } else {
+            0.0
+        };
+        (cpu, power)
     } else {
-        // First sample for this PID — report 0%
-        0.0
+        // First sample for this PID — report 0
+        (0.0, 0.0)
     };
 
     // Store current values for next delta
-    cpu_state.prev.insert(pid, (cur_mach_time, now));
+    cpu_state.prev.insert(pid, (cur_mach_time, cur_energy_nj, now));
 
     let mem_bytes = task_info.pti_resident_size;
 
@@ -142,6 +151,8 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
         name,
         cpu_pct,
         mem_bytes,
+        energy_nj: cur_energy_nj,
+        power_w,
         user,
     })
 }
@@ -217,6 +228,33 @@ fn uid_to_username(uid: u32) -> String {
         std::ffi::CStr::from_ptr(pwd.pw_name)
             .to_string_lossy()
             .to_string()
+    }
+}
+
+// --- Energy (proc_pid_rusage) ---
+
+const RUSAGE_INFO_V4: i32 = 4;
+
+/// Padded repr(C) struct matching rusage_info_v4 layout.
+/// ri_billed_energy is at byte offset 152; total struct size is 296 bytes.
+#[repr(C)]
+struct RusageInfoV4 {
+    _padding: [u8; 152],
+    ri_billed_energy: u64,
+    _rest: [u8; 136], // 296 - 152 - 8
+}
+
+// Compile-time assertion: RusageInfoV4 must be exactly 296 bytes to match macOS kernel struct.
+const _: () = assert!(std::mem::size_of::<RusageInfoV4>() == 296);
+
+fn read_process_energy(pid: i32) -> Option<u64> {
+    unsafe {
+        let mut ri: RusageInfoV4 = std::mem::zeroed();
+        let ret = proc_pid_rusage(pid, RUSAGE_INFO_V4, &mut ri as *mut _ as *mut libc::c_void);
+        if ret != 0 {
+            return None; // EPERM for other-user processes, or process exited
+        }
+        Some(ri.ri_billed_energy)
     }
 }
 
@@ -324,6 +362,8 @@ unsafe extern "C" {
     ) -> i32;
 
     fn proc_name(pid: i32, buffer: *mut libc::c_void, buffersize: u32) -> i32;
+
+    fn proc_pid_rusage(pid: i32, flavor: i32, buffer: *mut libc::c_void) -> i32;
 
     fn mach_timebase_info(info: *mut MachTimebaseInfo) -> i32;
 }
