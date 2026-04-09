@@ -55,10 +55,20 @@ impl NetworkState {
             });
         }
 
-        let primary_baudrate = current.values()
-            .map(|&(_, _, baud)| baud)
+        // Prefer en* interfaces for baudrate; fall back to global max
+        let en_baudrate = current.iter()
+            .filter(|(name, _)| name.starts_with("en"))
+            .map(|(_, &(_, _, baud))| baud)
             .max()
             .unwrap_or(0);
+        let primary_baudrate = if en_baudrate > 0 {
+            en_baudrate
+        } else {
+            current.values()
+                .map(|&(_, _, baud)| baud)
+                .max()
+                .unwrap_or(0)
+        };
 
         self.prev = current;
         self.prev_time = now;
