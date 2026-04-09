@@ -110,6 +110,18 @@ mod tests {
     }
 
     #[test]
+    /// net_upload and net_download must use distinct accent colors so upload
+    /// and download sparklines are visually distinguishable in the TUI.
+    fn net_upload_and_download_have_distinct_colors() {
+        let t = &HORIZON;
+        assert_ne!(
+            format!("{:?}", t.net_upload),
+            format!("{:?}", t.net_download),
+            "net_upload and net_download should be different colors"
+        );
+    }
+
+    #[test]
     fn test_frame_chars_are_single_grapheme() {
         assert_eq!(frame_chars::TOP_LEFT.chars().count(), 1);
         assert_eq!(frame_chars::TOP_RIGHT.chars().count(), 1);

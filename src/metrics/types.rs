@@ -305,6 +305,78 @@ impl MetricsHistory {
 mod tests {
     use super::*;
 
+    // -------------------------------------------------------------------------
+    // Network history buffer (iteration 6)
+    // -------------------------------------------------------------------------
+
+    fn make_net_snapshot(tx_en0: f64, rx_en0: f64, tx_en1: f64, rx_en1: f64) -> MetricsSnapshot {
+        let mut snapshot = MetricsSnapshot::default();
+        snapshot.network.interfaces.push(NetInterface {
+            name: "en0".to_string(),
+            iface_type: "ethernet".to_string(),
+            rx_bytes_sec: rx_en0,
+            tx_bytes_sec: tx_en0,
+        });
+        snapshot.network.interfaces.push(NetInterface {
+            name: "en1".to_string(),
+            iface_type: "ethernet".to_string(),
+            rx_bytes_sec: rx_en1,
+            tx_bytes_sec: tx_en1,
+        });
+        snapshot
+    }
+
+    #[test]
+    /// Pushing 130 aggregate samples caps net_upload and net_download at 128 entries.
+    fn net_history_caps_at_128_after_130_pushes() {
+        let mut history = MetricsHistory::new();
+        let snapshot = make_net_snapshot(500.0, 1_000.0, 300.0, 2_000.0);
+
+        for _ in 0..130 {
+            history.push(&snapshot);
+        }
+
+        assert_eq!(
+            history.net_upload.len(),
+            128,
+            "net_upload buffer should cap at 128; got {}",
+            history.net_upload.len()
+        );
+        assert_eq!(
+            history.net_download.len(),
+            128,
+            "net_download buffer should cap at 128; got {}",
+            history.net_download.len()
+        );
+    }
+
+    #[test]
+    /// First push produces correct aggregate: upload = sum of tx_bytes_sec,
+    /// download = sum of rx_bytes_sec across all interfaces.
+    fn net_history_first_sample_aggregates_interfaces() {
+        let mut history = MetricsHistory::new();
+        // en0: tx=500, rx=1000 | en1: tx=300, rx=2000
+        let snapshot = make_net_snapshot(500.0, 1_000.0, 300.0, 2_000.0);
+
+        history.push(&snapshot);
+
+        let upload = *history.net_upload.last().expect("net_upload should have one entry");
+        let download = *history.net_download.last().expect("net_download should have one entry");
+
+        assert_eq!(
+            upload, 800.0,
+            "aggregate upload (tx) should be 500 + 300 = 800; got {upload}"
+        );
+        assert_eq!(
+            download, 3_000.0,
+            "aggregate download (rx) should be 1000 + 2000 = 3000; got {download}"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Existing TDP tests
+    // -------------------------------------------------------------------------
+
     #[test]
     fn test_cpu_tdp_m4_pro() {
         assert_eq!(estimate_cpu_tdp("Apple M4 Pro"), 25.0);
