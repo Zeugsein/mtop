@@ -199,9 +199,13 @@ unsafe fn get_state_freq_mhz(fns: &IOReportFns, channel: CFDictionaryRef, index:
     }
     let name = unsafe { ioreport_ffi::cfstring_to_string(name_cf) };
     // Do NOT CFRelease name_cf — it is a borrowed reference (Get rule)
-    if name.len() >= 4 {
-        name[name.len() - 4..].parse::<u32>().ok()
-    } else {
-        None
+    // State name format: "GPUPH_XXXX_YYYY" where YYYY is freq in MHz.
+    // Try last 4 chars first, then search for any trailing numeric segment.
+    if name.len() >= 4 && let Ok(freq) = name[name.len() - 4..].parse::<u32>() {
+        return Some(freq);
     }
+    // Fallback: extract last numeric segment from the name
+    name.rsplit(|c: char| !c.is_ascii_digit())
+        .find(|s| !s.is_empty())
+        .and_then(|s| s.parse::<u32>().ok())
 }

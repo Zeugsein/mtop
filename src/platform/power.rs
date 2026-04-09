@@ -167,13 +167,21 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
             _ => value as f64 / 1e9, // nJ default
         };
 
-        if name_str.ends_with("CPU Energy") {
+        // Channel names vary by chip generation:
+        //   "CPU Energy", "ECPU0 Energy", "PCPU0 Energy", "DIE_0_CPU Energy"
+        //   "GPU Energy", "GPU0 Energy", "DIE_0_GPU Energy"
+        //   "ANE0 Energy", "DRAM0 Energy"
+        // Use contains() to match all variants reliably.
+        let name_upper = name_str.to_uppercase();
+        if (name_upper.contains("CPU") || name_upper.contains("ECPU") || name_upper.contains("PCPU"))
+            && name_upper.contains("ENERGY")
+        {
             cpu_joules += joules;
-        } else if name_str == "GPU Energy" {
+        } else if name_upper.contains("GPU") && name_upper.contains("ENERGY") {
             gpu_joules += joules;
-        } else if name_str.starts_with("ANE") {
+        } else if name_upper.contains("ANE") {
             ane_joules += joules;
-        } else if name_str.starts_with("DRAM") {
+        } else if name_upper.contains("DRAM") {
             dram_joules += joules;
         }
     }
