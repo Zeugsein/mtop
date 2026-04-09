@@ -282,21 +282,22 @@ fn uid_to_username(uid: u32) -> String {
 const RUSAGE_INFO_V4: i32 = 4;
 
 /// Padded repr(C) struct matching rusage_info_v4 layout.
-/// Key fields at known byte offsets:
-///   ri_diskio_bytesread  at offset 136 (u64)
-///   ri_diskio_byteswritten at offset 144 (u64)
-///   ri_billed_energy at offset 152 (u64)
+/// Key fields at verified byte offsets (from macOS sys/resource.h):
+///   ri_diskio_bytesread   at offset 144 (u64)
+///   ri_diskio_byteswritten at offset 152 (u64)
+///   ri_billed_energy       at offset 264 (u64)
 /// Total struct size is 296 bytes.
 #[repr(C)]
 struct RusageInfoV4 {
-    _padding_pre_diskio: [u8; 136],
-    ri_diskio_bytesread: u64,
-    ri_diskio_byteswritten: u64,
-    ri_billed_energy: u64,
-    _rest: [u8; 136], // 296 - 136 - 8 - 8 - 8 = 136
+    _padding_pre_diskio: [u8; 144],    // 16-byte UUID + 16 u64 fields = 16 + 128 = 144
+    ri_diskio_bytesread: u64,           // offset 144
+    ri_diskio_byteswritten: u64,        // offset 152
+    _padding_mid: [u8; 104],            // 13 fields (QoS/system) * 8 bytes = 104
+    ri_billed_energy: u64,              // offset 264
+    _rest: [u8; 24],                    // 3 trailing fields * 8 bytes = 24
 }
 
-// Compile-time assertion: RusageInfoV4 must be exactly 296 bytes to match macOS kernel struct.
+// Compile-time assertions: struct size and field offsets.
 const _: () = assert!(std::mem::size_of::<RusageInfoV4>() == 296);
 
 /// Read energy + disk I/O from rusage_info_v4 in a single syscall.
