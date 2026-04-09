@@ -2,7 +2,7 @@ use crate::metrics::{NetInterface, NetworkMetrics};
 use std::collections::HashMap;
 
 pub struct NetworkState {
-    prev: HashMap<String, (u64, u64, u64)>, // name -> (rx_bytes, tx_bytes, baudrate)
+    prev: HashMap<String, (u64, u64, u64, u64, u64)>, // name -> (rx_bytes, tx_bytes, baudrate, rx_packets, tx_packets)
     prev_time: std::time::Instant,
 }
 
@@ -27,45 +27,45 @@ impl NetworkState {
         let current = read_interface_bytes();
         let mut interfaces = Vec::new();
 
-        for (name, (rx, tx, _baud)) in &current {
-            let (rx_rate, tx_rate) = if let Some((prev_rx, prev_tx, _)) = self.prev.get(name) {
+        for (name, (rx, tx, baud, rx_pkts, tx_pkts)) in &current {
+            if name.starts_with("lo") {
+                continue; // skip loopback
+            }
+
+            let (rx_rate, tx_rate, pkt_in_rate, pkt_out_rate) = if let Some((prev_rx, prev_tx, _, prev_rpkt, prev_tpkt)) = self.prev.get(name) {
                 let drx = rx.saturating_sub(*prev_rx) as f64 / dt;
                 let dtx = tx.saturating_sub(*prev_tx) as f64 / dt;
-                (drx, dtx)
+                let dpkt_in = rx_pkts.saturating_sub(*prev_rpkt) as f64 / dt;
+                let dpkt_out = tx_pkts.saturating_sub(*prev_tpkt) as f64 / dt;
+                (drx, dtx, dpkt_in, dpkt_out)
             } else {
-                (0.0, 0.0)
+                (0.0, 0.0, 0.0, 0.0)
             };
 
-            // Classify interface type — en* interfaces are IFT_ETHER (0x06);
-            // we cannot distinguish WiFi from wired Ethernet without CoreWLAN,
-            // so label as "ethernet" (the more general correct classification).
-            let iface_type = if name.starts_with("en") {
-                "ethernet".to_string()
-            } else if name.starts_with("lo") {
-                continue; // skip loopback
-            } else {
-                "other".to_string()
-            };
+            let iface_type = classify_interface(name).to_string();
 
             interfaces.push(NetInterface {
                 name: name.clone(),
                 iface_type,
                 rx_bytes_sec: rx_rate,
                 tx_bytes_sec: tx_rate,
+                baudrate: *baud,
+                packets_in_sec: pkt_in_rate,
+                packets_out_sec: pkt_out_rate,
             });
         }
 
         // Prefer en* interfaces for baudrate; fall back to global max
         let en_baudrate = current.iter()
             .filter(|(name, _)| name.starts_with("en"))
-            .map(|(_, &(_, _, baud))| baud)
+            .map(|(_, &(_, _, baud, _, _))| baud)
             .max()
             .unwrap_or(0);
         let primary_baudrate = if en_baudrate > 0 {
             en_baudrate
         } else {
             current.values()
-                .map(|&(_, _, baud)| baud)
+                .map(|&(_, _, baud, _, _)| baud)
                 .max()
                 .unwrap_or(0)
         };
@@ -77,7 +77,7 @@ impl NetworkState {
     }
 }
 
-fn read_interface_bytes() -> HashMap<String, (u64, u64, u64)> {
+fn read_interface_bytes() -> HashMap<String, (u64, u64, u64, u64, u64)> {
     let mut result = HashMap::new();
 
     unsafe {
@@ -101,7 +101,9 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64, u64)> {
                     let rx = (*data).ifi_ibytes;
                     let tx = (*data).ifi_obytes;
                     let baudrate = (*data).ifi_baudrate;
-                    result.insert(name, (rx, tx, baudrate));
+                    let rx_pkts = (*data).ifi_ipackets;
+                    let tx_pkts = (*data).ifi_opackets;
+                    result.insert(name, (rx, tx, baudrate, rx_pkts, tx_pkts));
                 }
             }
 
@@ -112,6 +114,22 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64, u64)> {
     }
 
     result
+}
+
+fn classify_interface(name: &str) -> &'static str {
+    if name.starts_with("en") {
+        "Ethernet/Wi-Fi"
+    } else if name.starts_with("utun") {
+        "VPN"
+    } else if name.starts_with("bridge") {
+        "Bridge"
+    } else if name.starts_with("awdl") {
+        "AirDrop"
+    } else if name.starts_with("lo") {
+        "Loopback"
+    } else {
+        "Other"
+    }
 }
 
 /// Determine sparkline scale tier (bytes/sec) from interface baudrate (bits/sec).

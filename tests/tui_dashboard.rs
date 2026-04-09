@@ -59,6 +59,7 @@ fn make_snapshot() -> MetricsSnapshot {
         ram_used: 8_589_934_592,   // 8 GB
         swap_total: 2_147_483_648, // 2 GB
         swap_used: 1_073_741_824,  // 1 GB
+        ..Default::default()
     };
     s.network = NetworkMetrics {
         interfaces: vec![NetInterface {
@@ -66,6 +67,7 @@ fn make_snapshot() -> MetricsSnapshot {
             iface_type: "wifi".into(),
             rx_bytes_sec: 125_000.0,
             tx_bytes_sec: 45_000.0,
+            ..Default::default()
         }],
         primary_baudrate: 1_000_000_000,
     };
@@ -308,6 +310,7 @@ fn net_interface_has_required_fields() {
         iface_type: "wifi".into(),
         rx_bytes_sec: 125_000.0,
         tx_bytes_sec: 45_000.0,
+        ..Default::default()
     };
     assert!(!iface.name.is_empty());
     assert!(iface.rx_bytes_sec >= 0.0);
