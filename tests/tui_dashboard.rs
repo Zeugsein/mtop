@@ -67,6 +67,7 @@ fn make_snapshot() -> MetricsSnapshot {
             rx_bytes_sec: 125_000.0,
             tx_bytes_sec: 45_000.0,
         }],
+        primary_baudrate: 1_000_000_000,
     };
     s
 }
