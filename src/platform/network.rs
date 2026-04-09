@@ -2,7 +2,7 @@ use crate::metrics::{NetInterface, NetworkMetrics};
 use std::collections::HashMap;
 
 pub struct NetworkState {
-    prev: HashMap<String, (u64, u64)>, // name -> (rx_bytes, tx_bytes)
+    prev: HashMap<String, (u64, u64, u64)>, // name -> (rx_bytes, tx_bytes, baudrate)
     prev_time: std::time::Instant,
 }
 
@@ -27,8 +27,8 @@ impl NetworkState {
         let current = read_interface_bytes();
         let mut interfaces = Vec::new();
 
-        for (name, (rx, tx)) in &current {
-            let (rx_rate, tx_rate) = if let Some((prev_rx, prev_tx)) = self.prev.get(name) {
+        for (name, (rx, tx, _baud)) in &current {
+            let (rx_rate, tx_rate) = if let Some((prev_rx, prev_tx, _)) = self.prev.get(name) {
                 let drx = rx.saturating_sub(*prev_rx) as f64 / dt;
                 let dtx = tx.saturating_sub(*prev_tx) as f64 / dt;
                 (drx, dtx)
@@ -55,14 +55,19 @@ impl NetworkState {
             });
         }
 
+        let primary_baudrate = current.values()
+            .map(|&(_, _, baud)| baud)
+            .max()
+            .unwrap_or(0);
+
         self.prev = current;
         self.prev_time = now;
 
-        NetworkMetrics { interfaces }
+        NetworkMetrics { interfaces, primary_baudrate }
     }
 }
 
-fn read_interface_bytes() -> HashMap<String, (u64, u64)> {
+fn read_interface_bytes() -> HashMap<String, (u64, u64, u64)> {
     let mut result = HashMap::new();
 
     unsafe {
@@ -85,7 +90,8 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64)> {
                     let data = ifa.ifa_data as *const IfData;
                     let rx = (*data).ifi_ibytes;
                     let tx = (*data).ifi_obytes;
-                    result.insert(name, (rx, tx));
+                    let baudrate = (*data).ifi_baudrate;
+                    result.insert(name, (rx, tx, baudrate));
                 }
             }
 
@@ -96,6 +102,18 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64)> {
     }
 
     result
+}
+
+/// Determine sparkline scale tier (bytes/sec) from interface baudrate (bits/sec).
+/// Returns the maximum bytes/sec value for sparkline scaling.
+pub fn speed_tier_from_baudrate(baudrate: u64) -> u64 {
+    if baudrate >= 1_000_000_000 {
+        125_000_000  // 1 Gbps → 125 MB/s
+    } else if baudrate >= 100_000_000 {
+        12_500_000   // 100 Mbps → 12.5 MB/s
+    } else {
+        1_250_000    // 10 Mbps fallback → 1.25 MB/s
+    }
 }
 
 const AF_LINK: i32 = 18;
