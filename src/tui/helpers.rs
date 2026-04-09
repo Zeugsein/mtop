@@ -52,12 +52,68 @@ pub fn is_infrastructure_interface(name: &str) -> bool {
 
 pub fn format_baudrate(baudrate: u64) -> String {
     if baudrate >= 1_000_000_000 {
-        format!("{} Gbps", baudrate / 1_000_000_000)
+        let gbps = baudrate as f64 / 1_000_000_000.0;
+        if (gbps - gbps.round()).abs() < 0.01 {
+            format!("{} Gbps", gbps as u64)
+        } else {
+            format!("{:.1} Gbps", gbps)
+        }
     } else if baudrate >= 1_000_000 {
-        format!("{} Mbps", baudrate / 1_000_000)
+        let mbps = baudrate as f64 / 1_000_000.0;
+        if (mbps - mbps.round()).abs() < 0.01 {
+            format!("{} Mbps", mbps as u64)
+        } else {
+            format!("{:.1} Mbps", mbps)
+        }
     } else if baudrate > 0 {
         format!("{} Kbps", baudrate / 1_000)
     } else {
         "—".to_string()
+    }
+}
+
+/// Color for temperature based on thresholds.
+pub fn temp_color(temp_c: f32, warn_threshold: f32, crit_threshold: f32) -> ratatui::style::Color {
+    if temp_c >= crit_threshold {
+        ratatui::style::Color::Red
+    } else if temp_c >= warn_threshold {
+        ratatui::style::Color::Yellow
+    } else {
+        ratatui::style::Color::Green
+    }
+}
+
+// Thermal thresholds (compile-time constants)
+pub const CPU_TEMP_WARN: f32 = 80.0;
+pub const CPU_TEMP_CRIT: f32 = 95.0;
+pub const GPU_TEMP_WARN: f32 = 85.0;
+pub const GPU_TEMP_CRIT: f32 = 100.0;
+
+pub fn sort_indices(indices: &mut [usize], procs: &[crate::metrics::ProcessInfo], mode: crate::metrics::SortMode, max_cpu: f32, max_mem: u64, max_power: f32) {
+    use crate::metrics::SortMode;
+    use crate::platform::process::weighted_score;
+    match mode {
+        SortMode::WeightedScore => {
+            indices.sort_by(|&a, &b| {
+                let sa = weighted_score(&procs[a], max_cpu, max_mem, max_power);
+                let sb = weighted_score(&procs[b], max_cpu, max_mem, max_power);
+                sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+        SortMode::Cpu => {
+            indices.sort_by(|&a, &b| procs[b].cpu_pct.partial_cmp(&procs[a].cpu_pct).unwrap_or(std::cmp::Ordering::Equal));
+        }
+        SortMode::Memory => {
+            indices.sort_by(|&a, &b| procs[b].mem_bytes.cmp(&procs[a].mem_bytes));
+        }
+        SortMode::Power => {
+            indices.sort_by(|&a, &b| procs[b].power_w.partial_cmp(&procs[a].power_w).unwrap_or(std::cmp::Ordering::Equal));
+        }
+        SortMode::Pid => {
+            indices.sort_by(|&a, &b| procs[a].pid.cmp(&procs[b].pid));
+        }
+        SortMode::Name => {
+            indices.sort_by(|&a, &b| procs[a].name.to_lowercase().cmp(&procs[b].name.to_lowercase()));
+        }
     }
 }

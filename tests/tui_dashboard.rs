@@ -53,7 +53,7 @@ fn make_snapshot() -> MetricsSnapshot {
     s.soc = make_soc();
     s.cpu = make_cpu_metrics();
     s.power = make_power_metrics();
-    s.temperature = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true };
+    s.temperature = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true, ..Default::default() };
     s.memory = MemoryMetrics {
         ram_total: 25_769_803_776, // 24 GB
         ram_used: 8_589_934_592,   // 8 GB
@@ -234,7 +234,7 @@ fn gpu_panel_renders_usage_freq_power() {
 #[test]
 /// FR-5: ThermalMetrics stores cpu_avg_c and gpu_avg_c
 fn thermal_metrics_has_cpu_and_gpu_fields() {
-    let t = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true };
+    let t = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true, ..Default::default() };
     assert!(t.cpu_avg_c > 0.0);
     assert!(t.gpu_avg_c > 0.0);
 }
@@ -349,9 +349,9 @@ fn network_panel_renders_rates_with_units() {
 fn process_list_is_sorted_cpu_desc() {
     use mtop::metrics::types::ProcessInfo;
     let mut procs = vec![
-        ProcessInfo { pid: 1, name: "a".into(), cpu_pct: 10.0, mem_bytes: 100, energy_nj: 0, power_w: 0.0, user: "root".into() },
-        ProcessInfo { pid: 2, name: "b".into(), cpu_pct: 50.0, mem_bytes: 200, energy_nj: 0, power_w: 0.0, user: "root".into() },
-        ProcessInfo { pid: 3, name: "c".into(), cpu_pct: 30.0, mem_bytes: 300, energy_nj: 0, power_w: 0.0, user: "root".into() },
+        ProcessInfo { pid: 1, name: "a".into(), cpu_pct: 10.0, mem_bytes: 100, energy_nj: 0, power_w: 0.0, user: "root".into(), ..Default::default() },
+        ProcessInfo { pid: 2, name: "b".into(), cpu_pct: 50.0, mem_bytes: 200, energy_nj: 0, power_w: 0.0, user: "root".into(), ..Default::default() },
+        ProcessInfo { pid: 3, name: "c".into(), cpu_pct: 30.0, mem_bytes: 300, energy_nj: 0, power_w: 0.0, user: "root".into(), ..Default::default() },
     ];
     procs.sort_by(|a, b| b.cpu_pct.partial_cmp(&a.cpu_pct).unwrap());
     assert_eq!(procs[0].cpu_pct, 50.0);

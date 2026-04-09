@@ -114,11 +114,13 @@ impl Sampler {
 
         // Live SMC key enumeration
         if let Some(ref temp) = self.temp_state {
-            let (cpu_keys, gpu_keys) = platform::temperature::smc_enumerate_temp_keys(temp.conn());
+            let (cpu_keys, gpu_keys, ssd_keys, battery_keys) = platform::temperature::smc_enumerate_temp_keys(temp.conn());
             if !cpu_keys.is_empty() || !gpu_keys.is_empty() {
                 out.push_str("\nSMC Keys (discovered):\n");
                 out.push_str(&format!("  CPU: {}\n", if cpu_keys.is_empty() { "none".to_string() } else { cpu_keys.join(", ") }));
                 out.push_str(&format!("  GPU: {}\n", if gpu_keys.is_empty() { "none".to_string() } else { gpu_keys.join(", ") }));
+                out.push_str(&format!("  SSD: {}\n", if ssd_keys.is_empty() { "none".to_string() } else { ssd_keys.join(", ") }));
+                out.push_str(&format!("  Battery: {}\n", if battery_keys.is_empty() { "none".to_string() } else { battery_keys.join(", ") }));
             } else {
                 out.push_str("\nSMC Keys (static fallback):\n");
                 out.push_str("  CPU: TC0P, TC0C, TC1C, TC2C, TC0F, Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");
