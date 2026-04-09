@@ -172,6 +172,9 @@ pub struct MemoryMetrics {
     pub ram_used: u64,
     pub swap_total: u64,
     pub swap_used: u64,
+    pub wired: u64,
+    pub app: u64,
+    pub compressed: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -180,6 +183,9 @@ pub struct NetInterface {
     pub iface_type: String,
     pub rx_bytes_sec: f64,
     pub tx_bytes_sec: f64,
+    pub baudrate: u64,
+    pub packets_in_sec: f64,
+    pub packets_out_sec: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -316,12 +322,14 @@ mod tests {
             iface_type: "ethernet".to_string(),
             rx_bytes_sec: rx_en0,
             tx_bytes_sec: tx_en0,
+            ..Default::default()
         });
         snapshot.network.interfaces.push(NetInterface {
             name: "en1".to_string(),
             iface_type: "ethernet".to_string(),
             rx_bytes_sec: rx_en1,
             tx_bytes_sec: tx_en1,
+            ..Default::default()
         });
         snapshot
     }

@@ -4,7 +4,7 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
     let ram_total = sysctl_u64("hw.memsize").unwrap_or(0);
 
     // Get VM statistics via Mach API
-    let (ram_used, swap_total, swap_used) = unsafe {
+    let (ram_used, swap_total, swap_used, wired, app, compressed) = unsafe {
         let mut vm_stat: VmStatistics64 = std::mem::zeroed();
         let mut count = (std::mem::size_of::<VmStatistics64>() / std::mem::size_of::<i32>()) as u32;
 
@@ -15,22 +15,29 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
             &mut count,
         );
 
-        let ram_used = if ret == 0 {
-            let raw = libc::sysconf(libc::_SC_PAGESIZE);
-            let page_size = if raw <= 0 { 16384u64 } else { raw as u64 };
-            (vm_stat.active_count as u64
+        let raw = libc::sysconf(libc::_SC_PAGESIZE);
+        let page_size = if raw <= 0 { 16384u64 } else { raw as u64 };
+
+        let (ram_used, wired, app, compressed) = if ret == 0 {
+            let used = (vm_stat.active_count as u64
                 + vm_stat.inactive_count as u64
                 + vm_stat.wire_count as u64
                 + vm_stat.compressor_page_count as u64)
-                * page_size
+                * page_size;
+            let wired = vm_stat.wire_count as u64 * page_size;
+            let app = (vm_stat.internal_page_count as u64)
+                .saturating_sub(vm_stat.purgeable_count as u64)
+                * page_size;
+            let compressed = vm_stat.compressor_page_count as u64 * page_size;
+            (used, wired, app, compressed)
         } else {
-            0
+            (0, 0, 0, 0)
         };
 
         // Swap via sysctl
         let swap = get_swap_usage();
 
-        (ram_used, swap.0, swap.1)
+        (ram_used, swap.0, swap.1, wired, app, compressed)
     };
 
     MemoryMetrics {
@@ -38,6 +45,9 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         ram_used,
         swap_total,
         swap_used,
+        wired,
+        app,
+        compressed,
     }
 }
 

@@ -1,0 +1,512 @@
+//! Expanded panel renderers extracted from mod.rs (iteration 8).
+
+use ratatui::prelude::*;
+use ratatui::widgets::*;
+
+use crate::metrics::MetricsSnapshot;
+use crate::platform::network::speed_tier_from_baudrate;
+use super::{AppState, PanelId, theme, braille, gauge, gradient};
+use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate};
+
+
+pub(crate) fn draw_expanded_panel(f: &mut Frame, area: Rect, panel: PanelId, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    match panel {
+        PanelId::Cpu => draw_cpu_expanded(f, area, s, state, theme),
+        PanelId::Gpu => draw_gpu_expanded(f, area, s, state, theme),
+        PanelId::MemDisk => draw_mem_disk_expanded(f, area, s, state, theme),
+        PanelId::Network => draw_network_expanded(f, area, s, state, theme),
+        PanelId::Power => draw_power_expanded(f, area, s, state, theme),
+        PanelId::Process => draw_process_expanded(f, area, s, state, theme),
+    }
+}
+
+fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let cpu_pct = s.cpu.total_usage * 100.0;
+    let title_spans = vec![
+        Span::styled(" CPU [expanded]  ", Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
+        Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
+        Span::raw(" "),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.cpu_accent))
+        .border_type(BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height == 0 || inner.width == 0 { return; }
+
+    // Top section: sparkline
+    let spark_height = 2.min(inner.height);
+    let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
+    let spark_width = inner.width as usize;
+    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width);
+    let spark_spans: Vec<Span> = spark.iter()
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
+        .collect();
+    if !spark_spans.is_empty() {
+        f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, inner.y, inner.width, 1));
+    }
+
+    // Per-core usage bars
+    let core_start_y = inner.y + spark_height;
+    let available_rows = inner.height.saturating_sub(spark_height) as usize;
+
+    // E-cluster header
+    if available_rows > 0 {
+        f.render_widget(
+            Paragraph::new(format!("E-cluster: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz))
+                .style(Style::default().fg(theme.cpu_accent)),
+            Rect::new(inner.x, core_start_y, inner.width, 1),
+        );
+    }
+
+    let bar_width = inner.width.saturating_sub(12) as usize;
+    for (i, &usage) in s.cpu.core_usages.iter().enumerate() {
+        let y = core_start_y + 1 + i as u16;
+        if y >= inner.y + inner.height { break; }
+
+        let norm = usage.clamp(0.0, 1.0);
+        let filled = (bar_width as f32 * norm) as usize;
+        let empty = bar_width.saturating_sub(filled);
+        let color = gradient::value_to_color(norm as f64);
+
+        let line = Line::from(vec![
+            Span::styled(format!("Core {:>2} ", i), Style::default().fg(theme.muted)),
+            Span::styled("▓".repeat(filled), Style::default().fg(color)),
+            Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
+            Span::styled(format!(" {:>5.1}%", usage * 100.0), Style::default().fg(theme.fg)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+    }
+}
+
+fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let title_spans = vec![
+        Span::styled(" GPU [expanded]  ", Style::default().fg(theme.gpu_accent).bold()),
+        Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)),
+        Span::raw(" "),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.gpu_accent))
+        .border_type(BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height == 0 || inner.width == 0 { return; }
+
+    // Sparkline at top
+    let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
+    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, inner.width as usize);
+    let spark_spans: Vec<Span> = spark.iter()
+        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.gpu_accent)))
+        .collect();
+    if !spark_spans.is_empty() {
+        f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, inner.y, inner.width, 1));
+    }
+
+    // Detailed metrics table
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    let metrics = [
+        format!("Frequency:    {} MHz", s.gpu.freq_mhz),
+        format!("Usage:        {:.1}%", s.gpu.usage * 100.0),
+        format!("GPU Power:    {:.2} W", s.power.gpu_w),
+        format!("ANE Power:    {:.2} W", s.power.ane_w),
+        format!("DRAM Power:   {:.2} W", s.power.dram_w),
+        format!("GPU Cores:    {}", s.soc.gpu_cores),
+        String::new(),
+        format!("Memory Used:  {:.1} GB", s.memory.ram_used as f64 / gb),
+        format!("Memory Total: {:.0} GB", s.memory.ram_total as f64 / gb),
+    ];
+
+    for (i, text) in metrics.iter().enumerate() {
+        let y = inner.y + 2 + i as u16;
+        if y >= inner.y + inner.height || text.is_empty() { continue; }
+        f.render_widget(
+            Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
+            Rect::new(inner.x, y, inner.width, 1),
+        );
+    }
+}
+
+fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state: &AppState, theme: &theme::Theme) {
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    let ram_used_gb = s.memory.ram_used as f64 / gb;
+    let ram_total_gb = s.memory.ram_total as f64 / gb;
+
+    let title_spans = vec![
+        Span::styled(" Memory+Disk [expanded]  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb), Style::default().fg(theme.fg)),
+        Span::raw(" "),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.mem_accent))
+        .border_type(BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height == 0 || inner.width == 0 { return; }
+
+    // RAM gauge
+    let bar_width = inner.width.saturating_sub(16) as usize;
+    let ram_label = format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb);
+    let ram_gauge = gauge::render_gauge_bar(s.memory.ram_used as f64, s.memory.ram_total as f64, bar_width, &ram_label);
+    if inner.height > 1 {
+        f.render_widget(Paragraph::new(Line::from(vec![
+            Span::styled("RAM  ", Style::default().fg(theme.mem_accent)),
+        ])), Rect::new(inner.x, inner.y, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(ram_gauge)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
+    }
+
+    // Swap gauge
+    let swap_used_gb = s.memory.swap_used as f64 / gb;
+    let swap_total_gb = s.memory.swap_total as f64 / gb;
+    let swap_label = format!("{:.1}/{:.1} GB", swap_used_gb, swap_total_gb);
+    let swap_gauge = gauge::render_gauge_bar(s.memory.swap_used as f64, s.memory.swap_total as f64, bar_width, &swap_label);
+    if inner.height > 3 {
+        f.render_widget(Paragraph::new(Line::from(vec![
+            Span::styled("Swap ", Style::default().fg(theme.muted)),
+        ])), Rect::new(inner.x, inner.y + 3, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(swap_gauge)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
+    }
+
+    // Memory pressure breakdown (W2A)
+    let mut pressure_y = inner.y + 6;
+    if inner.height > 6 {
+        let wired_gb = s.memory.wired as f64 / gb;
+        let app_gb = s.memory.app as f64 / gb;
+        let compressed_gb = s.memory.compressed as f64 / gb;
+
+        if s.memory.wired > 0 || s.memory.app > 0 || s.memory.compressed > 0 {
+            f.render_widget(
+                Paragraph::new("Memory Pressure").style(Style::default().fg(theme.muted)),
+                Rect::new(inner.x, pressure_y, inner.width, 1),
+            );
+            pressure_y += 1;
+
+            let pressure_items = [
+                ("Wired:      ", wired_gb),
+                ("App:        ", app_gb),
+                ("Compressed: ", compressed_gb),
+            ];
+            for (label, val) in &pressure_items {
+                if pressure_y >= inner.y + inner.height { break; }
+                f.render_widget(
+                    Paragraph::new(format!("{}{:.1} GB", label, val)).style(Style::default().fg(theme.fg)),
+                    Rect::new(inner.x, pressure_y, inner.width, 1),
+                );
+                pressure_y += 1;
+            }
+        }
+    }
+
+    // Disk info
+    let disk_start = pressure_y + 1;
+    let disk_used_gb = s.disk.used_bytes as f64 / gb;
+    let disk_total_gb = s.disk.total_bytes as f64 / gb;
+    if disk_start < inner.y + inner.height {
+        let disk_metrics = [
+            format!("Disk: {:.0}/{:.0} GB", disk_used_gb, disk_total_gb),
+            format!("Read:  {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
+            format!("Write: {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
+        ];
+        for (i, text) in disk_metrics.iter().enumerate() {
+            let y = disk_start + i as u16;
+            if y >= inner.y + inner.height { break; }
+            f.render_widget(
+                Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
+                Rect::new(inner.x, y, inner.width, 1),
+            );
+        }
+    }
+}
+
+fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let (total_rx, total_tx) = s.network.interfaces.iter().fold((0.0, 0.0), |(rx, tx), i| {
+        (rx + i.rx_bytes_sec, tx + i.tx_bytes_sec)
+    });
+
+    let title_spans = vec![
+        Span::styled(" Network [expanded]  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
+        Span::styled("  ", Style::default()),
+        Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
+        Span::raw(" "),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.net_upload))
+        .border_type(BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height == 0 || inner.width == 0 { return; }
+
+    let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
+
+    // Upload sparkline
+    let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
+    let spark = braille::render_braille_sparkline(&upload_data, scale, inner.width as usize);
+    let spans: Vec<Span> = spark.iter()
+        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_upload)))
+        .collect();
+    if !spans.is_empty() {
+        f.render_widget(Paragraph::new(Line::from(vec![
+            Span::styled("Upload ", Style::default().fg(theme.net_upload)),
+        ])), Rect::new(inner.x, inner.y, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
+    }
+
+    // Download sparkline
+    let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
+    let spark = braille::render_braille_sparkline(&download_data, scale, inner.width as usize);
+    let spans: Vec<Span> = spark.iter()
+        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
+        .collect();
+    if !spans.is_empty() && inner.height > 3 {
+        f.render_widget(Paragraph::new(Line::from(vec![
+            Span::styled("Download ", Style::default().fg(theme.net_download)),
+        ])), Rect::new(inner.x, inner.y + 3, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
+    }
+
+    // Per-interface detailed stats (W3E: filter infrastructure interfaces consistently)
+    let mut sorted_ifaces: Vec<&crate::metrics::NetInterface> = s.network.interfaces.iter()
+        .filter(|i| !is_infrastructure_interface(&i.name))
+        .collect();
+    sorted_ifaces.sort_by(|a, b| {
+        let a_total = a.rx_bytes_sec + a.tx_bytes_sec;
+        let b_total = b.rx_bytes_sec + b.tx_bytes_sec;
+        b_total.partial_cmp(&a_total).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let header_y = inner.y.saturating_add(6);
+    if header_y < inner.y.saturating_add(inner.height) {
+        let hdr = Line::from(vec![
+            Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>8}", "Interface", "Type", "Baudrate", "Upload", "Download", "Pkt In"), Style::default().fg(theme.muted)),
+        ]);
+        f.render_widget(Paragraph::new(hdr), Rect::new(inner.x, header_y, inner.width, 1));
+    }
+
+    for (i, iface) in sorted_ifaces.iter().enumerate() {
+        let y = header_y.saturating_add(1).saturating_add(i as u16);
+        if y >= inner.y.saturating_add(inner.height) { break; }
+        let line = Line::from(vec![
+            Span::styled(format!("{:<10}", iface.name), Style::default().fg(theme.fg)),
+            Span::styled(format!(" {:>14}", iface.iface_type), Style::default().fg(theme.muted)),
+            Span::styled(format!(" {:>10}", format_baudrate(iface.baudrate)), Style::default().fg(theme.muted)),
+            Span::styled(format!("  ↑{:>8}", format_bytes_rate_compact(iface.tx_bytes_sec)), Style::default().fg(theme.net_upload)),
+            Span::styled(format!("  ↓{:>8}", format_bytes_rate_compact(iface.rx_bytes_sec)), Style::default().fg(theme.net_download)),
+            Span::styled(format!(" {:>7.0}", iface.packets_in_sec), Style::default().fg(theme.muted)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+    }
+}
+
+fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let total_w = s.power.package_w.max(s.power.cpu_w + s.power.gpu_w + s.power.ane_w + s.power.dram_w);
+
+    let title_spans = vec![
+        Span::styled(" Power [expanded]  ", Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!("{:.1}W total", total_w), Style::default().fg(theme.fg)),
+        Span::raw(" "),
+    ];
+
+    let block = Block::default()
+        .title(Line::from(title_spans))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.power_accent))
+        .border_type(BorderType::Rounded);
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height == 0 || inner.width == 0 { return; }
+
+    // CPU power sparkline
+    let cpu_tdp = s.soc.cpu_tdp_w() as f64;
+    let cpu_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
+    let spark = braille::render_braille_sparkline(&cpu_data, cpu_tdp, inner.width as usize);
+    let spans: Vec<Span> = spark.iter()
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
+        .collect();
+    f.render_widget(
+        Paragraph::new("CPU Power").style(Style::default().fg(theme.cpu_accent)),
+        Rect::new(inner.x, inner.y, inner.width, 1),
+    );
+    if !spans.is_empty() && inner.height > 1 {
+        f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
+    }
+
+    // GPU power sparkline
+    let gpu_tdp = s.soc.gpu_tdp_w() as f64;
+    let gpu_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
+    let spark = braille::render_braille_sparkline(&gpu_data, gpu_tdp, inner.width as usize);
+    let spans: Vec<Span> = spark.iter()
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
+        .collect();
+    if inner.height > 3 {
+        f.render_widget(
+            Paragraph::new("GPU Power").style(Style::default().fg(theme.gpu_accent)),
+            Rect::new(inner.x, inner.y + 3, inner.width, 1),
+        );
+        if !spans.is_empty() {
+            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
+        }
+    }
+
+    // Component breakdown
+    let components = [
+        ("CPU", s.power.cpu_w, theme.cpu_accent),
+        ("GPU", s.power.gpu_w, theme.gpu_accent),
+        ("ANE", s.power.ane_w, theme.power_accent),
+        ("DRAM", s.power.dram_w, theme.mem_accent),
+        ("System", s.power.system_w, theme.muted),
+        ("Package", s.power.package_w, theme.fg),
+    ];
+
+    if inner.height > 6 {
+        f.render_widget(
+            Paragraph::new("Component Breakdown").style(Style::default().fg(theme.muted)),
+            Rect::new(inner.x, inner.y + 6, inner.width, 1),
+        );
+    }
+
+    let bar_width = inner.width.saturating_sub(18) as usize;
+    let max_component = components.iter().map(|(_, w, _)| *w).fold(0.0f32, f32::max).max(0.01);
+
+    for (i, (name, watts, color)) in components.iter().enumerate() {
+        let y = inner.y + 7 + i as u16;
+        if y >= inner.y + inner.height { break; }
+
+        let norm = (*watts / max_component).clamp(0.0, 1.0);
+        let filled = (bar_width as f32 * norm) as usize;
+        let empty = bar_width.saturating_sub(filled);
+
+        let line = Line::from(vec![
+            Span::styled(format!("{:<7}", name), Style::default().fg(*color)),
+            Span::styled("▓".repeat(filled), Style::default().fg(*color)),
+            Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
+            Span::styled(format!(" {:.2}W", watts), Style::default().fg(theme.fg)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+    }
+
+    // Per-process energy ranking
+    let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
+        .filter(|p| p.power_w > 0.0)
+        .collect();
+    procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
+
+    let proc_start_y = inner.y.saturating_add(14);
+    if proc_start_y < inner.y.saturating_add(inner.height) {
+        f.render_widget(
+            Paragraph::new("Top Processes by Power").style(Style::default().fg(theme.muted)),
+            Rect::new(inner.x, proc_start_y, inner.width, 1),
+        );
+    }
+
+    for (i, proc) in procs_by_power.iter().take(10).enumerate() {
+        let y = proc_start_y.saturating_add(1).saturating_add(i as u16);
+        if y >= inner.y.saturating_add(inner.height) { break; }
+        let line = Line::from(vec![
+            Span::styled(format!("{:<20}", truncate_with_ellipsis(&proc.name, 20)), Style::default().fg(theme.fg)),
+            Span::styled(format!(" {:.2}W", proc.power_w), Style::default().fg(theme.power_accent)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+    }
+}
+
+fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    use crate::platform::process::weighted_score;
+
+    let block = Block::default()
+        .title(" Processes [expanded] ")
+        .title_style(Style::default().fg(theme.fg).bold())
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme.border));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.width == 0 || inner.height == 0 { return; }
+
+    // Header row
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    let mb = 1024.0 * 1024.0;
+    let header = Line::from(vec![
+        Span::styled(format!("{:<20}", "Name"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "CPU%"), Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(format!("{:>9}", "Memory"), Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{:>8}", "Power"), Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!("{:>7}", "PID"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("  {:<10}", "User"), Style::default().fg(theme.muted).bold()),
+    ]);
+    f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));
+
+    // Sort by weighted score using indices
+    let procs = &s.processes;
+    let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
+    let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
+    let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
+
+    let mut indices: Vec<usize> = (0..procs.len()).collect();
+    indices.sort_by(|&a, &b| {
+        let sa = weighted_score(&procs[a], max_cpu, max_mem, max_power);
+        let sb = weighted_score(&procs[b], max_cpu, max_mem, max_power);
+        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if indices.is_empty() {
+        if inner.height > 1 {
+            f.render_widget(
+                Paragraph::new("No processes").style(Style::default().fg(theme.muted)),
+                Rect::new(inner.x, inner.y + 1, inner.width, 1),
+            );
+        }
+        return;
+    }
+
+    let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
+    let max_visible = inner.height.saturating_sub(1) as usize;
+
+    for (i, &idx) in indices.iter().skip(scroll).take(max_visible).enumerate() {
+        let y = inner.y + 1 + i as u16;
+        if y >= inner.y + inner.height { break; }
+
+        let proc = &procs[idx];
+        let mem_display = if proc.mem_bytes as f64 >= gb {
+            format!("{:.1} GB", proc.mem_bytes as f64 / gb)
+        } else {
+            format!("{:.0} MB", proc.mem_bytes as f64 / mb)
+        };
+
+        let cpu_norm = if max_cpu > 0.0 { (proc.cpu_pct / max_cpu).clamp(0.0, 1.0) as f64 } else { 0.0 };
+
+        let line = Line::from(vec![
+            Span::styled(format!("{:<20}", truncate_with_ellipsis(&proc.name, 20)), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>6.1}%", proc.cpu_pct), Style::default().fg(gradient::value_to_color(cpu_norm))),
+            Span::styled(format!("{:>9}", mem_display), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>7.2}W", proc.power_w), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>7}", proc.pid), Style::default().fg(theme.muted)),
+            Span::styled(format!("  {:<10}", truncate_with_ellipsis(&proc.user, 10)), Style::default().fg(theme.muted)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+    }
+}
