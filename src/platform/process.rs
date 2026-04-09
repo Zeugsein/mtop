@@ -64,6 +64,38 @@ pub fn collect_processes(cpu_state: &mut ProcessCpuState) -> Vec<ProcessInfo> {
     procs
 }
 
+/// Compute a weighted score for process ranking across multiple dimensions.
+/// Normalizes each dimension to 0.0-1.0 against the provided maximums.
+/// Score = 0.5 * cpu_norm + 0.3 * mem_norm + 0.2 * power_norm
+/// Spike bonus: if any single normalized value > 0.9, add 0.5 to score.
+pub fn weighted_score(proc: &ProcessInfo, max_cpu: f32, max_mem: u64, max_power: f32) -> f64 {
+    // Division-by-zero guard: if max is 0, norm is 0.0
+    let cpu_norm = if max_cpu > 0.0 {
+        (proc.cpu_pct / max_cpu).clamp(0.0, 1.0) as f64
+    } else {
+        0.0
+    };
+    let mem_norm = if max_mem > 0 {
+        (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let power_norm = if max_power > 0.0 {
+        (proc.power_w / max_power).clamp(0.0, 1.0) as f64
+    } else {
+        0.0
+    };
+
+    let mut score = 0.5 * cpu_norm + 0.3 * mem_norm + 0.2 * power_norm;
+
+    // Spike bonus: extremely high in any single dimension
+    if cpu_norm > 0.9 || mem_norm > 0.9 || power_norm > 0.9 {
+        score += 0.5;
+    }
+
+    score
+}
+
 /// Enumerate all PIDs via proc_listallpids
 fn list_all_pids() -> Vec<i32> {
     // First call with null buffer to get count
