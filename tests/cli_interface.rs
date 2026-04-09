@@ -158,11 +158,11 @@ fn color_default_value() {
 fn color_flag_applied_to_tui() {
     // Confirm the value reaches the TUI configuration.
     // The TUI run() now matches cli.color against THEMES to set initial theme_idx.
-    let cli = Cli::parse_from(["mtop", "--color", "blue"]);
-    assert_eq!(cli.color, "blue");
+    let cli = Cli::parse_from(["mtop", "--color", "dracula"]);
+    assert_eq!(cli.color, "dracula");
     // Verify theme names exist in TUI module
-    assert!(mtop::tui::theme_names().contains(&"blue"));
-    assert!(mtop::tui::theme_names().contains(&"default"));
+    assert!(mtop::tui::theme_names().contains(&"horizon"));
+    assert!(mtop::tui::theme_names().contains(&"dracula"));
 }
 
 // ---------------------------------------------------------------------------
