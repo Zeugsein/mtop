@@ -103,11 +103,11 @@ fn read_interface_bytes() -> HashMap<String, (u64, u64, u64, u64, u64)> {
 
                 if !ifa.ifa_data.is_null() {
                     let data = ifa.ifa_data as *const IfData;
-                    let rx = (*data).ifi_ibytes;
-                    let tx = (*data).ifi_obytes;
-                    let baudrate = (*data).ifi_baudrate;
-                    let rx_pkts = (*data).ifi_ipackets;
-                    let tx_pkts = (*data).ifi_opackets;
+                    let rx = (*data).ifi_ibytes as u64;
+                    let tx = (*data).ifi_obytes as u64;
+                    let baudrate = (*data).ifi_baudrate as u64;
+                    let rx_pkts = (*data).ifi_ipackets as u64;
+                    let tx_pkts = (*data).ifi_opackets as u64;
                     result.insert(name, (rx, tx, baudrate, rx_pkts, tx_pkts));
                 }
             }
@@ -151,9 +151,9 @@ pub fn speed_tier_from_baudrate(baudrate: u64) -> u64 {
 
 const AF_LINK: i32 = 18;
 
-/// Matches macOS `struct if_data64` from <net/if_var.h>.
-/// AF_LINK ifaddr data points to this layout on modern macOS.
-/// All counter fields are u64 to avoid truncation on machines with >4GB transferred.
+/// Matches macOS `struct if_data` from <net/if.h>.
+/// `getifaddrs` ifa_data points to this layout (NOT if_data64).
+/// Counter fields are u32 (wrap at 4GB — acceptable for rate deltas).
 #[repr(C)]
 struct IfData {
     ifi_type: u8,
@@ -166,26 +166,26 @@ struct IfData {
     ifi_unused1: u8,
     ifi_mtu: u32,
     ifi_metric: u32,
-    ifi_baudrate: u64,
-    ifi_ipackets: u64,
-    ifi_ierrors: u64,
-    ifi_opackets: u64,
-    ifi_oerrors: u64,
-    ifi_collisions: u64,
-    ifi_ibytes: u64,
-    ifi_obytes: u64,
-    ifi_imcasts: u64,
-    ifi_omcasts: u64,
-    ifi_iqdrops: u64,
-    ifi_noproto: u64,
+    ifi_baudrate: u32,
+    ifi_ipackets: u32,
+    ifi_ierrors: u32,
+    ifi_opackets: u32,
+    ifi_oerrors: u32,
+    ifi_collisions: u32,
+    ifi_ibytes: u32,
+    ifi_obytes: u32,
+    ifi_imcasts: u32,
+    ifi_omcasts: u32,
+    ifi_iqdrops: u32,
+    ifi_noproto: u32,
     ifi_recvtiming: u32,
     ifi_xmittiming: u32,
     ifi_lastchange: libc::timeval,
 }
 
-// Compile-time assertions: IfData field offsets (from macOS net/if_var.h, struct if_data64).
-// 8 × u8 (0-7), u32 mtu (8), u32 metric (12), then u64 fields from offset 16.
+// Compile-time assertions: IfData field offsets (from macOS net/if.h, struct if_data).
+// 8 × u8 (0-7), then u32 fields from offset 8.
 const _: () = assert!(std::mem::offset_of!(IfData, ifi_baudrate) == 16);
-const _: () = assert!(std::mem::offset_of!(IfData, ifi_ipackets) == 24);
-const _: () = assert!(std::mem::offset_of!(IfData, ifi_ibytes) == 64);
-const _: () = assert!(std::mem::offset_of!(IfData, ifi_obytes) == 72);
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_ipackets) == 20);
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_ibytes) == 40);
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_obytes) == 44);

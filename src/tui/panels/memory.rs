@@ -66,7 +66,12 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
         // Left: "used X.XGB" label + used braille graph
         if left.height > 0 {
-            let label = format!("used {ram_used_gb:.1}GB");
+            let mb = 1024.0 * 1024.0;
+            let label = if ram_used_gb >= 1.0 {
+                format!("used {ram_used_gb:.1}GB")
+            } else {
+                format!("used {:.0}MB", s.memory.ram_used as f64 / mb)
+            };
             f.render_widget(
                 Paragraph::new(Line::from(Span::styled(label, Style::default().fg(theme.fg)))),
                 Rect::new(left.x, left.y, left.width, 1),
@@ -79,7 +84,13 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
         // Mid: "avail X.XGB" label + available braille graph
         if mid.height > 0 {
-            let label = format!("avail {ram_avail_gb:.1}GB");
+            let mb = 1024.0 * 1024.0;
+            let label = if ram_avail_gb >= 1.0 {
+                format!("avail {ram_avail_gb:.1}GB")
+            } else {
+                let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
+                format!("avail {:.0}MB", ram_avail_bytes / mb)
+            };
             f.render_widget(
                 Paragraph::new(Line::from(Span::styled(label, Style::default().fg(theme.fg)))),
                 Rect::new(mid.x, mid.y, mid.width, 1),
