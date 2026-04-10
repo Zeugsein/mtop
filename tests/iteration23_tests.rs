@@ -20,14 +20,13 @@ fn shall_23_08_network_border_color_derives_from_net_download() {
     use mtop::tui::theme::{self, THEMES};
 
     for t in THEMES.iter() {
-        let expected = theme::dim_color(t.net_download, theme::adaptive_border_dim(t));
-        // The network panel uses exactly this expression for border_color.
-        // We re-compute it here to confirm the formula is consistent across all themes.
-        let computed = theme::dim_color(t.net_download, theme::adaptive_border_dim(t));
-        assert_eq!(
-            format!("{:?}", computed),
-            format!("{:?}", expected),
-            "theme '{}': border_color should derive from net_download via dim_color",
+        let from_download = theme::dim_color(t.net_download, theme::adaptive_border_dim(t));
+        let from_upload = theme::dim_color(t.net_upload, theme::adaptive_border_dim(t));
+        // Border must derive from net_download, NOT net_upload
+        assert_ne!(
+            format!("{:?}", from_download),
+            format!("{:?}", from_upload),
+            "theme '{}': dim_color(net_download) must differ from dim_color(net_upload) to prove correct channel is used",
             t.name
         );
     }

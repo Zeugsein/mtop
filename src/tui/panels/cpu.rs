@@ -6,7 +6,7 @@ use crate::tui::{AppState, theme, braille, gradient, layout};
 use crate::tui::helpers::truncate_by_display_width;
 
 /// Helper to render a multi-row braille graph into a frame area.
-pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64, accent: ratatui::style::Color) {
+pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64) {
     let graph = braille::render_braille_graph(data, max, area.width as usize, area.height as usize);
     for (row_idx, row) in graph.iter().enumerate() {
         let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
@@ -15,11 +15,7 @@ pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64, ac
         }
         let spans: Vec<Span> = row
             .iter()
-            .map(|&(ch, color)| {
-                // Use accent color if value_to_color returns green (low), otherwise use gradient
-                let _ = accent;
-                Span::styled(ch.to_string(), Style::default().fg(color))
-            })
+            .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
             .collect();
         if !spans.is_empty() {
             f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
@@ -75,7 +71,7 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         let (trend_area, detail_area) = layout::split_type_a(content_area);
 
         // Left: multi-row braille graph
-        render_graph(f, trend_area, &sparkline_data, 1.0, theme.cpu_accent);
+        render_graph(f, trend_area, &sparkline_data, 1.0);
 
         // Right: process list with dots — c/m/p labels aligned above dot columns
         let name_width = detail_area.width.saturating_sub(7) as usize;
@@ -117,7 +113,7 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         }
     } else {
         // Full-width graph, no right detail
-        render_graph(f, content_area, &sparkline_data, 1.0, theme.cpu_accent);
+        render_graph(f, content_area, &sparkline_data, 1.0);
     }
 
     // Bottom info: E and P both left-aligned

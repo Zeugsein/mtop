@@ -86,10 +86,9 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             let gradient_color = crate::tui::gradient::value_to_color(y_frac);
 
             let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
-                let idx_l = col * 2;
-                let idx_r = col * 2 + 1;
-                let orig_l = if idx_l < visible_orig.len() { visible_orig[idx_l] } else { 0.0 };
-                let orig_r = if idx_r < visible_orig.len() { visible_orig[idx_r] } else { 0.0 };
+                // Each braille column maps to 2 data points; out-of-bounds → muted (no data yet)
+                let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
                 let is_baseline = orig_l < 1.0 && orig_r < 1.0;
                 let color = if is_baseline { theme.muted } else { gradient_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))
@@ -114,10 +113,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             let y = area.y + row_idx as u16;
             if y >= area.y + area.height { break; }
             let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
-                let idx_l = col * 2;
-                let idx_r = col * 2 + 1;
-                let orig_l = if idx_l < visible_orig.len() { visible_orig[idx_l] } else { 0.0 };
-                let orig_r = if idx_r < visible_orig.len() { visible_orig[idx_r] } else { 0.0 };
+                let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
                 let is_baseline = orig_l < 1.0 && orig_r < 1.0;
                 let color = if is_baseline { theme.muted } else { orig_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))

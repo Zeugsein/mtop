@@ -37,6 +37,11 @@ pub struct Theme {
     /// Process panel accent (btop proc_box)
     pub process_accent: Color,
 
+    // Memory pressure indicator colors
+    pub pressure_normal: Color,
+    pub pressure_warn: Color,
+    pub pressure_critical: Color,
+
     // Gradient stops (green → yellow → orange → red)
     pub gradient_green: Color,
     pub gradient_yellow: Color,
@@ -63,6 +68,9 @@ pub const HORIZON: Theme = Theme {
     net_download: Color::Rgb(233, 86, 120),  // red (#E95678, btop net_box)
     power_accent: Color::Rgb(0, 0, 0),       // derived at runtime
     process_accent: Color::Rgb(37, 178, 188), // cyan (#25B2BC, btop proc_box)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
 
     gradient_green: Color::Rgb(0, 200, 83),
     gradient_yellow: Color::Rgb(255, 214, 0),
@@ -87,6 +95,9 @@ pub const DRACULA: Theme = Theme {
     net_download: Color::Rgb(255, 85, 85),   // red (#FF5555, btop net_box)
     power_accent: Color::Rgb(0, 0, 0),       // derived at runtime
     process_accent: Color::Rgb(139, 233, 253), // cyan (#8BE9FD, btop proc_box)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(80, 250, 123),
     gradient_yellow: Color::Rgb(241, 250, 140),
     gradient_orange: Color::Rgb(255, 184, 108),
@@ -110,6 +121,9 @@ pub const CATPPUCCIN: Theme = Theme {
     net_download: Color::Rgb(245, 194, 231),
     power_accent: Color::Rgb(250, 179, 135),
     process_accent: Color::Rgb(137, 220, 235), // sky (#89DCEB, catppuccin palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(166, 227, 161),
     gradient_yellow: Color::Rgb(249, 226, 175),
     gradient_orange: Color::Rgb(250, 179, 135),
@@ -133,6 +147,9 @@ pub const NORD: Theme = Theme {
     net_download: Color::Rgb(191, 97, 106),
     power_accent: Color::Rgb(208, 135, 112),
     process_accent: Color::Rgb(143, 188, 187), // frost (#8FBCBB, nord palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(163, 190, 140),
     gradient_yellow: Color::Rgb(235, 203, 139),
     gradient_orange: Color::Rgb(208, 135, 112),
@@ -156,6 +173,9 @@ pub const SOLARIZED_DARK: Theme = Theme {
     net_download: Color::Rgb(211, 54, 130),
     power_accent: Color::Rgb(203, 75, 22),
     process_accent: Color::Rgb(42, 161, 152),  // cyan (#2AA198, solarized palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(133, 153, 0),
     gradient_yellow: Color::Rgb(181, 137, 0),
     gradient_orange: Color::Rgb(203, 75, 22),
@@ -179,6 +199,9 @@ pub const SOLARIZED_LIGHT: Theme = Theme {
     net_download: Color::Rgb(211, 54, 130),
     power_accent: Color::Rgb(203, 75, 22),
     process_accent: Color::Rgb(42, 161, 152),  // cyan (#2AA198, solarized palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(133, 153, 0),
     gradient_yellow: Color::Rgb(181, 137, 0),
     gradient_orange: Color::Rgb(203, 75, 22),
@@ -202,6 +225,9 @@ pub const GRUVBOX: Theme = Theme {
     net_download: Color::Rgb(251, 73, 52),
     power_accent: Color::Rgb(254, 128, 25),
     process_accent: Color::Rgb(104, 157, 106), // aqua (#689D6A, gruvbox palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(184, 187, 38),
     gradient_yellow: Color::Rgb(250, 189, 47),
     gradient_orange: Color::Rgb(254, 128, 25),
@@ -225,6 +251,9 @@ pub const TOKYO_NIGHT: Theme = Theme {
     net_download: Color::Rgb(247, 118, 142),
     power_accent: Color::Rgb(255, 158, 100),
     process_accent: Color::Rgb(115, 218, 202), // teal (#73DACA, tokyo-night palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(158, 206, 106),
     gradient_yellow: Color::Rgb(224, 175, 104),
     gradient_orange: Color::Rgb(255, 158, 100),
@@ -248,6 +277,9 @@ pub const ONE_DARK: Theme = Theme {
     net_download: Color::Rgb(224, 108, 117),
     power_accent: Color::Rgb(209, 154, 102),
     process_accent: Color::Rgb(97, 175, 239),  // blue (#61AFEF, onedark palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(152, 195, 121),
     gradient_yellow: Color::Rgb(229, 192, 123),
     gradient_orange: Color::Rgb(209, 154, 102),
@@ -271,6 +303,9 @@ pub const MONOKAI: Theme = Theme {
     net_download: Color::Rgb(249, 38, 114),
     power_accent: Color::Rgb(253, 151, 31),
     process_accent: Color::Rgb(102, 217, 239), // cyan (#66D9EF, monokai palette)
+    pressure_normal: Color::Rgb(0, 200, 83),
+    pressure_warn: Color::Rgb(255, 214, 0),
+    pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(166, 226, 46),
     gradient_yellow: Color::Rgb(230, 219, 116),
     gradient_orange: Color::Rgb(253, 151, 31),
