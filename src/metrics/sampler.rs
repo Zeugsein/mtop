@@ -59,6 +59,7 @@ impl Sampler {
         let memory = self.mem_state.collect(self.host_port);
         let network = self.net_state.collect();
         let processes = platform::process::collect_processes(&mut self.proc_cpu_state);
+        let battery = platform::battery::collect_battery();
 
         // Cross-reference: CPU and GPU power from power module
         cpu.power_w = power.cpu_w;
@@ -84,6 +85,7 @@ impl Sampler {
             memory,
             network,
             disk: self.disk_state.collect(),
+            battery,
             processes,
         })
     }

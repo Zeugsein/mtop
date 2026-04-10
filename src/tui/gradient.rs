@@ -1,29 +1,40 @@
 use ratatui::style::Color;
 
-/// Gradient stops: green(0.0) -> yellow(0.4) -> orange(0.7) -> red(1.0)
-const STOPS: &[(f64, u8, u8, u8)] = &[
-    (0.0, 0, 200, 83),    // green
-    (0.4, 255, 214, 0),   // yellow
-    (0.7, 255, 152, 0),   // orange
-    (1.0, 255, 61, 0),    // red
-];
+use super::theme::Theme;
 
-/// Map a normalized value (0.0-1.0) to an RGB gradient color.
-pub fn value_to_color(normalized: f64) -> Color {
+/// Map a normalized value (0.0-1.0) to an RGB gradient color using theme stops.
+/// Stops: green(0.0) -> yellow(0.4) -> orange(0.7) -> red(1.0).
+pub fn value_to_color(normalized: f64, theme: &Theme) -> Color {
     let t = normalized.clamp(0.0, 1.0);
+
+    let stops: [(f64, Color); 4] = [
+        (0.0, theme.gradient_green),
+        (0.4, theme.gradient_yellow),
+        (0.7, theme.gradient_orange),
+        (1.0, theme.gradient_red),
+    ];
 
     // Find the two stops surrounding t
     let mut lo = 0;
-    for (i, stop) in STOPS.iter().enumerate().skip(1) {
-        if stop.0 >= t {
+    for i in 1..stops.len() {
+        if stops[i].0 >= t {
             lo = i - 1;
             break;
         }
     }
-    let hi = (lo + 1).min(STOPS.len() - 1);
+    let hi = (lo + 1).min(stops.len() - 1);
 
-    let (t0, r0, g0, b0) = STOPS[lo];
-    let (t1, r1, g1, b1) = STOPS[hi];
+    let (t0, c0) = stops[lo];
+    let (t1, c1) = stops[hi];
+
+    let (r0, g0, b0) = match c0 {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => (0, 0, 0),
+    };
+    let (r1, g1, b1) = match c1 {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => (0, 0, 0),
+    };
 
     let frac = if (t1 - t0).abs() < f64::EPSILON {
         0.0
@@ -38,9 +49,9 @@ pub fn value_to_color(normalized: f64) -> Color {
     Color::Rgb(lerp(r0, r1), lerp(g0, g1), lerp(b0, b1))
 }
 
-/// Map a temperature in Celsius to a gradient color.
+/// Map a temperature in Celsius to a gradient color using theme stops.
 /// 30C -> green, 60C -> yellow, 80C -> orange, 95C+ -> red.
-pub fn temp_to_color(celsius: f32) -> Color {
+pub fn temp_to_color(celsius: f32, theme: &Theme) -> Color {
     let normalized = if celsius <= 30.0 {
         0.0
     } else if celsius >= 95.0 {
@@ -56,12 +67,13 @@ pub fn temp_to_color(celsius: f32) -> Color {
             0.7 + (celsius - 80.0) as f64 / 15.0 * 0.3
         }
     };
-    value_to_color(normalized)
+    value_to_color(normalized, theme)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::theme::{HORIZON, THEMES};
 
     fn rgb(c: Color) -> (u8, u8, u8) {
         match c {
@@ -71,42 +83,83 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_is_green() {
-        let (r, g, b) = rgb(value_to_color(0.0));
-        assert_eq!((r, g, b), (0, 200, 83));
+    fn test_zero_is_gradient_start() {
+        let theme = &THEMES[0]; // Horizon
+        let (r, g, b) = rgb(value_to_color(0.0, theme));
+        assert_eq!((r, g, b), (39, 215, 150));
     }
 
     #[test]
-    fn test_one_is_red() {
-        let (r, g, b) = rgb(value_to_color(1.0));
-        assert_eq!((r, g, b), (255, 61, 0));
+    fn test_one_is_gradient_end() {
+        let theme = &THEMES[0];
+        let (r, g, b) = rgb(value_to_color(1.0, theme));
+        assert_eq!((r, g, b), (233, 86, 120));
     }
 
     #[test]
-    fn test_midpoint_is_yellow() {
-        let (r, g, b) = rgb(value_to_color(0.4));
-        assert_eq!((r, g, b), (255, 214, 0));
+    fn test_midpoint_is_gradient_yellow() {
+        let theme = &THEMES[0];
+        let (r, g, b) = rgb(value_to_color(0.4, theme));
+        assert_eq!((r, g, b), (208, 198, 151));
     }
 
     #[test]
     fn test_clamp_above_one() {
-        assert_eq!(value_to_color(1.5), value_to_color(1.0));
+        let theme = &THEMES[0];
+        assert_eq!(value_to_color(1.5, theme), value_to_color(1.0, theme));
     }
 
     #[test]
     fn test_clamp_below_zero() {
-        assert_eq!(value_to_color(-0.5), value_to_color(0.0));
+        let theme = &THEMES[0];
+        assert_eq!(value_to_color(-0.5, theme), value_to_color(0.0, theme));
     }
 
     #[test]
     fn test_temp_cold() {
-        let (r, g, b) = rgb(temp_to_color(30.0));
-        assert_eq!((r, g, b), (0, 200, 83));
+        let theme = &THEMES[0];
+        let (r, g, b) = rgb(temp_to_color(30.0, theme));
+        assert_eq!((r, g, b), (39, 215, 150));
     }
 
     #[test]
     fn test_temp_hot() {
-        let (r, g, b) = rgb(temp_to_color(95.0));
-        assert_eq!((r, g, b), (255, 61, 0));
+        let theme = &THEMES[0];
+        let (r, g, b) = rgb(temp_to_color(95.0, theme));
+        assert_eq!((r, g, b), (233, 86, 120));
+    }
+
+    #[test]
+    fn test_temp_60c_matches_yellow() {
+        let theme = THEMES.iter().find(|t| t.name == "gruvbox").unwrap();
+        assert_eq!(temp_to_color(60.0, theme), value_to_color(0.4, theme));
+    }
+
+    #[test]
+    fn test_temp_80c_matches_orange() {
+        let theme = THEMES.iter().find(|t| t.name == "gruvbox").unwrap();
+        assert_eq!(temp_to_color(80.0, theme), value_to_color(0.7, theme));
+    }
+
+    #[test]
+    fn test_themes_have_distinct_gradient_start() {
+        // Solarized Dark and Light intentionally share gradient values (same btop source).
+        // Verify at least 9 distinct gradient_start colors across 10 themes.
+        let mut starts = std::collections::HashSet::new();
+        for theme in THEMES.iter() {
+            let c = value_to_color(0.0, theme);
+            starts.insert(format!("{:?}", c));
+        }
+        assert!(starts.len() >= 9, "expected >= 9 distinct gradient starts, got {}", starts.len());
+    }
+
+    #[test]
+    fn test_interpolation_midpoint() {
+        // 0.25 is between green(0.0) and yellow(0.4) for Nord
+        let nord = THEMES.iter().find(|t| t.name == "nord").unwrap();
+        let (r, g, b) = rgb(value_to_color(0.25, nord));
+        // Should be between (163,190,140) and (221,200,139)
+        assert!(r > 163 && r < 221, "r={r} not between 163 and 221");
+        assert!(g > 190 && g <= 200, "g={g} not between 190 and 200");
     }
 }

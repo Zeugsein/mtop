@@ -65,12 +65,12 @@ fn memory_type_b_labels() {
     let snapshot = make_snapshot_with_memory(16 * gb, 12 * gb);
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
     assert!(
-        text.contains("Used"),
-        "Expected 'Used' title in detail layout; buffer:\n{text}"
+        text.contains(" used "),
+        "Expected ' used ' title in detail layout; buffer:\n{text}"
     );
     assert!(
-        text.contains("Avail"),
-        "Expected 'Avail' title in detail layout; buffer:\n{text}"
+        text.contains(" avail "),
+        "Expected ' avail ' title in detail layout; buffer:\n{text}"
     );
 }
 

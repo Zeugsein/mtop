@@ -20,7 +20,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             .border_type(ratatui::widgets::BorderType::Rounded);
         let raw_inner = block.inner(area);
         f.render_widget(block, area);
-        let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
+        let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
         f.render_widget(
             Paragraph::new("Power sensors: N/A").style(Style::default().fg(theme.muted)),
             inner,
@@ -43,8 +43,8 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left/right + 1-line top padding
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
+    // 1-char padding left/right, no top padding (UAT-07)
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -61,7 +61,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
 
     let gpu_idle = s.power.gpu_w < 0.5;
 
-    // Helper to render a labeled power sparkline into an area
+    // Helper to render a labeled power sparkline with baseline dots into an area
     let render_labeled_sparkline = |f: &mut Frame, area: Rect, label: &str, watts: f32, data: &[f64], max: f64, label_color: Color, show_idle: bool| {
         let graph_area = if label.is_empty() {
             // No label line — graph fills entire area (title bar has info)
@@ -81,11 +81,24 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             if area.height <= 1 { return; }
             Rect::new(area.x, area.y + 1, area.width, area.height - 1)
         };
-        let graph = braille::render_braille_graph(data, max, graph_area.width as usize, graph_area.height as usize);
+        let baseline_floor = max * 0.005;
+        let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
+        let graph = braille::render_braille_graph(&clamped, max, graph_area.width as usize, graph_area.height as usize, theme);
+
+        let needed = graph_area.width as usize * 2;
+        let start = data.len().saturating_sub(needed);
+        let visible_orig = &data[start..];
+
         for (row_idx, row) in graph.iter().enumerate() {
             let y = graph_area.y + graph_area.height.saturating_sub(1) - row_idx as u16;
             if y < graph_area.y { break; }
-            let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
+                let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
+                let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
+                let color = if is_baseline { theme::baseline_color(theme) } else { orig_color };
+                Span::styled(ch.to_string(), Style::default().fg(color))
+            }).collect();
             if !spans.is_empty() {
                 f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(graph_area.x, y, graph_area.width, 1));
             }

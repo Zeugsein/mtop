@@ -45,7 +45,7 @@ fn make_snapshot_with_processes(count: usize) -> MetricsSnapshot {
 // 1. Empty input returns height empty rows
 #[test]
 fn braille_down_empty() {
-    let result = mtop::tui::braille::render_braille_graph_down(&[], 100.0, 10, 5);
+    let result = mtop::tui::braille::render_braille_graph_down(&[], 100.0, 10, 5, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 5, "Expected 5 rows for height=5");
     for row in &result {
         assert!(row.is_empty(), "Empty input should produce empty rows");
@@ -56,7 +56,7 @@ fn braille_down_empty() {
 #[test]
 fn braille_down_full_scale() {
     let values = vec![100.0, 100.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2);
+    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 2);
     // Both rows should be fully filled: BRAILLE_DOWN[4][4] = '⣿'
     assert_eq!(result[0][0].0, '⣿', "Top row (row 0) should be ⣿ at 100%");
@@ -67,7 +67,7 @@ fn braille_down_full_scale() {
 #[test]
 fn braille_down_zero() {
     let values = vec![0.0, 0.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2);
+    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 2);
     assert_eq!(result[0][0].0, ' ', "Top row should be space at 0%");
     assert_eq!(result[1][0].0, ' ', "Bottom row should be space at 0%");
@@ -80,7 +80,7 @@ fn braille_down_half_height() {
     // Row 0 (top, base=0): fill = (4-0).min(4) = 4 → ⣿
     // Row 1 (base=4): 4 > 4 is false → fill=0 → ' '
     let values = vec![50.0, 50.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2);
+    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 2);
     assert_eq!(result[0][0].0, '⣿', "Top row should be fully filled at 50%");
     assert_eq!(result[1][0].0, ' ', "Bottom row should be empty at 50%");
@@ -90,7 +90,7 @@ fn braille_down_half_height() {
 #[test]
 fn braille_down_asymmetric() {
     let values = vec![100.0, 0.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 1);
+    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 1);
     // BRAILLE_DOWN[4][0] = '\u{2847}'
     assert_eq!(
@@ -103,19 +103,19 @@ fn braille_down_asymmetric() {
 #[test]
 fn braille_down_table_corners() {
     // [0][0] = ' '
-    let r00 = mtop::tui::braille::render_braille_graph_down(&[0.0, 0.0], 100.0, 1, 1);
+    let r00 = mtop::tui::braille::render_braille_graph_down(&[0.0, 0.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
     assert_eq!(r00[0][0].0, ' ', "BRAILLE_DOWN[0][0] should be space");
 
     // [4][4] = '⣿' (\u{28FF})
-    let r44 = mtop::tui::braille::render_braille_graph_down(&[100.0, 100.0], 100.0, 1, 1);
+    let r44 = mtop::tui::braille::render_braille_graph_down(&[100.0, 100.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
     assert_eq!(r44[0][0].0, '\u{28FF}', "BRAILLE_DOWN[4][4] should be ⣿");
 
     // [4][0]: left full, right empty
-    let r40 = mtop::tui::braille::render_braille_graph_down(&[100.0, 0.0], 100.0, 1, 1);
+    let r40 = mtop::tui::braille::render_braille_graph_down(&[100.0, 0.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
     assert_eq!(r40[0][0].0, '\u{2847}', "BRAILLE_DOWN[4][0] check");
 
     // [0][4]: left empty, right full
-    let r04 = mtop::tui::braille::render_braille_graph_down(&[0.0, 100.0], 100.0, 1, 1);
+    let r04 = mtop::tui::braille::render_braille_graph_down(&[0.0, 100.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
     assert_eq!(r04[0][0].0, '\u{28B8}', "BRAILLE_DOWN[0][4] check");
 }
 
@@ -130,12 +130,12 @@ fn memory_titles_bold_used_avail() {
     let snapshot = make_snapshot_with_memory(16 * gb, 12 * gb);
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
     assert!(
-        text.contains("Used"),
-        "Expected 'Used' (capitalized) in detail layout; buffer:\n{text}"
+        text.contains(" used "),
+        "Expected ' used ' (lowercase) in detail layout; buffer:\n{text}"
     );
     assert!(
-        text.contains("Avail"),
-        "Expected 'Avail' (capitalized) in detail layout; buffer:\n{text}"
+        text.contains(" avail "),
+        "Expected ' avail ' (lowercase) in detail layout; buffer:\n{text}"
     );
 }
 
@@ -205,7 +205,7 @@ fn braille_down_29_percent() {
     // Row 2 (base=8): fill = (12-8).min(4) = 4 → ⣿
     // Row 3 (base=12): 12 > 12 = false → fill=0 → ' '
     let values = vec![29.0, 29.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 10);
+    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 10, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 10);
     assert_eq!(result[0][0].0, '⣿', "Row 0 should be ⣿ at 29%");
     assert_eq!(result[1][0].0, '⣿', "Row 1 should be ⣿ at 29%");
@@ -273,7 +273,7 @@ fn render_all_expanded_panels_with_padding() {
 // 15. Braille down: width=0 returns empty vec
 #[test]
 fn braille_down_zero_width() {
-    let result = mtop::tui::braille::render_braille_graph_down(&[50.0, 50.0], 100.0, 0, 3);
+    let result = mtop::tui::braille::render_braille_graph_down(&[50.0, 50.0], 100.0, 0, 3, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 3, "height=3 rows expected even for width=0");
     for row in &result {
         assert!(row.is_empty(), "Rows should be empty when width=0");
@@ -283,7 +283,7 @@ fn braille_down_zero_width() {
 // 16. Braille down: height=0 returns empty vec
 #[test]
 fn braille_down_zero_height() {
-    let result = mtop::tui::braille::render_braille_graph_down(&[50.0, 50.0], 100.0, 5, 0);
+    let result = mtop::tui::braille::render_braille_graph_down(&[50.0, 50.0], 100.0, 5, 0, &mtop::tui::theme::THEMES[0]);
     assert!(result.is_empty(), "height=0 should return empty vec");
 }
 
@@ -291,7 +291,7 @@ fn braille_down_zero_height() {
 #[test]
 fn braille_down_zero_max_value() {
     let values = vec![0.0, 0.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 0.0, 1, 1);
+    let result = mtop::tui::braille::render_braille_graph_down(&values, 0.0, 1, 1, &mtop::tui::theme::THEMES[0]);
     assert_eq!(result.len(), 1);
     // 0 / 1.0 = 0 → space
     assert_eq!(result[0][0].0, ' ', "Zero value with zero max should produce space");
@@ -331,18 +331,18 @@ fn network_expanded_has_symmetric_labels() {
 
 // 20. Memory detail=true shows "Used" and "Avail" but NOT lowercase "used"/"avail" as standalone titles
 #[test]
-fn memory_detail_titles_are_capitalized() {
+fn memory_detail_titles_are_lowercase() {
     let gb: u64 = 1024 * 1024 * 1024;
     let snapshot = make_snapshot_with_memory(16 * gb, 12 * gb);
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
 
-    // Capitalized versions must be present
+    // Lowercase versions must be present (UAT-06)
     assert!(
-        text.contains("Used"),
-        "Expected capitalized 'Used' title; buffer:\n{text}"
+        text.contains(" used "),
+        "Expected lowercase ' used ' title; buffer:\n{text}"
     );
     assert!(
-        text.contains("Avail"),
-        "Expected capitalized 'Avail' title; buffer:\n{text}"
+        text.contains(" avail "),
+        "Expected lowercase ' avail ' title; buffer:\n{text}"
     );
 }

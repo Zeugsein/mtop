@@ -102,7 +102,8 @@ fn history_buffer_single_push() {
 /// render_braille_graph with 1×1 dimensions should not panic and return 1 row.
 #[test]
 fn braille_graph_1x1() {
-    let result = render_braille_graph(&[0.5], 1.0, 1, 1);
+    let theme = &mtop::tui::theme::THEMES[0];
+    let result = render_braille_graph(&[0.5], 1.0, 1, 1, theme);
     assert_eq!(result.len(), 1, "1×1 graph should return 1 row");
     assert_eq!(result[0].len(), 1, "1×1 graph row should have 1 character");
 }
@@ -110,7 +111,8 @@ fn braille_graph_1x1() {
 /// render_braille_graph with height=0 should not panic and return empty vec.
 #[test]
 fn braille_graph_zero_height() {
-    let result = render_braille_graph(&[0.5], 1.0, 10, 0);
+    let theme = &mtop::tui::theme::THEMES[0];
+    let result = render_braille_graph(&[0.5], 1.0, 10, 0, theme);
     assert!(
         result.is_empty(),
         "height=0 graph should return empty vec, got {} rows",

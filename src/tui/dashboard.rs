@@ -1,7 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::tui::{AppState, theme, layout, expanded};
+use crate::tui::{AppState, theme, gauge, gradient, layout, expanded};
 use crate::tui::panels::*;
 
 pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
@@ -37,29 +37,55 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         s.soc.gpu_cores, s.soc.memory_gb);
     let header_text = format!("{} \u{2014} mtop \u{2014} {}", timestamp, chip_info);
     let avail = page.header.width as usize;
+    // All header text uses muted styling (UAT-09)
+    let muted_style = Style::default().fg(theme.muted);
     let header_spans = if header_text.len() <= avail {
         vec![
-            Span::styled(&timestamp, Style::default().fg(theme.muted)),
-            Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
-            Span::styled("mtop", Style::default().fg(theme.accent).bold()),
-            Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
-            Span::styled(chip_info, Style::default().fg(theme.fg)),
+            Span::styled(&timestamp, muted_style),
+            Span::styled(" \u{2014} ", muted_style),
+            Span::styled("mtop", muted_style),
+            Span::styled(" \u{2014} ", muted_style),
+            Span::styled(chip_info, muted_style),
         ]
     } else {
         // Truncated: just "mtop — chip" or "mtop" if very narrow
         let short = format!("mtop \u{2014} {}", chip_info);
         if short.len() <= avail {
             vec![
-                Span::styled("mtop", Style::default().fg(theme.accent).bold()),
-                Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
-                Span::styled(chip_info, Style::default().fg(theme.fg)),
+                Span::styled("mtop", muted_style),
+                Span::styled(" \u{2014} ", muted_style),
+                Span::styled(chip_info, muted_style),
             ]
         } else {
-            vec![Span::styled("mtop", Style::default().fg(theme.accent).bold())]
+            vec![Span::styled("mtop", muted_style)]
         }
     };
     let header_line = Line::from(header_spans).alignment(ratatui::layout::Alignment::Center);
     f.render_widget(Paragraph::new(header_line), page.header);
+
+    // Battery gauge right-aligned in header
+    let bat = &s.battery;
+    let bat_spans: Vec<Span> = if !bat.is_present {
+        vec![Span::styled("\u{26a1} AC ", muted_style)]
+    } else {
+        let pct = bat.charge_pct as f64 / 100.0;
+        let pct_color = gradient::value_to_color(1.0 - pct, theme);
+        let mut spans = Vec::new();
+        if bat.is_charging {
+            spans.push(Span::styled("\u{26a1}", muted_style));
+        }
+        spans.extend(gauge::render_compact_gauge(pct, 6, theme));
+        spans.push(Span::styled(format!("{:.0}% ", bat.charge_pct), Style::default().fg(pct_color)));
+        spans
+    };
+    let bat_width: u16 = bat_spans.iter().map(|s| s.content.len() as u16).sum();
+    if page.header.width > bat_width {
+        let bat_x = page.header.x + page.header.width - bat_width;
+        f.render_widget(
+            Paragraph::new(Line::from(bat_spans)),
+            Rect::new(bat_x, page.header.y, bat_width, 1),
+        );
+    }
 
     // Expand/collapse layout
     match state.expanded_panel {
@@ -90,23 +116,29 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         }
     }
 
-    // Footer: left = interval, right = keybinding hints, all muted
-    let muted = Style::default().fg(theme.muted);
+    // Footer: left = interval, right = keybinding hints, all muted (AD-03: split layout)
+    let footer_muted = Style::default().fg(theme.muted);
     let theme_name = theme::THEMES[state.theme_idx].name;
 
+    let footer_halves = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(page.footer);
+
     let left_spans = vec![
-        Span::styled(format!(" [+/-] sample every {} ms", state.interval_ms), muted),
+        Span::styled(format!(" [+/-] sample every {} ms", state.interval_ms), footer_muted),
     ];
-    let left_footer = Paragraph::new(Line::from(left_spans));
-    f.render_widget(left_footer, page.footer);
+    f.render_widget(Paragraph::new(Line::from(left_spans)), footer_halves[0]);
 
     let right_spans = vec![
-        Span::styled(format!("[c] theme({}) ", theme_name), muted),
-        Span::styled("[.] detail ", muted),
-        Span::styled("[?] help ", muted),
+        Span::styled(format!("[c] theme({}) ", theme_name), footer_muted),
+        Span::styled("[.] detail ", footer_muted),
+        Span::styled("[?] help ", footer_muted),
     ];
-    let right_footer = Paragraph::new(Line::from(right_spans).alignment(ratatui::layout::Alignment::Right));
-    f.render_widget(right_footer, page.footer);
+    f.render_widget(
+        Paragraph::new(Line::from(right_spans).alignment(ratatui::layout::Alignment::Right)),
+        footer_halves[1],
+    );
 
     // Help overlay (rendered last, on top of everything)
     if state.show_help {

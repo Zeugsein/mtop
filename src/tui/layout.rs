@@ -21,7 +21,7 @@ pub fn too_small_message(area: Rect) -> String {
 pub fn split_type_a(area: Rect) -> (Rect, Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(74), Constraint::Length(1), Constraint::Percentage(25)])
+        .constraints([Constraint::Percentage(74), Constraint::Length(2), Constraint::Percentage(25)])
         .split(area);
     (chunks[0], chunks[2])
 }
@@ -32,9 +32,9 @@ pub fn split_type_b(area: Rect) -> (Rect, Rect, Rect) {
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Percentage(37),
-            Constraint::Length(1),
+            Constraint::Length(2),
             Constraint::Percentage(37),
-            Constraint::Length(1),
+            Constraint::Length(2),
             Constraint::Percentage(25),
         ])
         .split(area);
@@ -122,9 +122,10 @@ mod tests {
     fn test_type_a_split_proportions() {
         let area = rect(100, 20);
         let (trend, detail) = split_type_a(area);
-        // 74% trend + 1 gap + 25% detail
-        assert_eq!(trend.width, 74);
-        assert_eq!(detail.width, 25);
+        // 74% trend + 2 gap + 25% detail (ratatui distributes remaining after gap)
+        assert_eq!(trend.width + detail.width + 2, area.width);
+        assert!(trend.width >= 73 && trend.width <= 74);
+        assert!(detail.width >= 24 && detail.width <= 25);
         assert_eq!(trend.height, area.height);
         assert_eq!(detail.height, area.height);
     }
@@ -133,12 +134,12 @@ mod tests {
     fn test_type_b_split_proportions() {
         let area = rect(100, 20);
         let (t1, t2, detail) = split_type_b(area);
-        // 37% + 1 gap + 37% + 1 gap + 25% (rounding may adjust slightly)
-        assert!(t1.width >= 36 && t1.width <= 37);
-        assert!(t2.width >= 36 && t2.width <= 37);
-        assert!(detail.width >= 23);
-        // Total should account for width
-        assert_eq!(t1.width + t2.width + detail.width + 2, area.width); // +2 for gaps
+        // 37% + 2 gap + 37% + 2 gap + 25% (rounding may adjust slightly)
+        assert!(t1.width >= 34 && t1.width <= 37);
+        assert!(t2.width >= 34 && t2.width <= 37);
+        assert!(detail.width >= 22);
+        // Total should account for width (+4 for two 2-char gaps)
+        assert_eq!(t1.width + t2.width + detail.width + 4, area.width);
     }
 
     #[test]

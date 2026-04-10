@@ -6,8 +6,8 @@ use crate::tui::{AppState, theme, braille, gradient, layout};
 use crate::tui::helpers::truncate_by_display_width;
 
 /// Helper to render a multi-row braille graph into a frame area.
-pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64) {
-    let graph = braille::render_braille_graph(data, max, area.width as usize, area.height as usize);
+pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64, theme: &theme::Theme) {
+    let graph = braille::render_braille_graph(data, max, area.width as usize, area.height as usize, theme);
     for (row_idx, row) in graph.iter().enumerate() {
         let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
         if y < area.y {
@@ -23,10 +23,39 @@ pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64) {
     }
 }
 
+/// Render a braille graph with baseline dots: near-zero values are clamped to a floor
+/// so at least 1 braille dot renders, colored with baseline_color instead of the gradient.
+pub(crate) fn render_graph_with_baseline(f: &mut Frame, area: Rect, data: &[f64], max: f64, theme: &theme::Theme) {
+    let baseline_floor = max * 0.005;
+    let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
+    let graph = braille::render_braille_graph(&clamped, max, area.width as usize, area.height as usize, theme);
+
+    let needed = area.width as usize * 2;
+    let start = data.len().saturating_sub(needed);
+    let visible_orig = &data[start..];
+
+    for (row_idx, row) in graph.iter().enumerate() {
+        let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
+        if y < area.y {
+            break;
+        }
+        let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
+            let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+            let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
+            let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
+            let color = if is_baseline { theme::baseline_color(theme) } else { orig_color };
+            Span::styled(ch.to_string(), Style::default().fg(color))
+        }).collect();
+        if !spans.is_empty() {
+            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
+        }
+    }
+}
+
 /// CPU panel: Type A layout (75% multi-row braille graph + 25% process dots)
 pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let cpu_pct = s.cpu.total_usage * 100.0;
-    let temp_color = gradient::temp_to_color(s.temperature.cpu_avg_c);
+    let temp_color = gradient::temp_to_color(s.temperature.cpu_avg_c, theme);
     let temp_str = if s.temperature.available {
         format!("{}°C", s.temperature.cpu_avg_c as u32)
     } else {
@@ -54,8 +83,8 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left/right + 1-line top padding
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
+    // 1-char padding left/right, no top padding (UAT-07)
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -71,7 +100,7 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         let (trend_area, detail_area) = layout::split_type_a(content_area);
 
         // Left: multi-row braille graph
-        render_graph(f, trend_area, &sparkline_data, 1.0);
+        render_graph(f, trend_area, &sparkline_data, 1.0, theme);
 
         // Right: process list with dots — c/m/p labels aligned above dot columns
         let name_width = detail_area.width.saturating_sub(7) as usize;
@@ -103,17 +132,17 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
             let line = Line::from(vec![
                 Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
                 Span::raw("  "),
-                Span::styled("•", Style::default().fg(gradient::value_to_color(cpu_norm))),
+                Span::styled("•", Style::default().fg(gradient::value_to_color(cpu_norm, theme))),
                 Span::raw(" "),
-                Span::styled("•", Style::default().fg(gradient::value_to_color(mem_norm))),
+                Span::styled("•", Style::default().fg(gradient::value_to_color(mem_norm, theme))),
                 Span::raw(" "),
-                Span::styled("•", Style::default().fg(gradient::value_to_color(pow_norm))),
+                Span::styled("•", Style::default().fg(gradient::value_to_color(pow_norm, theme))),
             ]);
             f.render_widget(Paragraph::new(line), Rect::new(detail_area.x, y, detail_area.width, 1));
         }
     } else {
         // Full-width graph, no right detail
-        render_graph(f, content_area, &sparkline_data, 1.0);
+        render_graph(f, content_area, &sparkline_data, 1.0, theme);
     }
 
     // Bottom info: E and P both left-aligned

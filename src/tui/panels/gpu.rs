@@ -3,12 +3,12 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, gradient, layout};
-use super::cpu::render_graph;
+use super::cpu::render_graph_with_baseline;
 
 /// GPU panel: Type A layout (75% multi-row braille graph + 25% orphan metrics)
 pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let gpu_pct = s.gpu.usage * 100.0;
-    let temp_color = gradient::temp_to_color(s.temperature.gpu_avg_c);
+    let temp_color = gradient::temp_to_color(s.temperature.gpu_avg_c, theme);
     let temp_str = if s.temperature.available {
         format!("{}°C", s.temperature.gpu_avg_c as u32)
     } else {
@@ -42,8 +42,8 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left/right + 1-line top padding
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
+    // 1-char padding left/right, no top padding (UAT-07)
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -59,7 +59,7 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Left: GPU usage multi-row braille graph
         if s.gpu.available {
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-            render_graph(f, trend_area, &sparkline_data, 1.0);
+            render_graph_with_baseline(f, trend_area, &sparkline_data, 1.0, theme);
         }
 
         // Right: orphan metrics (vertically centered, white text)
@@ -94,7 +94,7 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Full-width graph, no right detail
         if s.gpu.available {
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-            render_graph(f, content_area, &sparkline_data, 1.0);
+            render_graph_with_baseline(f, content_area, &sparkline_data, 1.0, theme);
         }
 
     }
