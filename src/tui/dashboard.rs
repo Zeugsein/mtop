@@ -90,24 +90,23 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         }
     }
 
-    // Footer: right-aligned keybinding hints
+    // Footer: left = interval, right = keybinding hints, all muted
+    let muted = Style::default().fg(theme.muted);
     let theme_name = theme::THEMES[state.theme_idx].name;
-    let footer_spans = vec![
-        Span::styled("[", Style::default().fg(theme.accent)),
-        Span::styled("c", Style::default().fg(theme.accent).bold()),
-        Span::styled("] ", Style::default().fg(theme.accent)),
-        Span::styled(format!("theme({}) ", theme_name), Style::default().fg(theme.muted)),
-        Span::styled("[", Style::default().fg(theme.accent)),
-        Span::styled(".", Style::default().fg(theme.accent).bold()),
-        Span::styled("] ", Style::default().fg(theme.accent)),
-        Span::styled("detail ", Style::default().fg(theme.muted)),
-        Span::styled("[", Style::default().fg(theme.accent)),
-        Span::styled("?", Style::default().fg(theme.accent).bold()),
-        Span::styled("] ", Style::default().fg(theme.accent)),
-        Span::styled("help ", Style::default().fg(theme.muted)),
+
+    let left_spans = vec![
+        Span::styled(format!(" [+/-] sample every {} ms", state.interval_ms), muted),
     ];
-    let footer = Paragraph::new(Line::from(footer_spans).alignment(ratatui::layout::Alignment::Right));
-    f.render_widget(footer, page.footer);
+    let left_footer = Paragraph::new(Line::from(left_spans));
+    f.render_widget(left_footer, page.footer);
+
+    let right_spans = vec![
+        Span::styled(format!("[c] theme({}) ", theme_name), muted),
+        Span::styled("[.] detail ", muted),
+        Span::styled("[?] help ", muted),
+    ];
+    let right_footer = Paragraph::new(Line::from(right_spans).alignment(ratatui::layout::Alignment::Right));
+    f.render_widget(right_footer, page.footer);
 
     // Help overlay (rendered last, on top of everything)
     if state.show_help {
