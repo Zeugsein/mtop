@@ -5,6 +5,7 @@ pub mod gradient;
 pub mod helpers;
 mod input;
 pub mod layout;
+pub(crate) mod prepare;
 pub mod theme;
 
 use std::io::stdout;
@@ -51,6 +52,22 @@ struct AppState {
     temp_unit: String,
     history: MetricsHistory,
     snapshot: MetricsSnapshot,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            interval_ms: 1000,
+            process_scroll: 0,
+            theme_idx: 0,
+            selected_panel: PanelId::Cpu,
+            expanded_panel: None,
+            sort_mode: SortMode::default(),
+            temp_unit: "celsius".to_string(),
+            history: MetricsHistory::new(),
+            snapshot: MetricsSnapshot::default(),
+        }
+    }
 }
 
 /// Return the list of available theme names (for tests and CLI validation).
@@ -859,9 +876,8 @@ fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     }
 }
 
-
-
-
+#[cfg(test)]
+mod tests;
 
 
 
