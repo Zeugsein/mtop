@@ -65,44 +65,50 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
-    let (trend_area, detail_area) = layout::split_type_a(content_area);
-
-    // Left: multi-row braille graph
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
-    render_graph(f, trend_area, &sparkline_data, 1.0, theme.cpu_accent);
 
-    // Right: process list with dots (white text, no colored legend)
-    let legend = Line::from(vec![
-        Span::styled("c ", Style::default().fg(theme.muted)),
-        Span::styled("m ", Style::default().fg(theme.muted)),
-        Span::styled("p", Style::default().fg(theme.muted)),
-    ]);
-    f.render_widget(Paragraph::new(legend), Rect::new(detail_area.x, detail_area.y, detail_area.width, 1));
+    if state.show_detail {
+        let (trend_area, detail_area) = layout::split_type_a(content_area);
 
-    let max_procs = (detail_area.height as usize).saturating_sub(1);
-    let max_mem = s.processes.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
+        // Left: multi-row braille graph
+        render_graph(f, trend_area, &sparkline_data, 1.0, theme.cpu_accent);
 
-    for (i, proc) in s.processes.iter().take(max_procs).enumerate() {
-        let y = detail_area.y + 1 + i as u16;
-        if y >= detail_area.y + detail_area.height {
-            break;
-        }
-
-        let name_width = detail_area.width.saturating_sub(7) as usize;
-        let name = truncate_by_display_width(&proc.name, name_width);
-
-        let cpu_norm = (proc.cpu_pct / 100.0).clamp(0.0, 1.0) as f64;
-        let mem_norm = (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0);
-        let pow_norm = cpu_norm * 0.8;
-
-        let line = Line::from(vec![
-            Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
-            Span::raw(" "),
-            Span::styled("●", Style::default().fg(gradient::value_to_color(cpu_norm))),
-            Span::styled("●", Style::default().fg(gradient::value_to_color(mem_norm))),
-            Span::styled("●", Style::default().fg(gradient::value_to_color(pow_norm))),
+        // Right: process list with dots (white text, no colored legend)
+        let legend = Line::from(vec![
+            Span::styled("c ", Style::default().fg(theme.muted)),
+            Span::styled("m ", Style::default().fg(theme.muted)),
+            Span::styled("p", Style::default().fg(theme.muted)),
         ]);
-        f.render_widget(Paragraph::new(line), Rect::new(detail_area.x, y, detail_area.width, 1));
+        f.render_widget(Paragraph::new(legend), Rect::new(detail_area.x, detail_area.y, detail_area.width, 1));
+
+        let max_procs = (detail_area.height as usize).saturating_sub(1);
+        let max_mem = s.processes.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
+
+        for (i, proc) in s.processes.iter().take(max_procs).enumerate() {
+            let y = detail_area.y + 1 + i as u16;
+            if y >= detail_area.y + detail_area.height {
+                break;
+            }
+
+            let name_width = detail_area.width.saturating_sub(7) as usize;
+            let name = truncate_by_display_width(&proc.name, name_width);
+
+            let cpu_norm = (proc.cpu_pct / 100.0).clamp(0.0, 1.0) as f64;
+            let mem_norm = (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0);
+            let pow_norm = cpu_norm * 0.8;
+
+            let line = Line::from(vec![
+                Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
+                Span::raw(" "),
+                Span::styled("●", Style::default().fg(gradient::value_to_color(cpu_norm))),
+                Span::styled("●", Style::default().fg(gradient::value_to_color(mem_norm))),
+                Span::styled("●", Style::default().fg(gradient::value_to_color(pow_norm))),
+            ]);
+            f.render_widget(Paragraph::new(line), Rect::new(detail_area.x, y, detail_area.width, 1));
+        }
+    } else {
+        // Full-width graph, no right detail
+        render_graph(f, content_area, &sparkline_data, 1.0, theme.cpu_accent);
     }
 
     // Bottom info inside panel

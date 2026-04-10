@@ -52,6 +52,8 @@ pub(crate) struct AppState {
     pub(crate) expanded_panel: Option<PanelId>,
     pub(crate) sort_mode: SortMode,
     pub(crate) temp_unit: String,
+    pub(crate) show_detail: bool,
+    pub(crate) show_help: bool,
     pub(crate) history: MetricsHistory,
     pub(crate) snapshot: MetricsSnapshot,
 }
@@ -66,6 +68,8 @@ impl Default for AppState {
             expanded_panel: None,
             sort_mode: SortMode::default(),
             temp_unit: "celsius".to_string(),
+            show_detail: false,
+            show_help: false,
             history: MetricsHistory::new(),
             snapshot: MetricsSnapshot::default(),
         }
@@ -91,6 +95,8 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
         expanded_panel: None,
         sort_mode: SortMode::default(),
         temp_unit: temp_unit.to_string(),
+        show_detail: false,
+        show_help: false,
         history: MetricsHistory::new(),
         snapshot: MetricsSnapshot::default(),
     };

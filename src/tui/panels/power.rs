@@ -46,81 +46,72 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
-    let (left, mid, right) = layout::split_type_b(content_area);
-
-    // Left 37.5%: CPU power sparkline with label inside panel
     let cpu_tdp = s.soc.cpu_tdp_w() as f64;
-    let cpu_power_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
-
-    // Label: "cpu X.XW" at top of sparkline area
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("cpu ", Style::default().fg(theme.cpu_accent)),
-            Span::styled(format!("{:.1}W", s.power.cpu_w), Style::default().fg(theme.fg)),
-        ])),
-        Rect::new(left.x, left.y, left.width, 1),
-    );
-    // Graph below label
-    if left.height > 1 {
-        let graph_area = Rect::new(left.x, left.y + 1, left.width, left.height - 1);
-        let graph = braille::render_braille_graph(&cpu_power_data, cpu_tdp, graph_area.width as usize, graph_area.height as usize);
-        for (row_idx, row) in graph.iter().enumerate() {
-            let y = graph_area.y + graph_area.height.saturating_sub(1) - row_idx as u16;
-            if y < graph_area.y { break; }
-            let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
-            if !spans.is_empty() {
-                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(graph_area.x, y, graph_area.width, 1));
-            }
-        }
-    }
-
-    // Middle 37.5%: GPU power sparkline with label
     let gpu_tdp = s.soc.gpu_tdp_w() as f64;
+    let cpu_power_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
     let gpu_power_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
 
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("gpu ", Style::default().fg(theme.gpu_accent)),
-            Span::styled(format!("{:.1}W", s.power.gpu_w), Style::default().fg(theme.fg)),
-        ])),
-        Rect::new(mid.x, mid.y, mid.width, 1),
-    );
-    if mid.height > 1 {
-        let graph_area = Rect::new(mid.x, mid.y + 1, mid.width, mid.height - 1);
-        let graph = braille::render_braille_graph(&gpu_power_data, gpu_tdp, graph_area.width as usize, graph_area.height as usize);
-        for (row_idx, row) in graph.iter().enumerate() {
-            let y = graph_area.y + graph_area.height.saturating_sub(1) - row_idx as u16;
-            if y < graph_area.y { break; }
-            let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
-            if !spans.is_empty() {
-                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(graph_area.x, y, graph_area.width, 1));
+    // Helper to render a labeled power sparkline into an area
+    let render_labeled_sparkline = |f: &mut Frame, area: Rect, label: &str, watts: f32, data: &[f64], max: f64, label_color: Color| {
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(format!("{label} "), Style::default().fg(label_color)),
+                Span::styled(format!("{watts:.1}W"), Style::default().fg(theme.fg)),
+            ])),
+            Rect::new(area.x, area.y, area.width, 1),
+        );
+        if area.height > 1 {
+            let graph_area = Rect::new(area.x, area.y + 1, area.width, area.height - 1);
+            let graph = braille::render_braille_graph(data, max, graph_area.width as usize, graph_area.height as usize);
+            for (row_idx, row) in graph.iter().enumerate() {
+                let y = graph_area.y + graph_area.height.saturating_sub(1) - row_idx as u16;
+                if y < graph_area.y { break; }
+                let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+                if !spans.is_empty() {
+                    f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(graph_area.x, y, graph_area.width, 1));
+                }
             }
         }
-    }
+    };
 
-    // Right 25%: Per-process energy ranking (white text)
-    let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
-        .filter(|p| p.power_w > 0.0)
-        .collect();
-    procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
+    if state.show_detail {
+        let (left, mid, right) = layout::split_type_b(content_area);
 
-    let max_rows = right.height as usize;
+        render_labeled_sparkline(f, left, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent);
+        render_labeled_sparkline(f, mid, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent);
 
-    for (i, proc) in procs_by_power.iter().take(max_rows) .enumerate() {
-        let y = right.y + i as u16;
-        if y >= right.y + right.height {
-            break;
+        // Right 25%: Per-process energy ranking (white text)
+        let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
+            .filter(|p| p.power_w > 0.0)
+            .collect();
+        procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
+
+        let max_rows = right.height as usize;
+
+        for (i, proc) in procs_by_power.iter().take(max_rows).enumerate() {
+            let y = right.y + i as u16;
+            if y >= right.y + right.height {
+                break;
+            }
+
+            let name_width = right.width.saturating_sub(6) as usize;
+            let name = truncate_by_display_width(&proc.name, name_width);
+
+            let line = Line::from(vec![
+                Span::styled(pad_to_display_width(&name, name_width), Style::default().fg(theme.fg)),
+                Span::raw(" "),
+                Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.fg)),
+            ]);
+            f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
         }
+    } else {
+        // Full-width: two graphs split 50/50
+        let half_w = content_area.width / 2;
+        let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
+        let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
-        let name_width = right.width.saturating_sub(6) as usize;
-        let name = truncate_by_display_width(&proc.name, name_width);
-
-        let line = Line::from(vec![
-            Span::styled(pad_to_display_width(&name, name_width), Style::default().fg(theme.fg)),
-            Span::raw(" "),
-            Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.fg)),
-        ]);
-        f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
+        render_labeled_sparkline(f, left, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent);
+        render_labeled_sparkline(f, mid, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent);
     }
 
     // Bottom info inside panel

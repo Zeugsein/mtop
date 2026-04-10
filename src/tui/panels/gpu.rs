@@ -43,41 +43,49 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
-    let (trend_area, detail_area) = layout::split_type_a(content_area);
+    if state.show_detail {
+        let (trend_area, detail_area) = layout::split_type_a(content_area);
 
-    // Left: GPU usage multi-row braille graph
-    if s.gpu.available {
-        let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-        render_graph(f, trend_area, &sparkline_data, 1.0, theme.gpu_accent);
-    }
-
-    // Right: orphan metrics (vertically centered, white text)
-    let gb = 1024.0 * 1024.0 * 1024.0;
-    let metrics: Vec<String> = vec![
-        format!("{} GPU cores", s.soc.gpu_cores),
-        String::new(),
-        format!("ANE  {:.1}W", s.power.ane_w),
-        format!("DRAM {:.1}W", s.power.dram_w),
-        String::new(),
-        format!("VRAM {:.1}/{:.0}GB", s.memory.ram_used as f64 / gb, s.memory.ram_total as f64 / gb),
-    ];
-
-    let content_lines = metrics.iter().filter(|m| !m.is_empty()).count() + metrics.iter().filter(|m| m.is_empty()).count();
-    let content_lines = content_lines.min(detail_area.height as usize);
-    let y_offset = (detail_area.height as usize).saturating_sub(content_lines) / 2;
-
-    for (i, text) in metrics.iter().enumerate() {
-        let y = detail_area.y + y_offset as u16 + i as u16;
-        if y >= detail_area.y + detail_area.height || text.is_empty() {
-            if text.is_empty() {
-                continue;
-            }
-            break;
+        // Left: GPU usage multi-row braille graph
+        if s.gpu.available {
+            let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
+            render_graph(f, trend_area, &sparkline_data, 1.0, theme.gpu_accent);
         }
-        f.render_widget(
-            Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
-            Rect::new(detail_area.x, y, detail_area.width, 1),
-        );
+
+        // Right: orphan metrics (vertically centered, white text)
+        let gb = 1024.0 * 1024.0 * 1024.0;
+        let metrics: Vec<String> = vec![
+            format!("{} GPU cores", s.soc.gpu_cores),
+            String::new(),
+            format!("ANE  {:.1}W", s.power.ane_w),
+            format!("DRAM {:.1}W", s.power.dram_w),
+            String::new(),
+            format!("VRAM {:.1}/{:.0}GB", s.memory.ram_used as f64 / gb, s.memory.ram_total as f64 / gb),
+        ];
+
+        let content_lines = metrics.iter().filter(|m| !m.is_empty()).count() + metrics.iter().filter(|m| m.is_empty()).count();
+        let content_lines = content_lines.min(detail_area.height as usize);
+        let y_offset = (detail_area.height as usize).saturating_sub(content_lines) / 2;
+
+        for (i, text) in metrics.iter().enumerate() {
+            let y = detail_area.y + y_offset as u16 + i as u16;
+            if y >= detail_area.y + detail_area.height || text.is_empty() {
+                if text.is_empty() {
+                    continue;
+                }
+                break;
+            }
+            f.render_widget(
+                Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
+                Rect::new(detail_area.x, y, detail_area.width, 1),
+            );
+        }
+    } else {
+        // Full-width graph, no right detail
+        if s.gpu.available {
+            let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
+            render_graph(f, content_area, &sparkline_data, 1.0, theme.gpu_accent);
+        }
     }
 
     // Bottom info inside panel

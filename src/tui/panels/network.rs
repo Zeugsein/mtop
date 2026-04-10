@@ -50,100 +50,110 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
-    let (left, mid, right) = layout::split_type_b(content_area);
-
     let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
-
-    // Left 37.5%: Upload multi-row braille graph
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
-    let graph = braille::render_braille_graph(&upload_data, scale, left.width as usize, left.height as usize);
-    for (row_idx, row) in graph.iter().enumerate() {
-        let y = left.y + left.height.saturating_sub(1) - row_idx as u16;
-        if y < left.y { break; }
-        let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_upload))).collect();
-        if !spans.is_empty() {
-            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(left.x, y, left.width, 1));
-        }
-    }
-
-    // Middle 37.5%: Download multi-row braille graph
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
-    let graph = braille::render_braille_graph(&download_data, scale, mid.width as usize, mid.height as usize);
-    for (row_idx, row) in graph.iter().enumerate() {
-        let y = mid.y + mid.height.saturating_sub(1) - row_idx as u16;
-        if y < mid.y { break; }
-        let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download))).collect();
-        if !spans.is_empty() {
-            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(mid.x, y, mid.width, 1));
+
+    // Helper to render a net braille graph
+    let render_net_graph = |f: &mut Frame, area: Rect, data: &[f64], color: Color| {
+        let graph = braille::render_braille_graph(data, scale, area.width as usize, area.height as usize);
+        for (row_idx, row) in graph.iter().enumerate() {
+            let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
+            if y < area.y { break; }
+            let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+            if !spans.is_empty() {
+                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
+            }
         }
-    }
-
-    // Right 25%: btop-style traffic metrics + top interfaces
-    // Aggregate totals across all non-infra interfaces
-    let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
-    let total_tx_bytes: u64 = display_ifaces.iter().map(|i| i.tx_bytes_total).sum();
-
-    let mut lines: Vec<Line> = Vec::new();
-
-    // Upload section
-    lines.push(Line::from(Span::styled("▲ Upload", Style::default().fg(theme.net_upload))));
-    lines.push(Line::from(Span::styled(
-        format!("cur: {}", format_bytes_rate_compact(total_tx)),
-        Style::default().fg(theme.fg),
-    )));
-    lines.push(Line::from(Span::styled(
-        format!("max: {}", format_bytes_rate_compact(state.history.net_upload_max)),
-        Style::default().fg(theme.fg),
-    )));
-    lines.push(Line::from(Span::styled(
-        format!("tot: {}", format_bytes_compact(total_tx_bytes as f64)),
-        Style::default().fg(theme.fg),
-    )));
-
-    lines.push(Line::from(""));
-
-    // Download section
-    lines.push(Line::from(Span::styled("▼ Download", Style::default().fg(theme.net_download))));
-    lines.push(Line::from(Span::styled(
-        format!("cur: {}", format_bytes_rate_compact(total_rx)),
-        Style::default().fg(theme.fg),
-    )));
-    lines.push(Line::from(Span::styled(
-        format!("max: {}", format_bytes_rate_compact(state.history.net_download_max)),
-        Style::default().fg(theme.fg),
-    )));
-    lines.push(Line::from(Span::styled(
-        format!("tot: {}", format_bytes_compact(total_rx_bytes as f64)),
-        Style::default().fg(theme.fg),
-    )));
-
-    // Top 3 interfaces (non-zero traffic only)
-    let active_ifaces: Vec<&&crate::metrics::NetInterface> = display_ifaces.iter()
-        .filter(|i| i.rx_bytes_sec > 0.0 || i.tx_bytes_sec > 0.0)
-        .take(3)
-        .collect();
-    if !active_ifaces.is_empty() {
-        lines.push(Line::from(""));
-        for iface in &active_ifaces {
-            lines.push(Line::from(Span::styled(
-                format!("{} ({})", iface.name, iface.iface_type),
-                Style::default().fg(theme.muted),
-            )));
-        }
-    }
-
-    // Vertically center the content in the right area
-    let content_height = lines.len() as u16;
-    let start_y = if content_height < right.height {
-        right.y + (right.height - content_height) / 2
-    } else {
-        right.y
     };
-    for (i, line) in lines.iter().take(right.height as usize).enumerate() {
-        f.render_widget(
-            Paragraph::new(line.clone()),
-            Rect::new(right.x, start_y + i as u16, right.width, 1),
-        );
+
+    if state.show_detail {
+        let (left, mid, right) = layout::split_type_b(content_area);
+
+        render_net_graph(f, left, &upload_data, theme.net_upload);
+        render_net_graph(f, mid, &download_data, theme.net_download);
+
+        // Right 25%: btop-style traffic metrics + top interfaces
+        let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
+        let total_tx_bytes: u64 = display_ifaces.iter().map(|i| i.tx_bytes_total).sum();
+
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled("\u{25b2} Upload", Style::default().fg(theme.net_upload))));
+        lines.push(Line::from(Span::styled(
+            format!("cur: {}", format_bytes_rate_compact(total_tx)),
+            Style::default().fg(theme.fg),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("max: {}", format_bytes_rate_compact(state.history.net_upload_max)),
+            Style::default().fg(theme.fg),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("tot: {}", format_bytes_compact(total_tx_bytes as f64)),
+            Style::default().fg(theme.fg),
+        )));
+
+        lines.push(Line::from(""));
+
+        lines.push(Line::from(Span::styled("\u{25bc} Download", Style::default().fg(theme.net_download))));
+        lines.push(Line::from(Span::styled(
+            format!("cur: {}", format_bytes_rate_compact(total_rx)),
+            Style::default().fg(theme.fg),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("max: {}", format_bytes_rate_compact(state.history.net_download_max)),
+            Style::default().fg(theme.fg),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("tot: {}", format_bytes_compact(total_rx_bytes as f64)),
+            Style::default().fg(theme.fg),
+        )));
+
+        let active_ifaces: Vec<&&crate::metrics::NetInterface> = display_ifaces.iter()
+            .filter(|i| i.rx_bytes_sec > 0.0 || i.tx_bytes_sec > 0.0)
+            .take(3)
+            .collect();
+        if !active_ifaces.is_empty() {
+            lines.push(Line::from(""));
+            for iface in &active_ifaces {
+                lines.push(Line::from(Span::styled(
+                    format!("{} ({})", iface.name, iface.iface_type),
+                    Style::default().fg(theme.muted),
+                )));
+            }
+        }
+
+        let content_height = lines.len() as u16;
+        let start_y = if content_height < right.height {
+            right.y + (right.height - content_height) / 2
+        } else {
+            right.y
+        };
+        for (i, line) in lines.iter().take(right.height as usize).enumerate() {
+            f.render_widget(
+                Paragraph::new(line.clone()),
+                Rect::new(right.x, start_y + i as u16, right.width, 1),
+            );
+        }
+    } else {
+        // Full-width: two graphs split 50/50
+        let half_w = content_area.width / 2;
+        let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
+        let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
+
+        render_net_graph(f, left, &upload_data, theme.net_upload);
+        render_net_graph(f, mid, &download_data, theme.net_download);
+
+        // Fallback: primary interface name on bottom row
+        if let Some(primary) = display_ifaces.first() {
+            let fallback = format!("{} ", primary.name);
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(fallback, Style::default().fg(theme.muted)))
+                    .alignment(ratatui::layout::Alignment::Right)),
+                Rect::new(inner.x, bottom_y, inner.width, 1),
+            );
+            return; // skip default bottom info
+        }
     }
 
     // Bottom info inside panel
