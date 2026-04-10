@@ -27,7 +27,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     };
 
     let title_spans = vec![
-        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[2]), Style::default().fg(theme.mem_accent)),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[2]), Style::default().fg(theme.muted)),
         Span::styled("mem  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"), Style::default().fg(theme.fg)),
         Span::styled(" \u{25cf}", Style::default().fg(pressure_dot_color)),
@@ -43,8 +43,8 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left and right inside panel frame
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+    // 1-char padding left/right + 1-line top padding
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -77,7 +77,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             };
             f.render_widget(
                 Paragraph::new(Line::from(vec![
-                    Span::styled("Used ", Style::default().fg(theme.mem_accent).bold()),
+                    Span::styled("Used ", Style::default().fg(theme.fg).bold()),
                     Span::styled(value_str, Style::default().fg(theme.fg)),
                 ])),
                 Rect::new(left.x, left.y, left.width, 1),
@@ -99,7 +99,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             };
             f.render_widget(
                 Paragraph::new(Line::from(vec![
-                    Span::styled("Avail ", Style::default().fg(theme.mem_accent).bold()),
+                    Span::styled("Avail ", Style::default().fg(theme.fg).bold()),
                     Span::styled(value_str, Style::default().fg(theme.fg)),
                 ])),
                 Rect::new(mid.x, mid.y, mid.width, 1),

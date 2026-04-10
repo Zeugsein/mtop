@@ -90,14 +90,23 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         }
     }
 
-    // Footer: minimal
+    // Footer: right-aligned keybinding hints
     let theme_name = theme::THEMES[state.theme_idx].name;
-    let detail_indicator = if state.show_detail { "on" } else { "off" };
-    let footer = Paragraph::new(format!(
-        " {theme_name}  {}ms  detail:{detail_indicator}  ?:help ",
-        state.interval_ms
-    ))
-    .style(Style::default().fg(theme.muted));
+    let footer_spans = vec![
+        Span::styled("[", Style::default().fg(theme.accent)),
+        Span::styled("c", Style::default().fg(theme.accent).bold()),
+        Span::styled("] ", Style::default().fg(theme.accent)),
+        Span::styled(format!("theme({}) ", theme_name), Style::default().fg(theme.muted)),
+        Span::styled("[", Style::default().fg(theme.accent)),
+        Span::styled(".", Style::default().fg(theme.accent).bold()),
+        Span::styled("] ", Style::default().fg(theme.accent)),
+        Span::styled("detail ", Style::default().fg(theme.muted)),
+        Span::styled("[", Style::default().fg(theme.accent)),
+        Span::styled("?", Style::default().fg(theme.accent).bold()),
+        Span::styled("] ", Style::default().fg(theme.accent)),
+        Span::styled("help ", Style::default().fg(theme.muted)),
+    ];
+    let footer = Paragraph::new(Line::from(footer_spans).alignment(ratatui::layout::Alignment::Right));
     f.render_widget(footer, page.footer);
 
     // Help overlay (rendered last, on top of everything)

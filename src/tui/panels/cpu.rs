@@ -40,7 +40,7 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let border_color = theme::dim_color(theme.cpu_accent, theme::adaptive_border_dim(theme));
 
     let title_spans = vec![
-        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[0]), Style::default().fg(theme.cpu_accent)),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[0]), Style::default().fg(theme.muted)),
         Span::styled("cpu  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
         Span::styled(format!(" @ {}MHz", s.cpu.p_cluster.freq_mhz.max(s.cpu.e_cluster.freq_mhz)), Style::default().fg(theme.muted)),
@@ -58,8 +58,8 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left and right inside panel frame
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+    // 1-char padding left/right + 1-line top padding
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
 
     if inner.height < 2 || inner.width == 0 {
         return;

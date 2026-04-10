@@ -12,7 +12,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     if !s.power.available {
         let block = Block::default()
             .title(Line::from(vec![
-                Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.power_accent)),
+                Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.muted)),
                 Span::styled("power ", Style::default().fg(theme.fg).bold()),
             ]))
             .borders(Borders::ALL)
@@ -29,7 +29,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     }
 
     let title_spans = vec![
-        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.power_accent)),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.muted)),
         Span::styled("power ", Style::default().fg(theme.fg).bold()),
         Span::raw(" "),
     ];
@@ -43,8 +43,8 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left and right inside panel frame
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+    // 1-char padding left/right + 1-line top padding
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
 
     if inner.height < 2 || inner.width == 0 {
         return;
