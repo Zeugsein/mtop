@@ -134,13 +134,29 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
         }
     } else {
-        // Full-width: two graphs split 50/50
+        // Full-width: two graphs split 50/50 with sub-panel borders
         let half_w = content_area.width / 2;
         let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
         let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
-        render_labeled_sparkline(f, left, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
-        render_labeled_sparkline(f, mid, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, gpu_idle);
+        let sub_border_color = theme::dim_color(border_color, 0.8);
+        let cpu_block = Block::default()
+            .title(Span::styled(" cpu ", Style::default().fg(theme.fg).bold()))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let cpu_inner = cpu_block.inner(left);
+        f.render_widget(cpu_block, left);
+        render_labeled_sparkline(f, cpu_inner, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
+
+        let gpu_block = Block::default()
+            .title(Span::styled(" gpu ", Style::default().fg(theme.fg).bold()))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let gpu_inner = gpu_block.inner(mid);
+        f.render_widget(gpu_block, mid);
+        render_labeled_sparkline(f, gpu_inner, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, gpu_idle);
     }
 
     // Bottom info inside panel
