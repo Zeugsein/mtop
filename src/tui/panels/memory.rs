@@ -191,6 +191,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             render_graph_green(f, avail_inner, &available_data, 1.0, theme);
         }
 
+        // Bottom row: swap left-aligned, disk right-aligned
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
         let disk_total_gb = s.disk.total_bytes as f64 / gb;
         let disk_pct = if s.disk.total_bytes > 0 {
@@ -198,13 +199,25 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         } else {
             0
         };
-        let fallback = format!("disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB ");
+        let disk_text = format!("disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB ");
+
+        // Swap on the left (if configured)
+        if s.memory.swap_total > 0 {
+            let swap_used_gb = s.memory.swap_used as f64 / gb;
+            let swap_total_gb = s.memory.swap_total as f64 / gb;
+            let swap_text = format!(" Swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(swap_text, Style::default().fg(theme.muted)))),
+                Rect::new(inner.x, bottom_y, inner.width / 2, 1),
+            );
+        }
+        // Disk on the right
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(fallback, Style::default().fg(theme.muted)))
+            Paragraph::new(Line::from(Span::styled(disk_text, Style::default().fg(theme.muted)))
                 .alignment(ratatui::layout::Alignment::Right)),
             Rect::new(inner.x, bottom_y, inner.width, 1),
         );
-        return; // skip default bottom info
+        return; // skip default bottom info (detail mode handles swap separately)
     }
 
     // Bottom info: Swap (only show if swap is configured)
