@@ -28,18 +28,22 @@ impl PowerState {
                 return None;
             }
 
-            let mut sub_err: i32 = 0;
+            let mut desired_channels: ioreport_ffi::CFDictionaryRef = std::ptr::null();
             let subscription = (fns.create_subscription)(
                 std::ptr::null(),
                 channel,
-                &mut sub_err,
+                &mut desired_channels,
                 0,
                 std::ptr::null(),
             );
 
-            if subscription.is_null() || sub_err != 0 {
+            if subscription.is_null() {
                 CFRelease(channel as *const _);
                 return None;
+            }
+            // desired_channels is an output ref we don't need; release if non-null
+            if !desired_channels.is_null() {
+                CFRelease(desired_channels as *const _);
             }
 
             let prev_sample = (fns.create_samples)(subscription, channel, std::ptr::null());
