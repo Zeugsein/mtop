@@ -80,6 +80,9 @@ impl NetworkState {
 fn read_interface_bytes() -> HashMap<String, (u64, u64, u64, u64, u64)> {
     let mut result = HashMap::new();
 
+    // SAFETY: getifaddrs allocates a linked list of ifaddrs; we iterate it and free with
+    // freeifaddrs. AF_LINK entries have ifa_data pointing to if_data64 (IfData layout
+    // verified by compile-time offset assertions). All pointers are null-checked before use.
     unsafe {
         let mut addrs: *mut libc::ifaddrs = std::ptr::null_mut();
         if libc::getifaddrs(&mut addrs) != 0 {
@@ -177,3 +180,10 @@ struct IfData {
     ifi_xmittiming: u32,
     ifi_lastchange: libc::timeval,
 }
+
+// Compile-time assertions: IfData field offsets (from macOS net/if_var.h, struct if_data64).
+// 8 × u8 (0-7), u32 mtu (8), u32 metric (12), then u64 fields from offset 16.
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_baudrate) == 16);
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_ipackets) == 24);
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_ibytes) == 64);
+const _: () = assert!(std::mem::offset_of!(IfData, ifi_obytes) == 72);

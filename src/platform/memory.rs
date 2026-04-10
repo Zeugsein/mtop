@@ -4,6 +4,9 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
     let ram_total = sysctl_u64("hw.memsize").unwrap_or(0);
 
     // Get VM statistics via Mach API
+    // SAFETY: VmStatistics64 is repr(C) with compile-time offset assertions.
+    // host_statistics64 writes into vm_stat; count is set to the struct size in i32 units.
+    // sysconf(_SC_PAGESIZE) returns the system page size (always positive on macOS).
     let (ram_used, swap_total, swap_used, wired, app, compressed) = unsafe {
         let mut vm_stat: VmStatistics64 = std::mem::zeroed();
         let mut count = (std::mem::size_of::<VmStatistics64>() / std::mem::size_of::<i32>()) as u32;
@@ -55,6 +58,7 @@ fn sysctl_u64(name: &str) -> Option<u64> {
     let cname = std::ffi::CString::new(name).ok()?;
     let mut val: u64 = 0;
     let mut size = std::mem::size_of::<u64>() as libc::size_t;
+    // SAFETY: cname is a valid NUL-terminated C string; val is a properly-sized u64 buffer.
     unsafe {
         let ret = libc::sysctlbyname(
             cname.as_ptr(),
@@ -72,6 +76,7 @@ fn get_swap_usage() -> (u64, u64) {
         Ok(n) => n,
         Err(_) => return (0, 0),
     };
+    // SAFETY: XswUsage is repr(C); sysctlbyname writes exactly sizeof(xsw_usage) bytes.
     let mut swap: XswUsage = unsafe { std::mem::zeroed() };
     let mut size = std::mem::size_of::<XswUsage>() as libc::size_t;
     unsafe {
@@ -128,6 +133,12 @@ struct VmStatistics64 {
     total_uncompressed_pages_in_compressor: u64,
     swapped_count: u64,
 }
+
+// Compile-time assertions: VmStatistics64 field offsets (from macOS mach/vm_statistics.h).
+// 4 × u32 (0-15), then u64 fields with alignment, then mixed u32/u64 tail.
+const _: () = assert!(std::mem::offset_of!(VmStatistics64, wire_count) == 12);
+const _: () = assert!(std::mem::offset_of!(VmStatistics64, compressor_page_count) == 128);
+const _: () = assert!(std::mem::offset_of!(VmStatistics64, internal_page_count) == 140);
 
 const HOST_VM_INFO64: i32 = 4;
 

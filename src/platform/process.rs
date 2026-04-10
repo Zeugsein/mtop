@@ -98,7 +98,7 @@ pub fn weighted_score(proc: &ProcessInfo, max_cpu: f32, max_mem: u64, max_power:
 
 /// Enumerate all PIDs via proc_listallpids
 fn list_all_pids() -> Vec<i32> {
-    // First call with null buffer to get count
+    // SAFETY: proc_listallpids with null/0 returns the current PID count without writing.
     let count = unsafe { proc_listallpids(std::ptr::null_mut(), 0) };
     if count <= 0 {
         return Vec::new();
@@ -109,6 +109,7 @@ fn list_all_pids() -> Vec<i32> {
     let mut pids: Vec<i32> = vec![0i32; capacity];
     let buf_size = (capacity * std::mem::size_of::<i32>()) as i32;
 
+    // SAFETY: pids is a valid, properly-sized Vec<i32> buffer; buf_size matches its byte length.
     let actual = unsafe { proc_listallpids(pids.as_mut_ptr() as *mut libc::c_void, buf_size) };
     if actual <= 0 {
         return Vec::new();
@@ -120,9 +121,11 @@ fn list_all_pids() -> Vec<i32> {
 
 /// Get process info via proc_pidinfo (PROC_PIDTASKINFO)
 fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> Option<ProcessInfo> {
+    // SAFETY: ProcTaskInfo is repr(C) with no padding requirements beyond zeroed memory.
     let mut task_info: ProcTaskInfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<ProcTaskInfo>() as i32;
 
+    // SAFETY: task_info is a valid, zeroed ProcTaskInfo buffer of correct size.
     let ret = unsafe {
         proc_pidinfo(
             pid,
@@ -205,6 +208,7 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
 
 fn get_proc_name(pid: i32) -> String {
     let mut buf = [0u8; 256];
+    // SAFETY: buf is a valid 256-byte stack buffer; proc_name writes at most buffersize bytes.
     let ret = unsafe { proc_name(pid, buf.as_mut_ptr() as *mut libc::c_void, 256) };
     if ret <= 0 {
         return String::new();
@@ -215,6 +219,7 @@ fn get_proc_name(pid: i32) -> String {
 
 fn get_proc_user(pid: i32) -> String {
     // Try PROC_PIDT_SHORTBSDINFO first (works in VMs and sandboxed environments)
+    // SAFETY: ProcBsdShortInfo is repr(C), all-zero is valid for integer/array fields.
     let mut short_info: ProcBsdShortInfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<ProcBsdShortInfo>() as i32;
 
@@ -233,6 +238,7 @@ fn get_proc_user(pid: i32) -> String {
     }
 
     // Fallback to PROC_PIDTBSDINFO
+    // SAFETY: ProcBsdInfo is repr(C), all-zero is valid for integer/array fields.
     let mut bsd_info: ProcBsdInfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<ProcBsdInfo>() as i32;
 
@@ -254,6 +260,8 @@ fn get_proc_user(pid: i32) -> String {
 }
 
 fn uid_to_username(uid: u32) -> String {
+    // SAFETY: passwd is zeroed before use; getpwuid_r writes into the provided buffer
+    // and sets result to null on failure. buf is large enough for typical passwd entries.
     unsafe {
         let mut pwd: libc::passwd = std::mem::zeroed();
         let mut result: *mut libc::passwd = std::ptr::null_mut();
@@ -297,12 +305,17 @@ struct RusageInfoV4 {
     _rest: [u8; 24],                    // 3 trailing fields * 8 bytes = 24
 }
 
-// Compile-time assertions: struct size and field offsets.
+// Compile-time assertions: struct size and field offsets (verified against macOS sys/resource.h).
 const _: () = assert!(std::mem::size_of::<RusageInfoV4>() == 296);
+const _: () = assert!(std::mem::offset_of!(RusageInfoV4, ri_diskio_bytesread) == 144);
+const _: () = assert!(std::mem::offset_of!(RusageInfoV4, ri_diskio_byteswritten) == 152);
+const _: () = assert!(std::mem::offset_of!(RusageInfoV4, ri_billed_energy) == 264);
 
 /// Read energy + disk I/O from rusage_info_v4 in a single syscall.
 /// Returns (energy_nj, diskio_bytesread, diskio_byteswritten).
 fn read_process_rusage(pid: i32) -> Option<(u64, u64, u64)> {
+    // SAFETY: RusageInfoV4 is repr(C) with compile-time offset assertions verifying layout.
+    // proc_pid_rusage writes exactly sizeof(rusage_info_v4) = 296 bytes into the buffer.
     unsafe {
         let mut ri: RusageInfoV4 = std::mem::zeroed();
         let ret = proc_pid_rusage(pid, RUSAGE_INFO_V4, &mut ri as *mut _ as *mut libc::c_void);
@@ -343,6 +356,13 @@ struct ProcTaskInfo {
     pti_numrunning: i32,
     pti_priority: i32,
 }
+
+// Compile-time assertions: ProcTaskInfo field offsets (from macOS sys/proc_info.h).
+const _: () = assert!(std::mem::size_of::<ProcTaskInfo>() == 96);
+const _: () = assert!(std::mem::offset_of!(ProcTaskInfo, pti_resident_size) == 8);
+const _: () = assert!(std::mem::offset_of!(ProcTaskInfo, pti_total_user) == 16);
+const _: () = assert!(std::mem::offset_of!(ProcTaskInfo, pti_total_system) == 24);
+const _: () = assert!(std::mem::offset_of!(ProcTaskInfo, pti_threadnum) == 84);
 
 // proc_bsdshortinfo from <sys/proc_info.h> — used with PROC_PIDT_SHORTBSDINFO
 // 64 bytes total, works in VMs and sandboxed environments
@@ -392,6 +412,7 @@ struct ProcBsdInfo {
 
 fn mach_timebase() -> (u32, u32) {
     let mut info = MachTimebaseInfo { numer: 0, denom: 0 };
+    // SAFETY: info is a valid MachTimebaseInfo; mach_timebase_info always succeeds on macOS.
     unsafe { mach_timebase_info(&mut info) };
     // Fallback to 1/1 if the call returns zeros (shouldn't happen)
     let numer = if info.numer == 0 { 1 } else { info.numer };
