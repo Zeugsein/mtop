@@ -303,6 +303,10 @@ pub struct MetricsHistory {
     pub net_upload_max: f64,
     /// Session maximum download rate (bytes/sec)
     pub net_download_max: f64,
+    /// Current network tier index for hysteresis (0=1MB/s, 1=10MB/s, 2=100MB/s, 3=1GB/s)
+    pub net_tier_idx: usize,
+    /// Consecutive samples below downgrade threshold
+    pub net_tier_hold: usize,
     max_len: usize,
 }
 
@@ -330,6 +334,8 @@ impl MetricsHistory {
             per_iface: std::collections::HashMap::new(),
             net_upload_max: 0.0,
             net_download_max: 0.0,
+            net_tier_idx: 0,
+            net_tier_hold: 0,
             max_len: 128,
         }
     }
@@ -393,6 +399,58 @@ impl MetricsHistory {
         self.per_iface.retain(|name, _| {
             snapshot.network.interfaces.iter().any(|i| i.name == *name)
         });
+
+        // Update network tier with hysteresis
+        self.update_net_tier();
+    }
+
+    /// Network tier hysteresis: upgrade immediately, downgrade after 10 consecutive low samples.
+    fn update_net_tier(&mut self) {
+        const TIERS: [f64; 4] = [1_000_000.0, 10_000_000.0, 100_000_000.0, 1_000_000_000.0];
+        const HOLD_REQUIRED: usize = 10;
+
+        let max_val = self.net_upload.iter().chain(self.net_download.iter())
+            .copied()
+            .fold(0.0_f64, f64::max);
+
+        let current = self.net_tier_idx;
+
+        // Upgrade: max exceeds current tier
+        if current < TIERS.len() - 1 && max_val >= TIERS[current] {
+            for i in (current + 1)..TIERS.len() {
+                if max_val < TIERS[i] {
+                    self.net_tier_idx = i;
+                    self.net_tier_hold = 0;
+                    return;
+                }
+            }
+            self.net_tier_idx = TIERS.len() - 1;
+            self.net_tier_hold = 0;
+            return;
+        }
+
+        // Downgrade: all values below 50% of current tier for HOLD_REQUIRED samples
+        if current > 0 {
+            let threshold = TIERS[current] * 0.5;
+            if max_val < threshold {
+                self.net_tier_hold += 1;
+                if self.net_tier_hold >= HOLD_REQUIRED {
+                    // Find appropriate lower tier
+                    let mut new_idx = 0;
+                    for i in 0..current {
+                        if max_val < TIERS[i] {
+                            new_idx = i;
+                            break;
+                        }
+                        new_idx = i + 1;
+                    }
+                    self.net_tier_idx = new_idx.min(current - 1);
+                    self.net_tier_hold = 0;
+                }
+            } else {
+                self.net_tier_hold = 0;
+            }
+        }
     }
 
     fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {
