@@ -2,17 +2,24 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
-use crate::tui::{AppState, theme, gradient};
-use crate::tui::helpers::{truncate_with_ellipsis, sort_indices};
+use crate::tui::{AppState, theme};
+use crate::tui::helpers::{truncate_by_display_width, pad_to_display_width, sort_indices};
 
-/// Process panel: sorted process list with color indicator dots
+// Fixed column widths for numeric columns
+const COL_PID: usize = 6;
+const COL_CPU: usize = 5;
+const COL_MEM: usize = 5;
+const COL_POW: usize = 5;
+const COL_THR: usize = 4;
+const COL_FIXED_TOTAL: usize = COL_PID + COL_CPU + COL_MEM + COL_POW + COL_THR + 5; // +5 for spaces
+
+/// Process panel: sorted process table with fixed-position columns
 pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let border_color = theme::dim_color(theme.fg, 0.3);
 
     let block = Block::default()
         .title(Line::from(vec![
             Span::styled(" proc ", Style::default().fg(theme.fg).bold()),
-            Span::styled(format!("({})", state.sort_mode.label()), Style::default().fg(theme.muted)),
             Span::raw(" "),
         ]))
         .borders(Borders::ALL)
@@ -22,19 +29,28 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    if inner.width == 0 || inner.height == 0 {
+    if inner.width == 0 || inner.height < 3 {
         return;
     }
 
-    // Legend row (no colored dots)
-    let legend = Line::from(vec![
-        Span::styled("c ", Style::default().fg(theme.muted)),
-        Span::styled("m ", Style::default().fg(theme.muted)),
-        Span::styled("p", Style::default().fg(theme.muted)),
-    ]);
-    f.render_widget(Paragraph::new(legend), Rect::new(inner.x, inner.y, inner.width, 1));
+    let panel_width = inner.width as usize;
+    let name_width = panel_width.saturating_sub(COL_FIXED_TOTAL).max(4);
 
-    // Sort processes using current sort mode
+    // Header row
+    let header = Line::from(vec![
+        Span::styled(
+            pad_to_display_width("name", name_width),
+            Style::default().fg(theme.muted),
+        ),
+        Span::styled(format!("{:>w$}", "pid", w = COL_PID + 1), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "cpu", w = COL_CPU + 1), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "mem", w = COL_MEM + 1), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "pow", w = COL_POW), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "thr", w = COL_THR), Style::default().fg(theme.muted)),
+    ]);
+    f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));
+
+    // Sort processes
     let procs = &s.processes;
     let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
     let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
@@ -43,50 +59,59 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let mut indices: Vec<usize> = (0..procs.len()).collect();
     sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
 
-    // Empty state
     if indices.is_empty() {
         let y = inner.y + 1;
         if y < inner.y + inner.height {
-            let line = Line::from(Span::styled("No processes", Style::default().fg(theme.muted)));
-            f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+            f.render_widget(
+                Paragraph::new("No processes").style(Style::default().fg(theme.muted)),
+                Rect::new(inner.x, y, inner.width, 1),
+            );
         }
         return;
     }
 
-    // Scroll support
+    // Scroll support — reserve 1 row for header, 1 for sort indicator
     let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
-    let max_visible = inner.height.saturating_sub(1) as usize;
+    let max_visible = inner.height.saturating_sub(2) as usize; // header + sort line
 
-    let name_width = inner.width.saturating_sub(7) as usize;
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    let mb = 1024.0 * 1024.0;
 
     for (i, &idx) in indices.iter().skip(scroll).take(max_visible).enumerate() {
         let proc = &procs[idx];
         let y = inner.y + 1 + i as u16;
-        if y >= inner.y + inner.height {
+        if y >= inner.y + inner.height.saturating_sub(1) {
             break;
         }
 
-        let name = truncate_with_ellipsis(&proc.name, name_width);
+        // Name: CJK-aware truncation and padding
+        let name_trunc = truncate_by_display_width(&proc.name, name_width);
+        let name_padded = pad_to_display_width(&name_trunc, name_width);
 
-        let cpu_norm = if max_cpu > 0.0 {
-            (proc.cpu_pct / max_cpu).clamp(0.0, 1.0) as f64
+        // Memory display
+        let mem_str = if proc.mem_bytes as f64 >= gb {
+            format!("{:.1}G", proc.mem_bytes as f64 / gb)
         } else {
-            0.0
-        };
-        let mem_norm = (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0);
-        let power_norm = if max_power > 0.0 {
-            (proc.power_w / max_power).clamp(0.0, 1.0) as f64
-        } else {
-            0.0
+            format!("{:.0}M", proc.mem_bytes as f64 / mb)
         };
 
         let line = Line::from(vec![
-            Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
-            Span::raw(" "),
-            Span::styled("●", Style::default().fg(gradient::value_to_color(cpu_norm))),
-            Span::styled("●", Style::default().fg(gradient::value_to_color(mem_norm))),
-            Span::styled("●", Style::default().fg(gradient::value_to_color(power_norm))),
+            Span::styled(name_padded, Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$}", proc.pid, w = COL_PID + 1), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$.1}", proc.cpu_pct, w = COL_CPU + 1), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$}", mem_str, w = COL_MEM + 1), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$.1}", proc.power_w, w = COL_POW), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$}", proc.thread_count, w = COL_THR), Style::default().fg(theme.fg)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
+
+    // Sort indicator at bottom
+    let sort_y = inner.y + inner.height.saturating_sub(1);
+    let sort_text = format!("sort: {} \u{2193}", state.sort_mode.label());
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(sort_text, Style::default().fg(theme.muted)))
+            .alignment(ratatui::layout::Alignment::Right)),
+        Rect::new(inner.x, sort_y, inner.width, 1),
+    );
 }

@@ -3,7 +3,7 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, braille, layout};
-use crate::tui::helpers::truncate_with_ellipsis;
+use crate::tui::helpers::{truncate_by_display_width, pad_to_display_width};
 
 /// Power panel: Type B layout (37.5% CPU sparkline + 37.5% GPU sparkline + 25% per-process energy)
 pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -113,10 +113,10 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
         }
 
         let name_width = right.width.saturating_sub(6) as usize;
-        let name = truncate_with_ellipsis(&proc.name, name_width);
+        let name = truncate_by_display_width(&proc.name, name_width);
 
         let line = Line::from(vec![
-            Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
+            Span::styled(pad_to_display_width(&name, name_width), Style::default().fg(theme.fg)),
             Span::raw(" "),
             Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.fg)),
         ]);

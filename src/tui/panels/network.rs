@@ -4,7 +4,7 @@ use ratatui::widgets::*;
 use crate::metrics::MetricsSnapshot;
 use crate::platform::network::speed_tier_from_baudrate;
 use crate::tui::{AppState, theme, braille, layout};
-use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact, is_infrastructure_interface};
+use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact, format_bytes_compact, is_infrastructure_interface};
 
 /// Network panel: Type B layout (37.5% upload + 37.5% download + 25% interface ranking)
 pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -78,35 +78,72 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         }
     }
 
-    // Right 25%: Interface ranking (white text)
-    if display_ifaces.is_empty() {
-        f.render_widget(
-            Paragraph::new("No interfaces").style(Style::default().fg(theme.muted)),
-            right,
-        );
-    } else {
-        let max_rows = right.height as usize;
-        for (i, iface) in display_ifaces.iter().take(max_rows).enumerate() {
-            let y = right.y + i as u16;
-            if y >= right.y + right.height {
-                break;
-            }
-            let line = Line::from(vec![
-                Span::styled(&*iface.name, Style::default().fg(theme.fg)),
-                Span::styled(
-                    format!("  ↑{}", format_bytes_rate_compact(iface.tx_bytes_sec)),
-                    Style::default().fg(theme.fg),
-                ),
-                Span::styled(
-                    format!("  ↓{}", format_bytes_rate_compact(iface.rx_bytes_sec)),
-                    Style::default().fg(theme.fg),
-                ),
-            ]);
-            f.render_widget(
-                Paragraph::new(line),
-                Rect::new(right.x, y, right.width, 1),
-            );
+    // Right 25%: btop-style traffic metrics + top interfaces
+    // Aggregate totals across all non-infra interfaces
+    let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
+    let total_tx_bytes: u64 = display_ifaces.iter().map(|i| i.tx_bytes_total).sum();
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    // Upload section
+    lines.push(Line::from(Span::styled("▲ Upload", Style::default().fg(theme.net_upload))));
+    lines.push(Line::from(Span::styled(
+        format!("cur: {}", format_bytes_rate_compact(total_tx)),
+        Style::default().fg(theme.fg),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("max: {}", format_bytes_rate_compact(state.history.net_upload_max)),
+        Style::default().fg(theme.fg),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("tot: {}", format_bytes_compact(total_tx_bytes as f64)),
+        Style::default().fg(theme.fg),
+    )));
+
+    lines.push(Line::from(""));
+
+    // Download section
+    lines.push(Line::from(Span::styled("▼ Download", Style::default().fg(theme.net_download))));
+    lines.push(Line::from(Span::styled(
+        format!("cur: {}", format_bytes_rate_compact(total_rx)),
+        Style::default().fg(theme.fg),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("max: {}", format_bytes_rate_compact(state.history.net_download_max)),
+        Style::default().fg(theme.fg),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("tot: {}", format_bytes_compact(total_rx_bytes as f64)),
+        Style::default().fg(theme.fg),
+    )));
+
+    // Top 3 interfaces (non-zero traffic only)
+    let active_ifaces: Vec<&&crate::metrics::NetInterface> = display_ifaces.iter()
+        .filter(|i| i.rx_bytes_sec > 0.0 || i.tx_bytes_sec > 0.0)
+        .take(3)
+        .collect();
+    if !active_ifaces.is_empty() {
+        lines.push(Line::from(""));
+        for iface in &active_ifaces {
+            lines.push(Line::from(Span::styled(
+                format!("{} ({})", iface.name, iface.iface_type),
+                Style::default().fg(theme.muted),
+            )));
         }
+    }
+
+    // Vertically center the content in the right area
+    let content_height = lines.len() as u16;
+    let start_y = if content_height < right.height {
+        right.y + (right.height - content_height) / 2
+    } else {
+        right.y
+    };
+    for (i, line) in lines.iter().take(right.height as usize).enumerate() {
+        f.render_widget(
+            Paragraph::new(line.clone()),
+            Rect::new(right.x, start_y + i as u16, right.width, 1),
+        );
     }
 
     // Bottom info inside panel
