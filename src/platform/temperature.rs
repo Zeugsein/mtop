@@ -307,6 +307,8 @@ fn smc_open() -> Option<u32> {
 }
 
 fn smc_close(conn: u32) {
+    // SAFETY: conn is a valid IOKit connection handle returned by IOServiceOpen;
+    // IOServiceClose releases the connection and its associated resources.
     unsafe {
         IOServiceClose(conn);
     }
