@@ -33,9 +33,11 @@ pub fn render_dashboard_to_string(width: u16, height: u16, snapshot: MetricsSnap
     use ratatui::Terminal;
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
-    let mut state = AppState::default();
-    state.snapshot = snapshot;
-    state.show_detail = show_detail;
+    let state = AppState {
+        snapshot,
+        show_detail,
+        ..AppState::default()
+    };
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let buf = terminal.backend().buffer().clone();
     let mut text = String::new();
@@ -61,11 +63,13 @@ pub fn render_dashboard_with_state(
     use ratatui::Terminal;
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
-    let mut state = AppState::default();
-    state.snapshot = snapshot;
-    state.show_detail = show_detail;
-    state.expanded_panel = expanded_panel;
-    state.sort_mode = sort_mode;
+    let state = AppState {
+        snapshot,
+        show_detail,
+        expanded_panel,
+        sort_mode,
+        ..AppState::default()
+    };
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let buf = terminal.backend().buffer().clone();
     let mut text = String::new();
