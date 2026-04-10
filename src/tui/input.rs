@@ -61,7 +61,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
             let cfg = config::Config {
                 theme: theme_name.to_string(),
                 interval_ms: state.interval_ms,
-                temp_unit: "celsius".to_string(),
+                temp_unit: state.temp_unit.clone(),
                 sort_mode: sort_label.to_string(),
             };
             let _ = config::save(&cfg); // best-effort save

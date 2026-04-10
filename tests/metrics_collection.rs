@@ -566,7 +566,7 @@ fn default_interval_is_1000ms() {
     use mtop::Cli;
     use clap::Parser;
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.interval, 1000, "default interval should be 1000ms");
+    assert_eq!(cli.interval, None, "default interval should be None when not specified");
 }
 
 #[test]
@@ -575,7 +575,7 @@ fn custom_interval_parsed_from_cli() {
     use mtop::Cli;
     use clap::Parser;
     let cli = Cli::parse_from(["mtop", "--interval", "500"]);
-    assert_eq!(cli.interval, 500, "interval should be 500ms when --interval 500 is passed");
+    assert_eq!(cli.interval, Some(500), "interval should be Some(500) when --interval 500 is passed");
 }
 
 // ---------------------------------------------------------------------------

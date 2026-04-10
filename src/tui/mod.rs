@@ -48,6 +48,7 @@ struct AppState {
     selected_panel: PanelId,
     expanded_panel: Option<PanelId>,
     sort_mode: SortMode,
+    temp_unit: String,
     history: MetricsHistory,
     snapshot: MetricsSnapshot,
 }
@@ -57,7 +58,7 @@ pub fn theme_names() -> Vec<&'static str> {
     theme::theme_names()
 }
 
-pub fn run(interval_ms: u32, color: &str, _temp_unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut sampler = Sampler::new()?;
     let initial_theme = theme::THEMES
         .iter()
@@ -70,6 +71,7 @@ pub fn run(interval_ms: u32, color: &str, _temp_unit: &str) -> Result<(), Box<dy
         selected_panel: PanelId::Cpu,
         expanded_panel: None,
         sort_mode: SortMode::default(),
+        temp_unit: temp_unit.to_string(),
         history: MetricsHistory::new(),
         snapshot: MetricsSnapshot::default(),
     };

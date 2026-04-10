@@ -26,7 +26,7 @@ fn no_subcommand_means_tui_mode() {
 /// FR-1: default interval is 1000ms when no --interval is given
 fn default_interval_is_1000ms() {
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.interval, 1000, "default interval should be 1000ms");
+    assert_eq!(cli.interval, None, "default interval should be None when not specified");
 }
 
 // ---------------------------------------------------------------------------
@@ -117,21 +117,21 @@ fn serve_subcommand_port_short_flag() {
 /// FR-4: `mtop --interval 500` sets interval=500
 fn global_interval_long_flag() {
     let cli = Cli::parse_from(["mtop", "--interval", "500"]);
-    assert_eq!(cli.interval, 500);
+    assert_eq!(cli.interval, Some(500));
 }
 
 #[test]
 /// FR-4: `mtop -i 250` sets interval=250
 fn global_interval_short_flag() {
     let cli = Cli::parse_from(["mtop", "-i", "250"]);
-    assert_eq!(cli.interval, 250);
+    assert_eq!(cli.interval, Some(250));
 }
 
 #[test]
 /// FR-4: --interval is global and works before subcommands
 fn global_interval_with_subcommand() {
     let cli = Cli::parse_from(["mtop", "--interval", "300", "pipe"]);
-    assert_eq!(cli.interval, 300);
+    assert_eq!(cli.interval, Some(300));
     assert!(matches!(cli.command, Some(Command::Pipe { .. })));
 }
 
@@ -143,14 +143,14 @@ fn global_interval_with_subcommand() {
 /// FR-5: `mtop --color blue` parses color="blue"
 fn color_flag_parses() {
     let cli = Cli::parse_from(["mtop", "--color", "blue"]);
-    assert_eq!(cli.color, "blue", "--color blue should set color field to 'blue'");
+    assert_eq!(cli.color, Some("blue".to_string()), "--color blue should set color field to 'blue'");
 }
 
 #[test]
 /// FR-5: default color is "default"
 fn color_default_value() {
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.color, "default", "default color should be 'default'");
+    assert_eq!(cli.color, None, "default color should be None when not specified");
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn color_flag_applied_to_tui() {
     // Confirm the value reaches the TUI configuration.
     // The TUI run() now matches cli.color against THEMES to set initial theme_idx.
     let cli = Cli::parse_from(["mtop", "--color", "dracula"]);
-    assert_eq!(cli.color, "dracula");
+    assert_eq!(cli.color, Some("dracula".to_string()));
     // Verify theme names exist in TUI module
     assert!(mtop::tui::theme_names().contains(&"horizon"));
     assert!(mtop::tui::theme_names().contains(&"dracula"));
