@@ -12,10 +12,11 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         (rx + i.rx_bytes_sec, tx + i.tx_bytes_sec)
     });
 
-    let border_color = theme::dim_color(theme.net_upload, 0.4);
+    let border_color = theme::dim_color(theme.net_upload, theme::adaptive_border_dim(theme));
 
     let title_spans = vec![
-        Span::styled(" net  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.net_upload)),
+        Span::styled("net  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)),
         Span::styled("  ", Style::default()),
         Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)),

@@ -17,10 +17,11 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         0
     };
 
-    let border_color = theme::dim_color(theme.mem_accent, 0.4);
+    let border_color = theme::dim_color(theme.mem_accent, theme::adaptive_border_dim(theme));
 
     let title_spans = vec![
-        Span::styled(" mem  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[2]), Style::default().fg(theme.mem_accent)),
+        Span::styled("mem  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];

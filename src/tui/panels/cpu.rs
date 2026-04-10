@@ -37,10 +37,11 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         "N/A".to_string()
     };
 
-    let border_color = theme::dim_color(theme.cpu_accent, 0.4);
+    let border_color = theme::dim_color(theme.cpu_accent, theme::adaptive_border_dim(theme));
 
     let title_spans = vec![
-        Span::styled(" cpu  ", Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[0]), Style::default().fg(theme.cpu_accent)),
+        Span::styled("cpu  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
         Span::styled(format!(" @ {}MHz", s.cpu.p_cluster.freq_mhz.max(s.cpu.e_cluster.freq_mhz)), Style::default().fg(theme.muted)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),

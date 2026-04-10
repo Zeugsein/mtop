@@ -1,4 +1,5 @@
 use ratatui::style::Color;
+use std::sync::LazyLock;
 
 /// A complete color theme for the mtop TUI.
 #[derive(Debug, Clone)]
@@ -42,7 +43,7 @@ pub struct Theme {
 }
 
 /// Horizon theme — warm, dark background with vibrant accents.
-/// Inspired by the Horizon color scheme.
+/// Corrected palette: CPU=purple, Mem=green, Net=red (from btop Horizon).
 pub const HORIZON: Theme = Theme {
     name: "horizon",
     bg: Color::Rgb(28, 30, 38),
@@ -53,12 +54,12 @@ pub const HORIZON: Theme = Theme {
     header_bg: Color::Rgb(233, 175, 100),
     header_fg: Color::Rgb(28, 30, 38),
 
-    cpu_accent: Color::Rgb(38, 187, 194),    // teal
-    gpu_accent: Color::Rgb(250, 200, 80),    // amber
-    mem_accent: Color::Rgb(160, 120, 230),   // purple
+    cpu_accent: Color::Rgb(184, 119, 219),   // purple (#B877DB)
+    gpu_accent: Color::Rgb(0, 0, 0),         // derived at runtime
+    mem_accent: Color::Rgb(9, 247, 160),     // green (#09F7A0)
     net_upload: Color::Rgb(38, 187, 194),    // cyan
-    net_download: Color::Rgb(230, 100, 170), // magenta
-    power_accent: Color::Rgb(233, 175, 100), // warm orange
+    net_download: Color::Rgb(233, 83, 121),  // red (#E95379)
+    power_accent: Color::Rgb(0, 0, 0),       // derived at runtime
 
     gradient_green: Color::Rgb(0, 200, 83),
     gradient_yellow: Color::Rgb(255, 214, 0),
@@ -265,18 +266,18 @@ pub const MONOKAI: Theme = Theme {
 };
 
 /// All available themes, indexed for cycling.
-pub const THEMES: &[&Theme] = &[
-    &HORIZON,
-    &DRACULA,
-    &CATPPUCCIN,
-    &NORD,
-    &SOLARIZED_DARK,
-    &SOLARIZED_LIGHT,
-    &GRUVBOX,
-    &TOKYO_NIGHT,
-    &ONE_DARK,
-    &MONOKAI,
-];
+/// GPU and Power accents are derived from CPU and MEM accents via derive_companion.
+pub static THEMES: LazyLock<Vec<Theme>> = LazyLock::new(|| {
+    let bases = [
+        HORIZON, DRACULA, CATPPUCCIN, NORD, SOLARIZED_DARK,
+        SOLARIZED_LIGHT, GRUVBOX, TOKYO_NIGHT, ONE_DARK, MONOKAI,
+    ];
+    bases.into_iter().map(|mut t| {
+        t.gpu_accent = derive_companion(t.cpu_accent, 30.0, 0.9);
+        t.power_accent = derive_companion(t.mem_accent, 30.0, 0.9);
+        t
+    }).collect()
+});
 
 /// Return the list of available theme names.
 pub fn theme_names() -> Vec<&'static str> {
@@ -293,7 +294,7 @@ pub fn theme_by_name(name: &str) -> &'static Theme {
 
 /// Get the default theme.
 pub fn default_theme() -> &'static Theme {
-    &HORIZON
+    &THEMES[0]
 }
 
 /// Dim an RGB color by a factor (0.0 = black, 1.0 = unchanged).
@@ -312,6 +313,107 @@ pub fn dim_color(color: Color, factor: f64) -> Color {
     }
 }
 
+/// Derive a companion color via HSL hue rotation and saturation adjustment.
+/// Used to compute GPU accent from CPU accent, and Power accent from MEM accent.
+/// `hue_shift_deg`: degrees to rotate hue (positive = clockwise on color wheel)
+/// `sat_factor`: multiply saturation by this (0.9 = slightly desaturated)
+pub fn derive_companion(base: Color, hue_shift_deg: f32, sat_factor: f32) -> Color {
+    let (r, g, b) = match base {
+        Color::Rgb(r, g, b) => (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0),
+        _ => return base,
+    };
+
+    // RGB to HSL
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    let delta = max - min;
+
+    if delta < 1e-6 {
+        // Achromatic — hue rotation has no effect, only sat_factor dims
+        let dimmed = (l * sat_factor).clamp(0.0, 1.0);
+        let v = (dimmed * 255.0).round() as u8;
+        return Color::Rgb(v, v, v);
+    }
+
+    let s = if l <= 0.5 {
+        delta / (max + min)
+    } else {
+        delta / (2.0 - max - min)
+    };
+
+    let h = if (max - r).abs() < 1e-6 {
+        let mut h = (g - b) / delta;
+        if h < 0.0 { h += 6.0; }
+        h * 60.0
+    } else if (max - g).abs() < 1e-6 {
+        ((b - r) / delta + 2.0) * 60.0
+    } else {
+        ((r - g) / delta + 4.0) * 60.0
+    };
+
+    // Apply shift and saturation
+    let new_h = (h + hue_shift_deg).rem_euclid(360.0);
+    let new_s = (s * sat_factor).clamp(0.0, 1.0);
+
+    // HSL to RGB
+    hsl_to_rgb(new_h, new_s, l)
+}
+
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> Color {
+    if s < 1e-6 {
+        let v = (l * 255.0).round() as u8;
+        return Color::Rgb(v, v, v);
+    }
+
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let p = 2.0 * l - q;
+    let h_norm = h / 360.0;
+
+    let hue_to_rgb = |t: f32| -> f32 {
+        let t = t.rem_euclid(1.0);
+        if t < 1.0 / 6.0 {
+            p + (q - p) * 6.0 * t
+        } else if t < 0.5 {
+            q
+        } else if t < 2.0 / 3.0 {
+            p + (q - p) * (2.0 / 3.0 - t) * 6.0
+        } else {
+            p
+        }
+    };
+
+    let r = (hue_to_rgb(h_norm + 1.0 / 3.0) * 255.0).round() as u8;
+    let g = (hue_to_rgb(h_norm) * 255.0).round() as u8;
+    let b = (hue_to_rgb(h_norm - 1.0 / 3.0) * 255.0).round() as u8;
+    Color::Rgb(r, g, b)
+}
+
+/// Compute relative luminance of a theme's background (WCAG formula).
+/// Returns 0.0 for pure black, 1.0 for pure white.
+pub fn bg_luminance(theme: &Theme) -> f64 {
+    match theme.bg {
+        Color::Rgb(r, g, b) => {
+            let to_linear = |c: u8| -> f64 {
+                let s = c as f64 / 255.0;
+                if s <= 0.03928 { s / 12.92 } else { ((s + 0.055) / 1.055).powf(2.4) }
+            };
+            0.2126 * to_linear(r) + 0.7152 * to_linear(g) + 0.0722 * to_linear(b)
+        }
+        _ => 0.0,
+    }
+}
+
+/// Adaptive border dim factor based on theme brightness.
+/// Dark themes (luminance < 0.5) get 0.55 (brighter borders).
+/// Light themes (luminance >= 0.5) get 0.35 (darker borders for contrast).
+pub fn adaptive_border_dim(theme: &Theme) -> f64 {
+    if bg_luminance(theme) >= 0.5 { 0.35 } else { 0.55 }
+}
+
+/// Panel superscript number characters, indexed 1-6.
+pub const PANEL_SUPERSCRIPTS: [char; 6] = ['\u{00B9}', '\u{00B2}', '\u{00B3}', '\u{2074}', '\u{2075}', '\u{2076}'];
+
 /// Rounded corner box-drawing characters for panel frames.
 pub mod frame_chars {
     pub const TOP_LEFT: &str = "╭";
@@ -328,8 +430,7 @@ mod tests {
 
     #[test]
     fn test_horizon_theme_has_distinct_dimension_colors() {
-        let t = &HORIZON;
-        // Each dimension should have a distinct accent
+        let t = &THEMES[0];
         assert_ne!(format!("{:?}", t.cpu_accent), format!("{:?}", t.gpu_accent));
         assert_ne!(format!("{:?}", t.cpu_accent), format!("{:?}", t.mem_accent));
         assert_ne!(format!("{:?}", t.gpu_accent), format!("{:?}", t.mem_accent));
@@ -337,8 +438,7 @@ mod tests {
 
     #[test]
     fn test_horizon_gradient_stops_defined() {
-        let t = &HORIZON;
-        // Gradient stops should all be RGB colors
+        let t = &THEMES[0];
         assert!(matches!(t.gradient_green, Color::Rgb(_, _, _)));
         assert!(matches!(t.gradient_yellow, Color::Rgb(_, _, _)));
         assert!(matches!(t.gradient_orange, Color::Rgb(_, _, _)));
@@ -351,10 +451,8 @@ mod tests {
     }
 
     #[test]
-    /// net_upload and net_download must use distinct accent colors so upload
-    /// and download sparklines are visually distinguishable in the TUI.
     fn net_upload_and_download_have_distinct_colors() {
-        let t = &HORIZON;
+        let t = &THEMES[0];
         assert_ne!(
             format!("{:?}", t.net_upload),
             format!("{:?}", t.net_download),
@@ -369,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_all_themes_have_distinct_upload_download() {
-        for theme in THEMES {
+        for theme in THEMES.iter() {
             assert_ne!(
                 format!("{:?}", theme.net_upload),
                 format!("{:?}", theme.net_download),
@@ -380,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_all_themes_have_names() {
-        for theme in THEMES {
+        for theme in THEMES.iter() {
             assert!(!theme.name.is_empty(), "theme has empty name");
         }
     }
@@ -410,5 +508,105 @@ mod tests {
         assert_eq!(frame_chars::TOP_RIGHT.chars().count(), 1);
         assert_eq!(frame_chars::BOTTOM_LEFT.chars().count(), 1);
         assert_eq!(frame_chars::BOTTOM_RIGHT.chars().count(), 1);
+    }
+
+    // --- Iteration 16 tests ---
+
+    #[test]
+    fn test_derive_companion_basic() {
+        // Purple CPU → shifted companion should be different
+        let base = Color::Rgb(184, 119, 219);
+        let derived = derive_companion(base, 30.0, 0.9);
+        assert_ne!(format!("{:?}", base), format!("{:?}", derived));
+        assert!(matches!(derived, Color::Rgb(_, _, _)));
+    }
+
+    #[test]
+    fn test_derive_companion_achromatic() {
+        // Gray input: hue rotation should have no perceptual effect
+        let gray = Color::Rgb(128, 128, 128);
+        let derived = derive_companion(gray, 30.0, 0.9);
+        // Should be dimmed gray (sat_factor applies to already-zero saturation → dimming only)
+        match derived {
+            Color::Rgb(r, g, b) => {
+                assert_eq!(r, g);
+                assert_eq!(g, b);
+            }
+            _ => panic!("expected Rgb"),
+        }
+    }
+
+    #[test]
+    fn test_gpu_accent_differs_from_cpu() {
+        for theme in THEMES.iter() {
+            assert_ne!(
+                format!("{:?}", theme.gpu_accent),
+                format!("{:?}", theme.cpu_accent),
+                "theme '{}': gpu_accent should differ from cpu_accent", theme.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_power_accent_differs_from_mem() {
+        for theme in THEMES.iter() {
+            assert_ne!(
+                format!("{:?}", theme.power_accent),
+                format!("{:?}", theme.mem_accent),
+                "theme '{}': power_accent should differ from mem_accent", theme.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_gpu_power_derived_from_companion() {
+        for theme in THEMES.iter() {
+            let expected_gpu = derive_companion(theme.cpu_accent, 30.0, 0.9);
+            let expected_power = derive_companion(theme.mem_accent, 30.0, 0.9);
+            assert_eq!(
+                format!("{:?}", theme.gpu_accent),
+                format!("{:?}", expected_gpu),
+                "theme '{}': gpu_accent should match derive_companion(cpu_accent)", theme.name
+            );
+            assert_eq!(
+                format!("{:?}", theme.power_accent),
+                format!("{:?}", expected_power),
+                "theme '{}': power_accent should match derive_companion(mem_accent)", theme.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_bg_luminance_dark_vs_light() {
+        let horizon = &THEMES[0];
+        let sol_light = THEMES.iter().find(|t| t.name == "solarized-light").unwrap();
+        assert!(bg_luminance(horizon) < 0.2, "Horizon should be dark");
+        assert!(bg_luminance(sol_light) > 0.7, "Solarized Light should be light");
+    }
+
+    #[test]
+    fn test_adaptive_border_dim_dark_vs_light() {
+        let horizon = &THEMES[0];
+        let sol_light = THEMES.iter().find(|t| t.name == "solarized-light").unwrap();
+        assert_eq!(adaptive_border_dim(horizon), 0.55);
+        assert_eq!(adaptive_border_dim(sol_light), 0.35);
+    }
+
+    #[test]
+    fn test_horizon_corrected_palette() {
+        let h = &THEMES[0];
+        // CPU should be purple (#B877DB)
+        assert!(matches!(h.cpu_accent, Color::Rgb(184, 119, 219)));
+        // MEM should be green (#09F7A0)
+        assert!(matches!(h.mem_accent, Color::Rgb(9, 247, 160)));
+        // Net download should be red (#E95379)
+        assert!(matches!(h.net_download, Color::Rgb(233, 83, 121)));
+    }
+
+    #[test]
+    fn test_panel_superscripts() {
+        assert_eq!(PANEL_SUPERSCRIPTS.len(), 6);
+        assert_eq!(PANEL_SUPERSCRIPTS[0], '¹');
+        assert_eq!(PANEL_SUPERSCRIPTS[5], '⁶');
     }
 }

@@ -4,6 +4,14 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::{PanelId, AppState, theme};
 use crate::config;
 
+fn toggle_expand(state: &mut AppState, panel: PanelId) {
+    if state.expanded_panel == Some(panel) {
+        state.expanded_panel = None;
+    } else {
+        state.expanded_panel = Some(panel);
+    }
+}
+
 /// Process a key event and mutate AppState accordingly.
 /// Returns `true` if the application should quit.
 pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
@@ -22,18 +30,14 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Char('c') => {
             state.theme_idx = (state.theme_idx + 1) % theme::THEMES.len();
         }
-        KeyCode::Char('1') => state.selected_panel = PanelId::Cpu,
-        KeyCode::Char('2') => state.selected_panel = PanelId::Gpu,
-        KeyCode::Char('3') => state.selected_panel = PanelId::MemDisk,
-        KeyCode::Char('4') => state.selected_panel = PanelId::Network,
-        KeyCode::Char('5') => state.selected_panel = PanelId::Power,
-        KeyCode::Char('6') => state.selected_panel = PanelId::Process,
+        KeyCode::Char('1') => toggle_expand(state, PanelId::Cpu),
+        KeyCode::Char('2') => toggle_expand(state, PanelId::Gpu),
+        KeyCode::Char('3') => toggle_expand(state, PanelId::MemDisk),
+        KeyCode::Char('4') => toggle_expand(state, PanelId::Network),
+        KeyCode::Char('5') => toggle_expand(state, PanelId::Power),
+        KeyCode::Char('6') => toggle_expand(state, PanelId::Process),
         KeyCode::Char('e') | KeyCode::Enter => {
-            if state.expanded_panel == Some(state.selected_panel) {
-                state.expanded_panel = None;
-            } else {
-                state.expanded_panel = Some(state.selected_panel);
-            }
+            state.expanded_panel = None;
         }
         KeyCode::Char('+') | KeyCode::Char('=') => {
             state.interval_ms = (state.interval_ms + 250).min(10000);

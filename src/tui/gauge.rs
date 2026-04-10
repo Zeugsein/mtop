@@ -27,14 +27,26 @@ pub fn render_gauge_bar<'a>(value: f64, max: f64, width: usize, label: &'a str, 
     let filled = filled.min(width);
     let empty = width - filled;
 
-    let fill_color = value_to_color(fraction);
-    let mut spans = Vec::with_capacity(3);
+    let mut spans = Vec::with_capacity(filled + 2);
 
     if filled > 0 {
-        spans.push(Span::styled(
-            GAUGE_CHAR.repeat(filled),
-            Style::default().fg(fill_color),
-        ));
+        if filled < 3 {
+            // Fall back to single color for narrow bars
+            let fill_color = value_to_color(fraction);
+            spans.push(Span::styled(
+                GAUGE_CHAR.repeat(filled),
+                Style::default().fg(fill_color),
+            ));
+        } else {
+            // Per-character gradient
+            for i in 0..filled {
+                let color = value_to_color(i as f64 / width as f64);
+                spans.push(Span::styled(
+                    GAUGE_CHAR.to_string(),
+                    Style::default().fg(color),
+                ));
+            }
+        }
     }
 
     if empty > 0 {
@@ -54,11 +66,11 @@ pub fn render_gauge_bar<'a>(value: f64, max: f64, width: usize, label: &'a str, 
     spans
 }
 
-/// Render a compact gauge showing percentage and a short bar.
-/// Format: "77% ■■■■■■■■░░" — useful for right-detail areas.
+/// Render a compact gauge showing bar and percentage.
+/// Format: "■■■■■■■■░░ XX%" — bar LEFT, percentage RIGHT.
 pub fn render_compact_gauge(fraction: f64, width: usize, theme: &Theme) -> Vec<Span<'static>> {
     let pct = (fraction * 100.0).round() as u32;
-    let pct_str = format!("{pct:>3}% ");
+    let pct_str = format!(" {pct:>3}%");
     let bar_width = width.saturating_sub(pct_str.len());
 
     let filled = (fraction * bar_width as f64).round() as usize;
@@ -66,18 +78,24 @@ pub fn render_compact_gauge(fraction: f64, width: usize, theme: &Theme) -> Vec<S
     let empty = bar_width - filled;
 
     let fill_color = value_to_color(fraction);
-    let mut spans = Vec::with_capacity(3);
+    let mut spans = Vec::with_capacity(filled + 3);
 
-    spans.push(Span::styled(
-        pct_str,
-        Style::default().fg(fill_color),
-    ));
-
+    // Bar first (LEFT)
     if filled > 0 {
-        spans.push(Span::styled(
-            GAUGE_CHAR.repeat(filled),
-            Style::default().fg(fill_color),
-        ));
+        if filled < 3 {
+            spans.push(Span::styled(
+                GAUGE_CHAR.repeat(filled),
+                Style::default().fg(fill_color),
+            ));
+        } else {
+            for i in 0..filled {
+                let color = value_to_color(i as f64 / bar_width as f64);
+                spans.push(Span::styled(
+                    GAUGE_CHAR.to_string(),
+                    Style::default().fg(color),
+                ));
+            }
+        }
     }
 
     if empty > 0 {
@@ -86,6 +104,12 @@ pub fn render_compact_gauge(fraction: f64, width: usize, theme: &Theme) -> Vec<S
             Style::default().fg(theme.muted),
         ));
     }
+
+    // Percentage last (RIGHT)
+    spans.push(Span::styled(
+        pct_str,
+        Style::default().fg(fill_color),
+    ));
 
     spans
 }
@@ -116,8 +140,11 @@ mod tests {
     fn test_gauge_bar_full_fill() {
         let spans = render_gauge_bar(100.0, 100.0, 10, "100/100", &HORIZON);
         let content: String = spans.iter().map(|s| s.content.as_ref()).collect();
-        // Should be all filled ■, no second span with muted color
-        assert_eq!(spans.len(), 2); // filled + label, no empty
+        // Should be all filled ■ (per-char gradient = 10 spans) + label, no empty
+        assert!(content.contains('■'));
+        assert!(content.contains("100/100"));
+        // No muted (empty) gauge chars
+        assert_eq!(content.matches('■').count(), 10);
     }
 
     #[test]

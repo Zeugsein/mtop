@@ -73,12 +73,10 @@ pub fn render_braille_graph(
         let scaled_left = ((v_left / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
         let scaled_right = ((v_right / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
 
-        // Color based on the higher of the two values
-        let max_val = v_left.max(v_right);
-        let color = value_to_color((max_val / safe_max).clamp(0.0, 1.0));
-
-        // Fill each row
+        // Fill each row — color by Y-position (bottom=green, top=red)
         for (row_idx, row_vec) in rows.iter_mut().enumerate() {
+            let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
+            let color = value_to_color(y_frac);
             let row_base = row_idx * 4; // bottom dot position for this row
 
             let left_fill = if scaled_left > row_base {

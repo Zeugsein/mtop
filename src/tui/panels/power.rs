@@ -7,11 +7,14 @@ use crate::tui::helpers::{truncate_by_display_width, pad_to_display_width};
 
 /// Power panel: Type B layout (37.5% CPU sparkline + 37.5% GPU sparkline + 25% per-process energy)
 pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
-    let border_color = theme::dim_color(theme.power_accent, 0.4);
+    let border_color = theme::dim_color(theme.power_accent, theme::adaptive_border_dim(theme));
 
     if !s.power.available {
         let block = Block::default()
-            .title(" power ")
+            .title(Line::from(vec![
+                Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.power_accent)),
+                Span::styled("power ", Style::default().fg(theme.fg).bold()),
+            ]))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(border_color))
             .border_type(ratatui::widgets::BorderType::Rounded);
@@ -25,7 +28,8 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     }
 
     let title_spans = vec![
-        Span::styled(" power ", Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.power_accent)),
+        Span::styled("power ", Style::default().fg(theme.fg).bold()),
         Span::raw(" "),
     ];
 

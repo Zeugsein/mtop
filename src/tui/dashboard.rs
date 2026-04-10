@@ -5,7 +5,7 @@ use crate::tui::{AppState, theme, layout, expanded};
 use crate::tui::panels::*;
 
 pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
-    let theme = theme::THEMES[state.theme_idx];
+    let theme = &theme::THEMES[state.theme_idx];
     let s = &state.snapshot;
     let area = f.area();
 
@@ -30,24 +30,20 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
     // Two-column page layout
     let page = layout::split_page(area);
 
-    // Header: mtop in accent color, chip info in white, timestamp right-aligned
-    let header_left = Line::from(vec![
-        Span::styled("mtop", Style::default().fg(theme.accent).bold()),
-        Span::styled(
-            format!(" \u{2014} {} ({}E+{}P+{}GPU {}GB)",
-                s.soc.chip, s.soc.e_cores, s.soc.p_cores,
-                s.soc.gpu_cores, s.soc.memory_gb),
-            Style::default().fg(theme.fg),
-        ),
-    ]);
-    f.render_widget(Paragraph::new(header_left), page.header);
-
+    // Header: centered "timestamp — mtop — chip info"
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(timestamp, Style::default().fg(theme.muted)))
-            .alignment(ratatui::layout::Alignment::Right)),
-        page.header,
-    );
+    let chip_info = format!("{} ({}E+{}P+{}GPU {}GB)",
+        s.soc.chip, s.soc.e_cores, s.soc.p_cores,
+        s.soc.gpu_cores, s.soc.memory_gb);
+    let header_spans = vec![
+        Span::styled(&timestamp, Style::default().fg(theme.muted)),
+        Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
+        Span::styled("mtop", Style::default().fg(theme.accent).bold()),
+        Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
+        Span::styled(chip_info, Style::default().fg(theme.fg)),
+    ];
+    let header_line = Line::from(header_spans).alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(Paragraph::new(header_line), page.header);
 
     // Expand/collapse layout
     match state.expanded_panel {
@@ -121,8 +117,7 @@ fn draw_help_overlay(f: &mut Frame, area: Rect, theme: &theme::Theme) {
         (".", "toggle right details"),
         ("c", "cycle theme"),
         ("s", "cycle sort column"),
-        ("1\u{2013}6", "expand panel"),
-        ("Enter / e", "collapse expanded"),
+        ("1\u{2013}6", "expand/collapse panel"),
         ("\u{2191}/k  \u{2193}/j", "scroll process list"),
         ("+/-", "adjust interval"),
         ("w", "save config"),

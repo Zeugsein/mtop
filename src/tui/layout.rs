@@ -17,26 +17,28 @@ pub fn too_small_message(area: Rect) -> String {
     )
 }
 
-/// Split area into a Type A panel layout: 75% trend + 25% detail.
+/// Split area into a Type A panel layout: 74% trend + 1 gap + 25% detail.
 pub fn split_type_a(area: Rect) -> (Rect, Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+        .constraints([Constraint::Percentage(74), Constraint::Length(1), Constraint::Percentage(25)])
         .split(area);
-    (chunks[0], chunks[1])
+    (chunks[0], chunks[2])
 }
 
-/// Split area into a Type B panel layout: 37.5% + 37.5% + 25% (approximated as 38/37/25).
+/// Split area into a Type B panel layout: 37% + 1 gap + 37% + 1 gap + 25%.
 pub fn split_type_b(area: Rect) -> (Rect, Rect, Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(38),
             Constraint::Percentage(37),
+            Constraint::Length(1),
+            Constraint::Percentage(37),
+            Constraint::Length(1),
             Constraint::Percentage(25),
         ])
         .split(area);
-    (chunks[0], chunks[1], chunks[2])
+    (chunks[0], chunks[2], chunks[4])
 }
 
 /// Main page layout: header + two-column body + footer.
@@ -120,8 +122,8 @@ mod tests {
     fn test_type_a_split_proportions() {
         let area = rect(100, 20);
         let (trend, detail) = split_type_a(area);
-        // 75% of 100 = 75, 25% = 25
-        assert_eq!(trend.width, 75);
+        // 74% trend + 1 gap + 25% detail
+        assert_eq!(trend.width, 74);
         assert_eq!(detail.width, 25);
         assert_eq!(trend.height, area.height);
         assert_eq!(detail.height, area.height);
@@ -131,10 +133,12 @@ mod tests {
     fn test_type_b_split_proportions() {
         let area = rect(100, 20);
         let (t1, t2, detail) = split_type_b(area);
-        // 38% + 37% + 25% = 100
-        assert_eq!(t1.width, 38);
-        assert_eq!(t2.width, 37);
-        assert_eq!(detail.width, 25);
+        // 37% + 1 gap + 37% + 1 gap + 25% (rounding may adjust slightly)
+        assert!(t1.width >= 36 && t1.width <= 37);
+        assert!(t2.width >= 36 && t2.width <= 37);
+        assert!(detail.width >= 23);
+        // Total should account for width
+        assert_eq!(t1.width + t2.width + detail.width + 2, area.width); // +2 for gaps
     }
 
     #[test]
