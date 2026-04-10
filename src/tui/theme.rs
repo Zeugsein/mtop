@@ -273,8 +273,8 @@ pub static THEMES: LazyLock<Vec<Theme>> = LazyLock::new(|| {
         SOLARIZED_LIGHT, GRUVBOX, TOKYO_NIGHT, ONE_DARK, MONOKAI,
     ];
     bases.into_iter().map(|mut t| {
-        t.gpu_accent = derive_companion(t.cpu_accent, 30.0, 0.9);
-        t.power_accent = derive_companion(t.mem_accent, 30.0, 0.9);
+        t.gpu_accent = derive_companion(t.cpu_accent, 60.0, 0.85);
+        t.power_accent = derive_companion(t.mem_accent, 60.0, 0.85);
         t
     }).collect()
 });
@@ -561,8 +561,8 @@ mod tests {
     #[test]
     fn test_gpu_power_derived_from_companion() {
         for theme in THEMES.iter() {
-            let expected_gpu = derive_companion(theme.cpu_accent, 30.0, 0.9);
-            let expected_power = derive_companion(theme.mem_accent, 30.0, 0.9);
+            let expected_gpu = derive_companion(theme.cpu_accent, 60.0, 0.85);
+            let expected_power = derive_companion(theme.mem_accent, 60.0, 0.85);
             assert_eq!(
                 format!("{:?}", theme.gpu_accent),
                 format!("{:?}", expected_gpu),

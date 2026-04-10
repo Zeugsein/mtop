@@ -273,7 +273,9 @@ fn smc_open() -> Option<u32> {
             return None;
         }
 
+        // Prefer AppleSMCKeysEndpoint (Apple Silicon), fall back to any AppleSMC service (Intel)
         let mut target_service: u32 = 0;
+        let mut fallback_service: u32 = 0;
         loop {
             let service = IOIteratorNext(iterator);
             if service == 0 {
@@ -288,9 +290,21 @@ fn smc_open() -> Option<u32> {
                 target_service = service;
                 break;
             }
-            IOObjectRelease(service);
+            // Keep the first service as fallback
+            if fallback_service == 0 {
+                fallback_service = service;
+            } else {
+                IOObjectRelease(service);
+            }
         }
         IOObjectRelease(iterator);
+
+        // Use preferred endpoint, or fall back to first matched service
+        if target_service == 0 {
+            target_service = fallback_service;
+        } else if fallback_service != 0 {
+            IOObjectRelease(fallback_service);
+        }
 
         if target_service == 0 {
             return None;

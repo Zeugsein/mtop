@@ -18,8 +18,9 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             .borders(Borders::ALL)
             .border_style(Style::default().fg(border_color))
             .border_type(ratatui::widgets::BorderType::Rounded);
-        let inner = block.inner(area);
+        let raw_inner = block.inner(area);
         f.render_widget(block, area);
+        let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
         f.render_widget(
             Paragraph::new("Power sensors: N/A").style(Style::default().fg(theme.muted)),
             inner,
@@ -39,10 +40,13 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
         .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    if inner.height < 2 {
+    // 1-char padding left and right inside panel frame
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+
+    if inner.height < 2 || inner.width == 0 {
         return;
     }
 

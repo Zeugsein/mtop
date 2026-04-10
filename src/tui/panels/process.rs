@@ -27,8 +27,11 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color));
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+
+    // 1-char padding left and right inside panel frame
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.width == 0 || inner.height < 3 {
         return;
@@ -37,19 +40,16 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let panel_width = inner.width as usize;
     let name_width = panel_width.saturating_sub(COL_FIXED_TOTAL).max(4);
 
-    // Header row
+    // Header row (no dots — headers have no values to color)
     let header = Line::from(vec![
         Span::styled(
             pad_to_display_width("name", name_width),
             Style::default().fg(theme.muted),
         ),
         Span::styled(format!("{:>w$}", "pid", w = COL_PID + 1), Style::default().fg(theme.muted)),
-        Span::styled(" •", Style::default().fg(theme.cpu_accent)),
-        Span::styled(format!("{:>w$}", "cpu", w = COL_CPU), Style::default().fg(theme.muted)),
-        Span::styled(" •", Style::default().fg(theme.mem_accent)),
-        Span::styled(format!("{:>w$}", "mem", w = COL_MEM), Style::default().fg(theme.muted)),
-        Span::styled(" •", Style::default().fg(theme.power_accent)),
-        Span::styled(format!("{:>w$}", "pow", w = COL_POW - 1), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "cpu", w = COL_CPU + 2), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "mem", w = COL_MEM + 2), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "pow", w = COL_POW + 1), Style::default().fg(theme.muted)),
         Span::styled(format!("{:>w$}", "thr", w = COL_THR), Style::default().fg(theme.muted)),
     ]);
     f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));

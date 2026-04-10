@@ -98,6 +98,74 @@ pub fn render_braille_graph(
     rows
 }
 
+/// 5×5 braille lookup table for mirrored (top-to-bottom) graphs.
+/// Fills dots from the top of each character downward: d1, d2, d3, d7 (left) / d4, d5, d6, d8 (right).
+const BRAILLE_DOWN: [[char; 5]; 5] = [
+    [' ', '\u{2808}', '\u{2818}', '\u{2838}', '\u{28B8}'], // left=0
+    ['\u{2801}', '\u{2809}', '\u{2819}', '\u{2839}', '\u{28B9}'], // left=1
+    ['\u{2803}', '\u{280B}', '\u{281B}', '\u{283B}', '\u{28BB}'], // left=2
+    ['\u{2807}', '\u{280F}', '\u{281F}', '\u{283F}', '\u{28BF}'], // left=3
+    ['\u{2847}', '\u{284F}', '\u{285F}', '\u{287F}', '\u{28FF}'], // left=4
+];
+
+/// Render a mirrored (top-to-bottom) braille graph for download-style display.
+///
+/// Returns rows **top-to-bottom**: index 0 = top row, index height-1 = bottom row.
+/// Each row is a Vec of `(char, Color)` pairs, `width` characters long.
+pub fn render_braille_graph_down(
+    values: &[f64],
+    max_value: f64,
+    width: usize,
+    height: usize,
+) -> Vec<Vec<(char, Color)>> {
+    if values.is_empty() || width == 0 || height == 0 {
+        return vec![vec![]; height];
+    }
+
+    let safe_max = if max_value <= 0.0 { 1.0 } else { max_value };
+    let total_dots = height * 4;
+
+    let needed = width * 2;
+    let start = values.len().saturating_sub(needed);
+    let visible = &values[start..];
+
+    let mut rows: Vec<Vec<(char, Color)>> = (0..height).map(|_| Vec::with_capacity(width)).collect();
+
+    for col in 0..width {
+        let idx_left = col * 2;
+        let idx_right = col * 2 + 1;
+
+        let v_left = if idx_left < visible.len() { visible[idx_left] } else { 0.0 };
+        let v_right = if idx_right < visible.len() { visible[idx_right] } else { 0.0 };
+
+        let scaled_left = ((v_left / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
+        let scaled_right = ((v_right / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
+
+        // Fill from top down: row 0 = top row
+        for (row_idx, row_vec) in rows.iter_mut().enumerate() {
+            let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
+            let color = value_to_color(y_frac);
+            let row_base = row_idx * 4;
+
+            let left_fill = if scaled_left > row_base {
+                (scaled_left - row_base).min(4)
+            } else {
+                0
+            };
+            let right_fill = if scaled_right > row_base {
+                (scaled_right - row_base).min(4)
+            } else {
+                0
+            };
+
+            let ch = BRAILLE_DOWN[left_fill][right_fill];
+            row_vec.push((ch, color));
+        }
+    }
+
+    rows
+}
+
 /// Render a single-row braille sparkline (backward compatibility wrapper).
 ///
 /// Each value maps to one braille character using the left-column dots (4 vertical levels).

@@ -40,10 +40,13 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    if inner.height < 2 {
+    // 1-char padding left and right inside panel frame
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+
+    if inner.height < 2 || inner.width == 0 {
         return;
     }
 
@@ -64,16 +67,19 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     if state.show_detail {
         let (left, mid, right) = layout::split_type_b(content_area);
 
-        // Left: "used X.XGB" label + used braille graph
+        // Left: "Used" title + value label + used braille graph
         if left.height > 0 {
             let mb = 1024.0 * 1024.0;
-            let label = if ram_used_gb >= 1.0 {
-                format!("used {ram_used_gb:.1}GB")
+            let value_str = if ram_used_gb >= 1.0 {
+                format!("{ram_used_gb:.1}GB")
             } else {
-                format!("used {:.0}MB", s.memory.ram_used as f64 / mb)
+                format!("{:.0}MB", s.memory.ram_used as f64 / mb)
             };
             f.render_widget(
-                Paragraph::new(Line::from(Span::styled(label, Style::default().fg(theme.fg)))),
+                Paragraph::new(Line::from(vec![
+                    Span::styled("Used ", Style::default().fg(theme.mem_accent).bold()),
+                    Span::styled(value_str, Style::default().fg(theme.fg)),
+                ])),
                 Rect::new(left.x, left.y, left.width, 1),
             );
             if left.height > 1 {
@@ -82,17 +88,20 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             }
         }
 
-        // Mid: "avail X.XGB" label + available braille graph
+        // Mid: "Available" title + value label + available braille graph
         if mid.height > 0 {
             let mb = 1024.0 * 1024.0;
-            let label = if ram_avail_gb >= 1.0 {
-                format!("avail {ram_avail_gb:.1}GB")
+            let value_str = if ram_avail_gb >= 1.0 {
+                format!("{ram_avail_gb:.1}GB")
             } else {
                 let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
-                format!("avail {:.0}MB", ram_avail_bytes / mb)
+                format!("{:.0}MB", ram_avail_bytes / mb)
             };
             f.render_widget(
-                Paragraph::new(Line::from(Span::styled(label, Style::default().fg(theme.fg)))),
+                Paragraph::new(Line::from(vec![
+                    Span::styled("Avail ", Style::default().fg(theme.mem_accent).bold()),
+                    Span::styled(value_str, Style::default().fg(theme.fg)),
+                ])),
                 Rect::new(mid.x, mid.y, mid.width, 1),
             );
             if mid.height > 1 {

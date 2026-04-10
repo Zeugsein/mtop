@@ -40,10 +40,13 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    if inner.height < 2 {
+    // 1-char padding left and right inside panel frame
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+
+    if inner.height < 2 || inner.width == 0 {
         return;
     }
 
@@ -69,8 +72,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         );
     };
 
-    // Helper to render a net braille graph
-    let render_net_graph = |f: &mut Frame, area: Rect, data: &[f64], _base_color: Color| {
+    // Helper to render upload graph (bottom-to-top, normal)
+    let render_upload_graph = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
         let graph = braille::render_braille_graph(data, scale, area.width as usize, height);
         for (row_idx, row) in graph.iter().enumerate() {
@@ -85,12 +88,26 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         }
     };
 
+    // Helper to render download graph (top-to-bottom, mirrored like btop)
+    let render_download_graph = |f: &mut Frame, area: Rect, data: &[f64]| {
+        let height = area.height as usize;
+        let graph = braille::render_braille_graph_down(data, scale, area.width as usize, height);
+        for (row_idx, row) in graph.iter().enumerate() {
+            let y = area.y + row_idx as u16;
+            if y >= area.y + area.height { break; }
+            let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+            if !spans.is_empty() {
+                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
+            }
+        }
+    };
+
     if state.show_detail {
         let (left, mid, right) = layout::split_type_b(content_area);
 
-        render_net_graph(f, left, &upload_data, theme.net_upload);
+        render_upload_graph(f, left, &upload_data);
         if upload_idle { render_idle_overlay(f, left); }
-        render_net_graph(f, mid, &download_data, theme.net_download);
+        render_download_graph(f, mid, &download_data);
         if download_idle { render_idle_overlay(f, mid); }
 
         // Right 25%: btop-style traffic metrics + top interfaces
@@ -163,9 +180,9 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
         let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
-        render_net_graph(f, left, &upload_data, theme.net_upload);
+        render_upload_graph(f, left, &upload_data);
         if upload_idle { render_idle_overlay(f, left); }
-        render_net_graph(f, mid, &download_data, theme.net_download);
+        render_download_graph(f, mid, &download_data);
         if download_idle { render_idle_overlay(f, mid); }
 
         // Fallback: primary interface name on bottom row
