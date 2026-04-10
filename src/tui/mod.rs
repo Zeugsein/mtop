@@ -26,6 +26,28 @@ use crate::metrics::{MetricsHistory, MetricsSnapshot, Sampler, SortMode};
 // Re-export for tests
 pub use helpers::format_bytes_rate_compact;
 
+/// Public test helper: render the dashboard onto a TestBackend and return
+/// the flattened buffer text. Used by integration tests in tests/.
+pub fn render_dashboard_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, show_detail: bool) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut state = AppState::default();
+    state.snapshot = snapshot;
+    state.show_detail = show_detail;
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
 use dashboard::draw_dashboard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
