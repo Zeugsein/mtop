@@ -67,8 +67,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     // Minimum baseline value: ensures at least 1 braille dot renders at zero
     let baseline_floor = scale * 0.005;
 
-    // Helper to render upload graph (bottom-to-top) with muted baseline for near-zero values
-    let render_upload_graph = |f: &mut Frame, area: Rect, data: &[f64]| {
+    // Helper to render graph growing upward (bottom-to-top) with muted baseline for near-zero values
+    let render_graph_upward = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
         // Clamp data so zero values produce 1 dot (baseline)
         let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
@@ -100,8 +100,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         }
     };
 
-    // Helper to render download graph (top-to-bottom, mirrored) with muted baseline
-    let render_download_graph = |f: &mut Frame, area: Rect, data: &[f64]| {
+    // Helper to render graph growing downward (top-to-bottom, mirrored) with muted baseline
+    let render_graph_downward = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
         let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
         let graph = braille::render_braille_graph_down(&clamped, scale, area.width as usize, height);
@@ -135,10 +135,10 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let bottom_area = Rect::new(chart_area.x, chart_area.y + half_h, chart_area.width, chart_area.height - half_h);
 
         // Download TOP half: bars grow upward from center
-        render_upload_graph(f, top_area, dl_data);
+        render_graph_upward(f, top_area, dl_data);
 
         // Upload BOTTOM half: bars grow downward from center
-        render_download_graph(f, bottom_area, ul_data);
+        render_graph_downward(f, bottom_area, ul_data);
     };
 
     if state.show_detail {
