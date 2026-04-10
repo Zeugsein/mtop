@@ -30,6 +30,10 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Char('c') => {
             state.theme_idx = (state.theme_idx + 1) % theme::THEMES.len();
         }
+        KeyCode::Char('C') => {
+            let len = theme::THEMES.len();
+            state.theme_idx = (state.theme_idx + len - 1) % len;
+        }
         KeyCode::Char('1') => toggle_expand(state, PanelId::Cpu),
         KeyCode::Char('2') => toggle_expand(state, PanelId::Gpu),
         KeyCode::Char('3') => toggle_expand(state, PanelId::MemDisk),
