@@ -62,17 +62,6 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
             render_graph(f, trend_area, &sparkline_data, 1.0, theme.gpu_accent);
         }
 
-        // Idle overlay on graph area
-        if gpu_idle && trend_area.height > 0 {
-            let mid_y = trend_area.y + trend_area.height / 2;
-            let idle_text = "idle";
-            let idle_x = trend_area.x + trend_area.width.saturating_sub(idle_text.len() as u16) / 2;
-            f.render_widget(
-                Paragraph::new(Span::styled(idle_text, Style::default().fg(theme.muted))),
-                Rect::new(idle_x, mid_y, idle_text.len() as u16, 1),
-            );
-        }
-
         // Right: orphan metrics (vertically centered, white text)
         let gb = 1024.0 * 1024.0 * 1024.0;
         let metrics: Vec<String> = vec![
@@ -108,16 +97,6 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
             render_graph(f, content_area, &sparkline_data, 1.0, theme.gpu_accent);
         }
 
-        // Idle overlay on full-width graph area
-        if gpu_idle && content_area.height > 0 {
-            let mid_y = content_area.y + content_area.height / 2;
-            let idle_text = "idle";
-            let idle_x = content_area.x + content_area.width.saturating_sub(idle_text.len() as u16) / 2;
-            f.render_widget(
-                Paragraph::new(Span::styled(idle_text, Style::default().fg(theme.muted))),
-                Rect::new(idle_x, mid_y, idle_text.len() as u16, 1),
-            );
-        }
     }
 
     // Bottom info inside panel

@@ -14,14 +14,20 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
     let border_color = theme::dim_color(theme.net_download, theme::adaptive_border_dim(theme));
 
-    let title_spans = vec![
+    let net_idle = total_rx < 1024.0 && total_tx < 1024.0;
+
+    let mut title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.muted)),
-        Span::styled("net  ", Style::default().fg(theme.fg).bold()),
-        Span::styled(format!("\u{25b2} {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)),
-        Span::styled("  ", Style::default()),
-        Span::styled(format!("\u{25bc} {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)),
-        Span::raw(" "),
+        Span::styled("net ", Style::default().fg(theme.fg).bold()),
     ];
+    if net_idle {
+        title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
+    } else {
+        title_spans.push(Span::styled(format!(" \u{25b2} {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)));
+        title_spans.push(Span::styled("  ", Style::default()));
+        title_spans.push(Span::styled(format!("\u{25bc} {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)));
+    }
+    title_spans.push(Span::raw(" "));
 
     let mut sorted_ifaces: Vec<&crate::metrics::NetInterface> = s.network.interfaces.iter().collect();
     sorted_ifaces.sort_by(|a, b| {
@@ -57,45 +63,65 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
-    let upload_idle = state.history.net_upload.iter().all(|&v| v < 1024.0);
-    let download_idle = state.history.net_download.iter().all(|&v| v < 1024.0);
 
-    // Helper to render idle overlay centered on a graph area
-    let render_idle_overlay = |f: &mut Frame, area: Rect| {
-        if area.height == 0 { return; }
-        let idle_text = "idle";
-        let mid_y = area.y + area.height / 2;
-        let idle_x = area.x + area.width.saturating_sub(idle_text.len() as u16) / 2;
-        f.render_widget(
-            Paragraph::new(Span::styled(idle_text, Style::default().fg(theme.muted))),
-            Rect::new(idle_x, mid_y, idle_text.len() as u16, 1),
-        );
-    };
+    // Minimum baseline value: ensures at least 1 braille dot renders at zero
+    let baseline_floor = scale * 0.005;
 
-    // Helper to render upload graph (bottom-to-top, normal)
+    // Helper to render upload graph (bottom-to-top) with muted baseline for near-zero values
     let render_upload_graph = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
-        let graph = braille::render_braille_graph(data, scale, area.width as usize, height);
+        // Clamp data so zero values produce 1 dot (baseline)
+        let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
+        let graph = braille::render_braille_graph(&clamped, scale, area.width as usize, height);
+
+        // Map original data visibility for per-column muted detection
+        let needed = area.width as usize * 2;
+        let start = data.len().saturating_sub(needed);
+        let visible_orig = &data[start..];
+
         for (row_idx, row) in graph.iter().enumerate() {
             let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
             if y < area.y { break; }
             let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
-            let color = crate::tui::gradient::value_to_color(y_frac);
-            let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+            let gradient_color = crate::tui::gradient::value_to_color(y_frac);
+
+            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
+                let idx_l = col * 2;
+                let idx_r = col * 2 + 1;
+                let orig_l = if idx_l < visible_orig.len() { visible_orig[idx_l] } else { 0.0 };
+                let orig_r = if idx_r < visible_orig.len() { visible_orig[idx_r] } else { 0.0 };
+                let is_baseline = orig_l < 1.0 && orig_r < 1.0;
+                let color = if is_baseline { theme.muted } else { gradient_color };
+                Span::styled(ch.to_string(), Style::default().fg(color))
+            }).collect();
             if !spans.is_empty() {
                 f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
             }
         }
     };
 
-    // Helper to render download graph (top-to-bottom, mirrored like btop)
+    // Helper to render download graph (top-to-bottom, mirrored) with muted baseline
     let render_download_graph = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
-        let graph = braille::render_braille_graph_down(data, scale, area.width as usize, height);
+        let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
+        let graph = braille::render_braille_graph_down(&clamped, scale, area.width as usize, height);
+
+        let needed = area.width as usize * 2;
+        let start = data.len().saturating_sub(needed);
+        let visible_orig = &data[start..];
+
         for (row_idx, row) in graph.iter().enumerate() {
             let y = area.y + row_idx as u16;
             if y >= area.y + area.height { break; }
-            let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
+                let idx_l = col * 2;
+                let idx_r = col * 2 + 1;
+                let orig_l = if idx_l < visible_orig.len() { visible_orig[idx_l] } else { 0.0 };
+                let orig_r = if idx_r < visible_orig.len() { visible_orig[idx_r] } else { 0.0 };
+                let is_baseline = orig_l < 1.0 && orig_r < 1.0;
+                let color = if is_baseline { theme.muted } else { orig_color };
+                Span::styled(ch.to_string(), Style::default().fg(color))
+            }).collect();
             if !spans.is_empty() {
                 f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
             }
@@ -108,13 +134,11 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let top_area = Rect::new(chart_area.x, chart_area.y, chart_area.width, half_h);
         let bottom_area = Rect::new(chart_area.x, chart_area.y + half_h, chart_area.width, chart_area.height - half_h);
 
-        // Download TOP half: bars grow upward from center (normal render)
+        // Download TOP half: bars grow upward from center
         render_upload_graph(f, top_area, dl_data);
-        if download_idle { render_idle_overlay(f, top_area); }
 
-        // Upload BOTTOM half: bars grow downward from center (mirrored render)
+        // Upload BOTTOM half: bars grow downward from center
         render_download_graph(f, bottom_area, ul_data);
-        if upload_idle { render_idle_overlay(f, bottom_area); }
     };
 
     if state.show_detail {
