@@ -90,6 +90,14 @@ fn prepare_process_rows_sort_by_pid() {
 }
 
 #[test]
+fn prepare_process_rows_sort_by_weighted_score() {
+    let procs = make_test_procs();
+    // WeightedScore combines cpu, mem, power — beta dominates all three
+    let rows = prepare_process_rows(&procs, SM::WeightedScore, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
+    assert_eq!(rows[0].name, "beta"); // highest across all dimensions
+}
+
+#[test]
 fn prepare_process_rows_scroll_offset() {
     let procs = make_test_procs();
     let rows = prepare_process_rows(&procs, SM::Pid, 1, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
@@ -305,7 +313,7 @@ fn dashboard_contains_process_text() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("Process"), "Dashboard should contain 'Process' text");
+    assert!(text.contains("Processes"), "Dashboard should contain 'Processes' text");
 }
 
 #[test]
