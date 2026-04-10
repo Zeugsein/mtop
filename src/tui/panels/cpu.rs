@@ -77,10 +77,14 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Left: multi-row braille graph
         render_graph(f, trend_area, &sparkline_data, 1.0, theme.cpu_accent);
 
-        // Right: process list with dots (white text, no colored legend)
+        // Right: process list with dots — c/m/p labels aligned above dot columns
+        let name_width = detail_area.width.saturating_sub(7) as usize;
         let legend = Line::from(vec![
-            Span::styled("c ", Style::default().fg(theme.muted)),
-            Span::styled("m ", Style::default().fg(theme.muted)),
+            Span::raw(format!("{:>w$}", "", w = name_width + 2)),
+            Span::styled("c", Style::default().fg(theme.muted)),
+            Span::raw(" "),
+            Span::styled("m", Style::default().fg(theme.muted)),
+            Span::raw(" "),
             Span::styled("p", Style::default().fg(theme.muted)),
         ]);
         f.render_widget(Paragraph::new(legend), Rect::new(detail_area.x, detail_area.y, detail_area.width, 1));
@@ -94,7 +98,6 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
                 break;
             }
 
-            let name_width = detail_area.width.saturating_sub(7) as usize;
             let name = truncate_by_display_width(&proc.name, name_width);
 
             let cpu_norm = (proc.cpu_pct / 100.0).clamp(0.0, 1.0) as f64;
@@ -117,23 +120,14 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         render_graph(f, content_area, &sparkline_data, 1.0, theme.cpu_accent);
     }
 
-    // Bottom info inside panel
-    let bottom_left = Span::styled(
-        format!(" E: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz),
-        Style::default().fg(theme.muted),
-    );
-    let bottom_right = Span::styled(
-        format!("P: {:.0}% @ {}MHz ", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz),
-        Style::default().fg(theme.muted),
-    );
-
-    // Render left-aligned and right-aligned on the same bottom row
-    f.render_widget(
-        Paragraph::new(Line::from(bottom_left)),
-        Rect::new(inner.x, bottom_y, inner.width / 2, 1),
+    // Bottom info: E and P both left-aligned
+    let bottom_text = format!(
+        " E: {:.0}% @ {}MHz  P: {:.0}% @ {}MHz",
+        s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz,
+        s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz,
     );
     f.render_widget(
-        Paragraph::new(Line::from(bottom_right).alignment(ratatui::layout::Alignment::Right)),
+        Paragraph::new(Line::from(Span::styled(bottom_text, Style::default().fg(theme.muted)))),
         Rect::new(inner.x, bottom_y, inner.width, 1),
     );
 }
