@@ -6,27 +6,13 @@ use crate::tui::{AppState, theme, braille, layout};
 use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact, format_bytes_compact, is_infrastructure_interface};
 
 /// Dynamic tier thresholds (bytes/sec) and their display labels.
-const NET_TIERS: [(f64, &str); 4] = [
+pub(crate) const NET_TIERS: [(f64, &str); 4] = [
     (1_000_000.0,       "1 MB/s"),
     (10_000_000.0,      "10 MB/s"),
     (100_000_000.0,     "100 MB/s"),
     (1_000_000_000.0,   "1 GB/s"),
 ];
 
-/// Select the smallest tier that contains the maximum visible value.
-/// Returns (scale_bytes_per_sec, label).
-fn compute_net_tier(upload: &[f64], download: &[f64]) -> (f64, &'static str) {
-    let max_val = upload.iter().chain(download.iter())
-        .copied()
-        .fold(0.0_f64, f64::max);
-    for &(threshold, label) in &NET_TIERS {
-        if max_val < threshold {
-            return (threshold, label);
-        }
-    }
-    // Above all tiers — use the largest
-    (NET_TIERS[3].0, NET_TIERS[3].1)
-}
 
 /// Network panel: Type B layout (37.5% upload + 37.5% download + 25% interface ranking)
 pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -84,7 +70,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
-    let (scale, tier_label) = compute_net_tier(&upload_data, &download_data);
+    let tier_idx = state.history.net_tier_idx;
+    let (scale, tier_label) = (NET_TIERS[tier_idx].0, NET_TIERS[tier_idx].1);
 
     // Minimum baseline value: ensures at least 1 braille dot renders at zero
     let baseline_floor = scale * 0.005;
