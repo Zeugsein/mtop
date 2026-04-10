@@ -404,10 +404,10 @@ impl MetricsHistory {
         self.update_net_tier();
     }
 
-    /// Network tier hysteresis: upgrade immediately, downgrade after 10 consecutive low samples.
+    /// Network tier hysteresis: upgrade immediately, downgrade after the full chart window
+    /// of consecutive samples below 10% of the current tier.
     fn update_net_tier(&mut self) {
         const TIERS: [f64; 4] = [1_000_000.0, 10_000_000.0, 100_000_000.0, 1_000_000_000.0];
-        const HOLD_REQUIRED: usize = 10;
 
         let max_val = self.net_upload.iter().chain(self.net_download.iter())
             .copied()
@@ -415,7 +415,7 @@ impl MetricsHistory {
 
         let current = self.net_tier_idx;
 
-        // Upgrade: max exceeds current tier
+        // Upgrade: max exceeds current tier — instant
         if current < TIERS.len() - 1 && max_val >= TIERS[current] {
             for i in (current + 1)..TIERS.len() {
                 if max_val < TIERS[i] {
@@ -429,12 +429,12 @@ impl MetricsHistory {
             return;
         }
 
-        // Downgrade: all values below 50% of current tier for HOLD_REQUIRED samples
+        // Downgrade: all values below 10% of current tier for full chart window (max_len samples)
         if current > 0 {
-            let threshold = TIERS[current] * 0.5;
+            let threshold = TIERS[current] * 0.1;
             if max_val < threshold {
                 self.net_tier_hold += 1;
-                if self.net_tier_hold >= HOLD_REQUIRED {
+                if self.net_tier_hold >= self.max_len {
                     // Find appropriate lower tier
                     let mut new_idx = 0;
                     for i in 0..current {

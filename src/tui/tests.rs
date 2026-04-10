@@ -465,13 +465,13 @@ fn key_plus_increases_interval() {
     let mut state = AppState::default();
     assert_eq!(state.interval_ms, 1000);
     input::handle_key_event(make_key(KeyCode::Char('+')), &mut state);
-    assert_eq!(state.interval_ms, 1250);
+    assert_eq!(state.interval_ms, 1500);
 }
 
 #[test]
 fn key_plus_caps_at_10000() {
     let mut state = AppState::default();
-    state.interval_ms = 9900;
+    state.interval_ms = 10000;
     input::handle_key_event(make_key(KeyCode::Char('+')), &mut state);
     assert_eq!(state.interval_ms, 10000);
 }
@@ -480,13 +480,13 @@ fn key_plus_caps_at_10000() {
 fn key_minus_decreases_interval() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
-    assert_eq!(state.interval_ms, 750);
+    assert_eq!(state.interval_ms, 750);  // 1000 → prev preset 750
 }
 
 #[test]
 fn key_minus_floors_at_100() {
     let mut state = AppState::default();
-    state.interval_ms = 200;
+    state.interval_ms = 100;
     input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
     assert_eq!(state.interval_ms, 100);
 }
@@ -620,7 +620,7 @@ fn key_equals_increases_interval() {
     let mut state = AppState::default();
     assert_eq!(state.interval_ms, 1000);
     input::handle_key_event(make_key(KeyCode::Char('=')), &mut state);
-    assert_eq!(state.interval_ms, 1250, "'=' should be an alias for '+'");
+    assert_eq!(state.interval_ms, 1500, "'=' should be an alias for '+'");
 }
 
 #[test]

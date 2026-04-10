@@ -4,7 +4,7 @@ use ratatui::widgets::*;
 use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, gauge, layout};
 use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact};
-use super::cpu::render_graph;
+use super::cpu::{render_graph, render_graph_green};
 
 /// Memory+Disk panel: Type B layout when detail, 50/50 when not
 pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -111,7 +111,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             let avail_inner = avail_block.inner(mid);
             f.render_widget(avail_block, mid);
             if avail_inner.height > 0 {
-                render_graph(f, avail_inner, &available_data, 1.0, theme);
+                render_graph_green(f, avail_inner, &available_data, 1.0, theme);
             }
         }
 
@@ -188,7 +188,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         let avail_inner = avail_block.inner(mid);
         f.render_widget(avail_block, mid);
         if avail_inner.height > 0 {
-            render_graph(f, avail_inner, &available_data, 1.0, theme);
+            render_graph_green(f, avail_inner, &available_data, 1.0, theme);
         }
 
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
