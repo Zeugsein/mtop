@@ -65,8 +65,6 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Right: orphan metrics (vertically centered, white text)
         let gb = 1024.0 * 1024.0 * 1024.0;
         let metrics: Vec<String> = vec![
-            format!("{} GPU cores", s.soc.gpu_cores),
-            String::new(),
             format!("ANE  {:.1}W", s.power.ane_w),
             format!("DRAM {:.1}W", s.power.dram_w),
             String::new(),

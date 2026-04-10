@@ -23,6 +23,38 @@ pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64, th
     }
 }
 
+/// Render a braille graph in a single green hue (darker at bottom, lighter at top).
+/// Used for "good-is-big" metrics like available memory.
+pub(crate) fn render_graph_green(f: &mut Frame, area: Rect, data: &[f64], max: f64, theme: &theme::Theme) {
+    let graph = braille::render_braille_graph(data, max, area.width as usize, area.height as usize, theme);
+    let height = area.height as usize;
+    let (gr, gg, gb) = match theme.gradient_green {
+        Color::Rgb(r, g, b) => (r as f64, g as f64, b as f64),
+        _ => (80.0, 200.0, 120.0),
+    };
+    for (row_idx, row) in graph.iter().enumerate() {
+        let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
+        if y < area.y {
+            break;
+        }
+        // row_idx 0 = bottom (darker), higher = top (lighter)
+        let t = if height > 1 { row_idx as f64 / (height - 1) as f64 } else { 1.0 };
+        let scale = 0.6 + 0.4 * t; // 0.6x at bottom → 1.0x at top
+        let color = Color::Rgb(
+            (gr * scale).round().min(255.0) as u8,
+            (gg * scale).round().min(255.0) as u8,
+            (gb * scale).round().min(255.0) as u8,
+        );
+        let spans: Vec<Span> = row
+            .iter()
+            .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(color)))
+            .collect();
+        if !spans.is_empty() {
+            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
+        }
+    }
+}
+
 /// Render a braille graph with baseline dots: near-zero values are clamped to a floor
 /// so at least 1 braille dot renders, colored with baseline_color instead of the gradient.
 pub(crate) fn render_graph_with_baseline(f: &mut Frame, area: Rect, data: &[f64], max: f64, theme: &theme::Theme) {

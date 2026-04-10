@@ -1,7 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::tui::{AppState, theme, gauge, gradient, layout, expanded};
+use crate::tui::{AppState, theme, gradient, layout, expanded};
 use crate::tui::panels::*;
 
 pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
@@ -64,18 +64,49 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
     f.render_widget(Paragraph::new(header_line), page.header);
 
     // Battery gauge right-aligned in header
+    // Grows from right, greener=full, redder=empty, same-hue gradient (lighter left, darker right)
     let bat = &s.battery;
     let bat_spans: Vec<Span> = if !bat.is_present {
         vec![Span::styled("\u{26a1} AC ", muted_style)]
     } else {
         let pct = bat.charge_pct as f64 / 100.0;
-        let pct_color = gradient::value_to_color(1.0 - pct, theme);
+        let base_color = gradient::value_to_color(1.0 - pct, theme); // green=full, red=empty
         let mut spans = Vec::new();
         if bat.is_charging {
             spans.push(Span::styled("\u{26a1}", muted_style));
         }
-        spans.extend(gauge::render_compact_gauge(pct, 6, theme));
-        spans.push(Span::styled(format!("{:.0}% ", bat.charge_pct), Style::default().fg(pct_color)));
+        // 6-char gauge bar, fills from right
+        let bar_width: usize = 6;
+        let filled = (pct * bar_width as f64).round() as usize;
+        let filled = filled.min(bar_width);
+        let empty = bar_width - filled;
+        // Empty portion (left side)
+        if empty > 0 {
+            spans.push(Span::styled(
+                "\u{25a0}".repeat(empty),
+                Style::default().fg(theme.muted),
+            ));
+        }
+        // Filled portion (right side): lighter on left → darker on right
+        if filled > 0 {
+            let (br, bg, bb) = match base_color {
+                Color::Rgb(r, g, b) => (r, g, b),
+                _ => (100, 200, 100),
+            };
+            for i in 0..filled {
+                let t = if filled > 1 { i as f64 / (filled - 1) as f64 } else { 1.0 };
+                // Lighter (t=0) to darker (t=1): scale brightness from 1.3x down to 0.8x
+                let scale = 1.3 - 0.5 * t;
+                let r = (br as f64 * scale).round().min(255.0) as u8;
+                let g = (bg as f64 * scale).round().min(255.0) as u8;
+                let b = (bb as f64 * scale).round().min(255.0) as u8;
+                spans.push(Span::styled(
+                    "\u{25a0}".to_string(),
+                    Style::default().fg(Color::Rgb(r, g, b)),
+                ));
+            }
+        }
+        spans.push(Span::styled(format!("{:.0}% ", bat.charge_pct), Style::default().fg(base_color)));
         spans
     };
     let bat_width: u16 = bat_spans.iter().map(|s| s.content.len() as u16).sum();
@@ -116,28 +147,19 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         }
     }
 
-    // Footer: left = interval, right = keybinding hints, all muted (AD-03: split layout)
+    // Footer: all right-aligned, help leftmost, interval rightmost
     let footer_muted = Style::default().fg(theme.muted);
     let theme_name = theme::THEMES[state.theme_idx].name;
 
-    let footer_halves = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(page.footer);
-
-    let left_spans = vec![
-        Span::styled(format!(" [+/-] sample every {} ms", state.interval_ms), footer_muted),
-    ];
-    f.render_widget(Paragraph::new(Line::from(left_spans)), footer_halves[0]);
-
-    let right_spans = vec![
+    let footer_spans = vec![
+        Span::styled("[?] help ", footer_muted),
         Span::styled(format!("[c] theme({}) ", theme_name), footer_muted),
         Span::styled("[.] detail ", footer_muted),
-        Span::styled("[?] help ", footer_muted),
+        Span::styled(format!("[+/-] {}ms ", state.interval_ms), footer_muted),
     ];
     f.render_widget(
-        Paragraph::new(Line::from(right_spans).alignment(ratatui::layout::Alignment::Right)),
-        footer_halves[1],
+        Paragraph::new(Line::from(footer_spans).alignment(ratatui::layout::Alignment::Right)),
+        page.footer,
     );
 
     // Help overlay (rendered last, on top of everything)

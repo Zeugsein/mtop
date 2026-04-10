@@ -44,10 +44,16 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
             state.expanded_panel = None;
         }
         KeyCode::Char('+') | KeyCode::Char('=') => {
-            state.interval_ms = (state.interval_ms + 250).min(10000);
+            const PRESETS: [u32; 10] = [100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000];
+            state.interval_ms = PRESETS.iter().copied()
+                .find(|&v| v > state.interval_ms)
+                .unwrap_or(10000);
         }
         KeyCode::Char('-') => {
-            state.interval_ms = state.interval_ms.saturating_sub(250).max(100);
+            const PRESETS: [u32; 10] = [100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000];
+            state.interval_ms = PRESETS.iter().copied().rev()
+                .find(|&v| v < state.interval_ms)
+                .unwrap_or(100);
         }
         KeyCode::Down | KeyCode::Char('j') => {
             state.process_scroll = state.process_scroll.saturating_add(1);
