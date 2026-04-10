@@ -52,6 +52,8 @@ impl NetworkState {
                 baudrate: *baud,
                 packets_in_sec: pkt_in_rate,
                 packets_out_sec: pkt_out_rate,
+                rx_bytes_total: *rx,
+                tx_bytes_total: *tx,
             });
         }
 

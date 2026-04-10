@@ -189,6 +189,8 @@ pub struct NetInterface {
     pub baudrate: u64,
     pub packets_in_sec: f64,
     pub packets_out_sec: f64,
+    pub rx_bytes_total: u64,
+    pub tx_bytes_total: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -283,6 +285,10 @@ pub struct MetricsHistory {
     pub net_download: HistoryBuffer,
     /// Per-interface rx/tx history for per-interface sparklines
     pub per_iface: std::collections::HashMap<String, (HistoryBuffer, HistoryBuffer)>,
+    /// Session maximum upload rate (bytes/sec)
+    pub net_upload_max: f64,
+    /// Session maximum download rate (bytes/sec)
+    pub net_download_max: f64,
     max_len: usize,
 }
 
@@ -307,6 +313,8 @@ impl MetricsHistory {
             net_upload: HistoryBuffer::new(),
             net_download: HistoryBuffer::new(),
             per_iface: std::collections::HashMap::new(),
+            net_upload_max: 0.0,
+            net_download_max: 0.0,
             max_len: 128,
         }
     }
@@ -341,6 +349,12 @@ impl MetricsHistory {
             .sum();
         Self::push_val(&mut self.net_upload, total_upload, self.max_len);
         Self::push_val(&mut self.net_download, total_download, self.max_len);
+        if total_upload > self.net_upload_max {
+            self.net_upload_max = total_upload;
+        }
+        if total_download > self.net_download_max {
+            self.net_download_max = total_download;
+        }
 
         // Per-interface history (skip loopback)
         for iface in &snapshot.network.interfaces {

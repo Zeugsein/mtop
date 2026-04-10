@@ -3,7 +3,7 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, braille, gradient, layout};
-use crate::tui::helpers::truncate_with_ellipsis;
+use crate::tui::helpers::truncate_by_display_width;
 
 /// Helper to render a multi-row braille graph into a frame area.
 pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64, accent: ratatui::style::Color) {
@@ -89,7 +89,7 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         }
 
         let name_width = detail_area.width.saturating_sub(7) as usize;
-        let name = truncate_with_ellipsis(&proc.name, name_width);
+        let name = truncate_by_display_width(&proc.name, name_width);
 
         let cpu_norm = (proc.cpu_pct / 100.0).clamp(0.0, 1.0) as f64;
         let mem_norm = (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0);

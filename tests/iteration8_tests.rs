@@ -160,6 +160,8 @@ fn net_interface_has_baudrate_and_packets() {
         baudrate: 1_000_000_000,
         packets_in_sec: 100.0,
         packets_out_sec: 50.0,
+        rx_bytes_total: 0,
+        tx_bytes_total: 0,
     };
     assert_eq!(iface.baudrate, 1_000_000_000);
     assert_eq!(iface.packets_in_sec, 100.0);
