@@ -184,11 +184,9 @@ fn smc_read_fan_rpm(conn: u32, key: &str) -> Option<u32> {
 }
 
 /// Dynamically enumerate SMC temperature keys via SMC_CMD_READ_INDEX.
-/// Returns (cpu_keys, gpu_keys) filtered by prefix and flt /sp78 data type.
+/// Returns (cpu_keys, gpu_keys, ssd_keys, battery_keys) filtered by prefix and flt/sp78 data type.
 /// Returns empty vecs if enumeration fails (caller falls back to static list).
-/// Dynamically enumerate SMC temperature keys. Public for debug_info().
-/// Dynamically enumerate SMC temperature keys.
-/// Returns (cpu_keys, gpu_keys, ssd_keys, battery_keys).
+/// Public for debug_info().
 pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
     let total = match smc_read_key_count(conn) {
         Some(n) => n,
@@ -285,8 +283,14 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
 }
 
 /// IOHIDEventSystem fallback for temperature reading.
-/// Works on M4 Pro and other Apple Silicon where SMC may not expose temp keys.
-/// Iterates all HID services, reads temperature events from temperature sensors.
+/// IOHIDEventSystem fallback for Apple Silicon (M4 Pro and later) where SMC
+/// may not expose temperature keys. Iterates all HID services and reads
+/// kIOHIDEventTypeTemperature (type 15) events.
+///
+/// Known limitation: all HID temperature sensors are pooled without CPU/GPU
+/// distinction. Both `cpu_avg_c` and `gpu_avg_c` report the same average.
+/// Sensor classification would require IOHIDServiceClient property inspection
+/// which is not available via the public API.
 fn hid_read_temperatures() -> Option<ThermalMetrics> {
     // SAFETY: IOHIDEventSystem and CoreFoundation calls with opaque pointer types.
     // All returned objects are checked for null and released via CFRelease.

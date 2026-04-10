@@ -59,7 +59,7 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Left: GPU usage multi-row braille graph
         if s.gpu.available {
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-            render_graph(f, trend_area, &sparkline_data, 1.0, theme.gpu_accent);
+            render_graph(f, trend_area, &sparkline_data, 1.0);
         }
 
         // Right: orphan metrics (vertically centered, white text)
@@ -94,7 +94,7 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Full-width graph, no right detail
         if s.gpu.available {
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-            render_graph(f, content_area, &sparkline_data, 1.0, theme.gpu_accent);
+            render_graph(f, content_area, &sparkline_data, 1.0);
         }
 
     }

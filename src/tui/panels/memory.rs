@@ -19,11 +19,11 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
     let border_color = theme::dim_color(theme.mem_accent, theme::adaptive_border_dim(theme));
 
-    // Memory pressure colored dot
+    // Memory pressure colored dot (from theme)
     let pressure_dot_color = match s.memory.pressure_level {
-        2 => Color::Rgb(255, 214, 0),
-        4 => Color::Rgb(255, 61, 0),
-        _ => Color::Rgb(0, 200, 83),
+        2 => theme.pressure_warn,
+        4 => theme.pressure_critical,
+        _ => theme.pressure_normal,
     };
 
     let title_spans = vec![
@@ -57,12 +57,9 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     let sparkline_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
     let available_data: Vec<f64> = state.history.mem_available.iter().copied().collect();
 
-    // Compute available GB for label
-    let ram_avail_gb = if s.memory.ram_total > 0 {
-        (s.memory.ram_total.saturating_sub(s.memory.ram_used)) as f64 / gb
-    } else {
-        0.0
-    };
+    // Compute available bytes/GB for labels (single source of truth)
+    let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
+    let ram_avail_gb = if s.memory.ram_total > 0 { ram_avail_bytes / gb } else { 0.0 };
 
     let sub_border_color = theme::dim_color(border_color, 0.8);
     let mb = 1024.0 * 1024.0;
@@ -76,7 +73,6 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     let avail_value_str = if ram_avail_gb >= 1.0 {
         format!("{ram_avail_gb:.1}GB")
     } else {
-        let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
         format!("{:.0}MB", ram_avail_bytes / mb)
     };
 
@@ -97,7 +93,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             let used_inner = used_block.inner(left);
             f.render_widget(used_block, left);
             if used_inner.height > 0 {
-                render_graph(f, used_inner, &sparkline_data, 1.0, theme.mem_accent);
+                render_graph(f, used_inner, &sparkline_data, 1.0);
             }
         }
 
@@ -115,7 +111,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             let avail_inner = avail_block.inner(mid);
             f.render_widget(avail_block, mid);
             if avail_inner.height > 0 {
-                render_graph(f, avail_inner, &available_data, 1.0, theme.mem_accent);
+                render_graph(f, avail_inner, &available_data, 1.0);
             }
         }
 
@@ -177,7 +173,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         let used_inner = used_block.inner(left);
         f.render_widget(used_block, left);
         if used_inner.height > 0 {
-            render_graph(f, used_inner, &sparkline_data, 1.0, theme.mem_accent);
+            render_graph(f, used_inner, &sparkline_data, 1.0);
         }
 
         let avail_block = Block::default()
@@ -192,7 +188,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         let avail_inner = avail_block.inner(mid);
         f.render_widget(avail_block, mid);
         if avail_inner.height > 0 {
-            render_graph(f, avail_inner, &available_data, 1.0, theme.mem_accent);
+            render_graph(f, avail_inner, &available_data, 1.0);
         }
 
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
