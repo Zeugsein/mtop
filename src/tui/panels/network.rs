@@ -184,19 +184,18 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
         // Stable interface list: show top 3 interfaces in fixed positions
         lines.push(Line::from(""));
-        for (i, iface) in display_ifaces.iter().take(3).enumerate() {
+        let iface_count = display_ifaces.len().min(3);
+        for iface in display_ifaces.iter().take(3) {
             let active = iface.rx_bytes_sec > 0.0 || iface.tx_bytes_sec > 0.0;
             let color = if active { theme.fg } else { theme.muted };
             lines.push(Line::from(Span::styled(
                 format!("{} ({})", iface.name, iface.iface_type),
                 Style::default().fg(color),
             )));
-            // Pad remaining slots if fewer than 3 interfaces
-            if i == display_ifaces.len().min(3) - 1 {
-                for _ in (i + 1)..3 {
-                    lines.push(Line::from(""));
-                }
-            }
+        }
+        // Pad remaining slots to stabilize layout
+        for _ in iface_count..3 {
+            lines.push(Line::from(""));
         }
 
         let content_height = lines.len() as u16;

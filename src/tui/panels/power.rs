@@ -20,7 +20,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             .border_type(ratatui::widgets::BorderType::Rounded);
         let raw_inner = block.inner(area);
         f.render_widget(block, area);
-        let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+        let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
         f.render_widget(
             Paragraph::new("Power sensors: N/A").style(Style::default().fg(theme.muted)),
             inner,
