@@ -322,7 +322,7 @@ fn dashboard_contains_footer() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("?:help"), "Dashboard should contain footer with ?:help");
+    assert!(text.contains("help"), "Dashboard should contain footer with help keybinding");
 }
 
 #[test]

@@ -12,10 +12,10 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         (rx + i.rx_bytes_sec, tx + i.tx_bytes_sec)
     });
 
-    let border_color = theme::dim_color(theme.net_upload, theme::adaptive_border_dim(theme));
+    let border_color = theme::dim_color(theme.net_download, theme::adaptive_border_dim(theme));
 
     let title_spans = vec![
-        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.net_upload)),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.muted)),
         Span::styled("net  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("\u{25b2} {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)),
         Span::styled("  ", Style::default()),
@@ -43,8 +43,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left and right inside panel frame
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+    // 1-char padding left/right + 1-line top padding
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -102,35 +102,31 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         }
     };
 
+    // Symmetric center-baseline chart helper
+    let render_symmetric_chart = |f: &mut Frame, chart_area: Rect, dl_data: &[f64], ul_data: &[f64]| {
+        let half_h = chart_area.height / 2;
+        let top_area = Rect::new(chart_area.x, chart_area.y, chart_area.width, half_h);
+        let bottom_area = Rect::new(chart_area.x, chart_area.y + half_h, chart_area.width, chart_area.height - half_h);
+
+        // Download TOP half: bars grow upward from center (normal render)
+        render_upload_graph(f, top_area, dl_data);
+        if download_idle { render_idle_overlay(f, top_area); }
+
+        // Upload BOTTOM half: bars grow downward from center (mirrored render)
+        render_download_graph(f, bottom_area, ul_data);
+        if upload_idle { render_idle_overlay(f, bottom_area); }
+    };
+
     if state.show_detail {
-        let (left, mid, right) = layout::split_type_b(content_area);
+        let (chart_area, right) = layout::split_type_a(content_area);
 
-        render_upload_graph(f, left, &upload_data);
-        if upload_idle { render_idle_overlay(f, left); }
-        render_download_graph(f, mid, &download_data);
-        if download_idle { render_idle_overlay(f, mid); }
+        render_symmetric_chart(f, chart_area, &download_data, &upload_data);
 
-        // Right 25%: btop-style traffic metrics + top interfaces
+        // Right 25%: download on top, upload on bottom (matching chart order)
         let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
         let total_tx_bytes: u64 = display_ifaces.iter().map(|i| i.tx_bytes_total).sum();
 
         let mut lines: Vec<Line> = Vec::new();
-
-        lines.push(Line::from(Span::styled("\u{25b2} Upload", Style::default().fg(theme.net_upload))));
-        lines.push(Line::from(Span::styled(
-            format_bytes_rate_compact(total_tx),
-            Style::default().fg(theme.fg),
-        )));
-        lines.push(Line::from(Span::styled(
-            format!("max: {}", format_bytes_rate_compact(state.history.net_upload_max)),
-            Style::default().fg(theme.fg),
-        )));
-        lines.push(Line::from(Span::styled(
-            format!("total: {}", format_bytes_compact(total_tx_bytes as f64)),
-            Style::default().fg(theme.fg),
-        )));
-
-        lines.push(Line::from(""));
 
         lines.push(Line::from(Span::styled("\u{25bc} Download", Style::default().fg(theme.net_download))));
         lines.push(Line::from(Span::styled(
@@ -146,17 +142,36 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             Style::default().fg(theme.fg),
         )));
 
-        let active_ifaces: Vec<&&crate::metrics::NetInterface> = display_ifaces.iter()
-            .filter(|i| i.rx_bytes_sec > 0.0 || i.tx_bytes_sec > 0.0)
-            .take(3)
-            .collect();
-        if !active_ifaces.is_empty() {
-            lines.push(Line::from(""));
-            for iface in &active_ifaces {
-                lines.push(Line::from(Span::styled(
-                    format!("{} ({})", iface.name, iface.iface_type),
-                    Style::default().fg(theme.muted),
-                )));
+        lines.push(Line::from(""));
+
+        lines.push(Line::from(Span::styled("\u{25b2} Upload", Style::default().fg(theme.net_upload))));
+        lines.push(Line::from(Span::styled(
+            format_bytes_rate_compact(total_tx),
+            Style::default().fg(theme.fg),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("max: {}", format_bytes_rate_compact(state.history.net_upload_max)),
+            Style::default().fg(theme.fg),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("total: {}", format_bytes_compact(total_tx_bytes as f64)),
+            Style::default().fg(theme.fg),
+        )));
+
+        // Stable interface list: show top 3 interfaces in fixed positions
+        lines.push(Line::from(""));
+        for (i, iface) in display_ifaces.iter().take(3).enumerate() {
+            let active = iface.rx_bytes_sec > 0.0 || iface.tx_bytes_sec > 0.0;
+            let color = if active { theme.fg } else { theme.muted };
+            lines.push(Line::from(Span::styled(
+                format!("{} ({})", iface.name, iface.iface_type),
+                Style::default().fg(color),
+            )));
+            // Pad remaining slots if fewer than 3 interfaces
+            if i == display_ifaces.len().min(3) - 1 {
+                for _ in (i + 1)..3 {
+                    lines.push(Line::from(""));
+                }
             }
         }
 
@@ -175,15 +190,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         // show_detail: skip frame-bottom info (detail panel has richer content)
         return;
     } else {
-        // Full-width: two graphs split 50/50
-        let half_w = content_area.width / 2;
-        let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
-        let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
-
-        render_upload_graph(f, left, &upload_data);
-        if upload_idle { render_idle_overlay(f, left); }
-        render_download_graph(f, mid, &download_data);
-        if download_idle { render_idle_overlay(f, mid); }
+        // Full-width symmetric chart
+        render_symmetric_chart(f, content_area, &download_data, &upload_data);
 
         // Fallback: primary interface name on bottom row
         if let Some(primary) = display_ifaces.first() {
