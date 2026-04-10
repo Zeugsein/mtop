@@ -328,7 +328,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
     }
 
-    // Per-interface detailed stats (W3E: filter infrastructure interfaces consistently)
+    // Per-interface detailed stats (filter infrastructure interfaces consistently)
     let mut sorted_ifaces: Vec<&crate::metrics::NetInterface> = s.network.interfaces.iter()
         .filter(|i| !is_infrastructure_interface(&i.name))
         .collect();
@@ -346,9 +346,9 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         f.render_widget(Paragraph::new(hdr), Rect::new(inner.x, header_y, inner.width, 1));
     }
 
-    for (i, iface) in sorted_ifaces.iter().enumerate() {
-        let y = header_y.saturating_add(1).saturating_add(i as u16);
-        if y >= inner.y.saturating_add(inner.height) { break; }
+    let mut cur_y = header_y.saturating_add(1);
+    for iface in &sorted_ifaces {
+        if cur_y >= inner.y.saturating_add(inner.height) { break; }
         let line = Line::from(vec![
             Span::styled(format!("{:<10}", iface.name), Style::default().fg(theme.fg)),
             Span::styled(format!(" {:>14}", iface.iface_type), Style::default().fg(theme.muted)),
@@ -357,7 +357,28 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
             Span::styled(format!("  ↓{:>8}", format_bytes_rate_compact(iface.rx_bytes_sec)), Style::default().fg(theme.net_download)),
             Span::styled(format!(" {:>7.0}", iface.packets_in_sec), Style::default().fg(theme.muted)),
         ]);
-        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, cur_y, inner.width, 1));
+        cur_y += 1;
+
+        // Per-interface rx sparkline using interface-specific history
+        if cur_y < inner.y.saturating_add(inner.height) {
+            if let Some((rx_buf, _)) = state.history.per_iface.get(&iface.name) {
+                let iface_scale = if iface.baudrate > 0 {
+                    speed_tier_from_baudrate(iface.baudrate) as f64
+                } else {
+                    scale
+                };
+                let rx_data: Vec<f64> = rx_buf.iter().copied().collect();
+                let spark = braille::render_braille_sparkline(&rx_data, iface_scale, inner.width as usize);
+                let spark_spans: Vec<Span> = spark.iter()
+                    .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
+                    .collect();
+                if !spark_spans.is_empty() {
+                    f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, cur_y, inner.width, 1));
+                }
+            }
+            cur_y += 1;
+        }
     }
 }
 
