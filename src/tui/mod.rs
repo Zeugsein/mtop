@@ -48,10 +48,40 @@ pub fn render_dashboard_to_string(width: u16, height: u16, snapshot: MetricsSnap
     text
 }
 
+/// Extended test helper: render the dashboard with configurable AppState fields.
+pub fn render_dashboard_with_state(
+    width: u16,
+    height: u16,
+    snapshot: MetricsSnapshot,
+    show_detail: bool,
+    expanded_panel: Option<PanelId>,
+    sort_mode: SortMode,
+) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut state = AppState::default();
+    state.snapshot = snapshot;
+    state.show_detail = show_detail;
+    state.expanded_panel = expanded_panel;
+    state.sort_mode = sort_mode;
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
 use dashboard::draw_dashboard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PanelId {
+pub enum PanelId {
     Cpu,
     Gpu,
     MemDisk,
@@ -70,7 +100,7 @@ pub(crate) struct AppState {
     pub(crate) interval_ms: u32,
     pub(crate) process_scroll: usize,
     pub(crate) theme_idx: usize,
-    pub(crate) expanded_panel: Option<PanelId>,
+    pub expanded_panel: Option<PanelId>,
     pub(crate) sort_mode: SortMode,
     pub(crate) temp_unit: String,
     pub(crate) show_detail: bool,

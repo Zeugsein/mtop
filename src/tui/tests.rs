@@ -539,3 +539,102 @@ fn unknown_key_does_nothing() {
     assert_eq!(state.theme_idx, 0);
     assert_eq!(state.process_scroll, 0);
 }
+
+// =========================================================================
+// W4: Uncovered input branches (iteration 20)
+// =========================================================================
+
+#[test]
+fn key_dot_toggles_show_detail_on() {
+    let mut state = AppState::default();
+    assert!(!state.show_detail);
+    input::handle_key_event(make_key(KeyCode::Char('.')), &mut state);
+    assert!(state.show_detail, "'.' should enable show_detail");
+}
+
+#[test]
+fn key_dot_toggles_show_detail_off() {
+    let mut state = AppState::default();
+    state.show_detail = true;
+    input::handle_key_event(make_key(KeyCode::Char('.')), &mut state);
+    assert!(!state.show_detail, "second '.' should disable show_detail");
+}
+
+#[test]
+fn key_h_toggles_help_on() {
+    let mut state = AppState::default();
+    assert!(!state.show_help);
+    input::handle_key_event(make_key(KeyCode::Char('h')), &mut state);
+    assert!(state.show_help, "'h' should enable show_help");
+}
+
+#[test]
+fn key_h_toggles_help_off() {
+    let mut state = AppState::default();
+    state.show_help = true;
+    input::handle_key_event(make_key(KeyCode::Char('h')), &mut state);
+    assert!(!state.show_help, "second 'h' should disable show_help");
+}
+
+#[test]
+fn key_question_toggles_help_on() {
+    let mut state = AppState::default();
+    input::handle_key_event(make_key(KeyCode::Char('?')), &mut state);
+    assert!(state.show_help, "'?' should enable show_help");
+}
+
+#[test]
+fn key_esc_clears_help_without_quitting() {
+    let mut state = AppState::default();
+    state.show_help = true;
+    let quit = input::handle_key_event(make_key(KeyCode::Esc), &mut state);
+    assert!(!quit, "Esc with show_help=true should not quit");
+    assert!(!state.show_help, "Esc should clear show_help");
+}
+
+#[test]
+fn key_arrow_down_scrolls_process() {
+    let mut state = AppState::default();
+    assert_eq!(state.process_scroll, 0);
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    assert_eq!(state.process_scroll, 1);
+}
+
+#[test]
+fn key_arrow_up_scrolls_process() {
+    let mut state = AppState::default();
+    state.process_scroll = 3;
+    input::handle_key_event(make_key(KeyCode::Up), &mut state);
+    assert_eq!(state.process_scroll, 2);
+}
+
+#[test]
+fn key_arrow_up_at_zero_stays_zero() {
+    let mut state = AppState::default();
+    input::handle_key_event(make_key(KeyCode::Up), &mut state);
+    assert_eq!(state.process_scroll, 0, "Up at scroll=0 should saturate at 0");
+}
+
+#[test]
+fn key_equals_increases_interval() {
+    let mut state = AppState::default();
+    assert_eq!(state.interval_ms, 1000);
+    input::handle_key_event(make_key(KeyCode::Char('=')), &mut state);
+    assert_eq!(state.interval_ms, 1250, "'=' should be an alias for '+'");
+}
+
+#[test]
+fn key_plus_at_max_stays_at_10000() {
+    let mut state = AppState::default();
+    state.interval_ms = 10000;
+    input::handle_key_event(make_key(KeyCode::Char('+')), &mut state);
+    assert_eq!(state.interval_ms, 10000, "interval should not exceed 10000");
+}
+
+#[test]
+fn key_minus_at_minimum_stays_at_100() {
+    let mut state = AppState::default();
+    state.interval_ms = 100;
+    input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
+    assert_eq!(state.interval_ms, 100, "interval should not go below 100");
+}
