@@ -221,7 +221,9 @@ fn get_swap_page_counts(host: u32) -> (u64, u64) {
 }
 
 /// Read macOS memory pressure level via sysctl.
-/// Returns: 1=normal, 2=warning, 4=critical. Defaults to 1 on failure.
+/// Returns: 1=normal, 2=warning, 4=critical.
+/// On sysctl failure, falls back to 1 (normal) — kern.memorystatus_vm_pressure_level
+/// is always available on macOS 10.9+, so this path is only hit in extreme edge cases.
 fn get_memory_pressure_level() -> u8 {
     let name = match std::ffi::CString::new("kern.memorystatus_vm_pressure_level") {
         Ok(n) => n,

@@ -17,9 +17,9 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.net_upload)),
         Span::styled("net  ", Style::default().fg(theme.fg).bold()),
-        Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)),
+        Span::styled(format!("\u{25b2} {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)),
         Span::styled("  ", Style::default()),
-        Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)),
+        Span::styled(format!("\u{25bc} {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
 
