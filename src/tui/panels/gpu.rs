@@ -44,6 +44,8 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
+    let gpu_idle = s.power.gpu_w < 0.5;
+
     if state.show_detail {
         let (trend_area, detail_area) = layout::split_type_a(content_area);
 
@@ -51,6 +53,17 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         if s.gpu.available {
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
             render_graph(f, trend_area, &sparkline_data, 1.0, theme.gpu_accent);
+        }
+
+        // Idle overlay on graph area
+        if gpu_idle && trend_area.height > 0 {
+            let mid_y = trend_area.y + trend_area.height / 2;
+            let idle_text = "idle";
+            let idle_x = trend_area.x + trend_area.width.saturating_sub(idle_text.len() as u16) / 2;
+            f.render_widget(
+                Paragraph::new(Span::styled(idle_text, Style::default().fg(theme.muted))),
+                Rect::new(idle_x, mid_y, idle_text.len() as u16, 1),
+            );
         }
 
         // Right: orphan metrics (vertically centered, white text)
@@ -86,6 +99,17 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         if s.gpu.available {
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
             render_graph(f, content_area, &sparkline_data, 1.0, theme.gpu_accent);
+        }
+
+        // Idle overlay on full-width graph area
+        if gpu_idle && content_area.height > 0 {
+            let mid_y = content_area.y + content_area.height / 2;
+            let idle_text = "idle";
+            let idle_x = content_area.x + content_area.width.saturating_sub(idle_text.len() as u16) / 2;
+            f.render_widget(
+                Paragraph::new(Span::styled(idle_text, Style::default().fg(theme.muted))),
+                Rect::new(idle_x, mid_y, idle_text.len() as u16, 1),
+            );
         }
     }
 

@@ -54,13 +54,30 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
+    let upload_idle = state.history.net_upload.iter().all(|&v| v < 1024.0);
+    let download_idle = state.history.net_download.iter().all(|&v| v < 1024.0);
+
+    // Helper to render idle overlay centered on a graph area
+    let render_idle_overlay = |f: &mut Frame, area: Rect| {
+        if area.height == 0 { return; }
+        let idle_text = "idle";
+        let mid_y = area.y + area.height / 2;
+        let idle_x = area.x + area.width.saturating_sub(idle_text.len() as u16) / 2;
+        f.render_widget(
+            Paragraph::new(Span::styled(idle_text, Style::default().fg(theme.muted))),
+            Rect::new(idle_x, mid_y, idle_text.len() as u16, 1),
+        );
+    };
 
     // Helper to render a net braille graph
-    let render_net_graph = |f: &mut Frame, area: Rect, data: &[f64], color: Color| {
-        let graph = braille::render_braille_graph(data, scale, area.width as usize, area.height as usize);
+    let render_net_graph = |f: &mut Frame, area: Rect, data: &[f64], _base_color: Color| {
+        let height = area.height as usize;
+        let graph = braille::render_braille_graph(data, scale, area.width as usize, height);
         for (row_idx, row) in graph.iter().enumerate() {
             let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
             if y < area.y { break; }
+            let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
+            let color = crate::tui::gradient::value_to_color(y_frac);
             let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
             if !spans.is_empty() {
                 f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
@@ -72,7 +89,9 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let (left, mid, right) = layout::split_type_b(content_area);
 
         render_net_graph(f, left, &upload_data, theme.net_upload);
+        if upload_idle { render_idle_overlay(f, left); }
         render_net_graph(f, mid, &download_data, theme.net_download);
+        if download_idle { render_idle_overlay(f, mid); }
 
         // Right 25%: btop-style traffic metrics + top interfaces
         let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
@@ -82,7 +101,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
         lines.push(Line::from(Span::styled("\u{25b2} Upload", Style::default().fg(theme.net_upload))));
         lines.push(Line::from(Span::styled(
-            format!("cur: {}", format_bytes_rate_compact(total_tx)),
+            format_bytes_rate_compact(total_tx),
             Style::default().fg(theme.fg),
         )));
         lines.push(Line::from(Span::styled(
@@ -90,7 +109,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             Style::default().fg(theme.fg),
         )));
         lines.push(Line::from(Span::styled(
-            format!("tot: {}", format_bytes_compact(total_tx_bytes as f64)),
+            format!("total: {}", format_bytes_compact(total_tx_bytes as f64)),
             Style::default().fg(theme.fg),
         )));
 
@@ -98,7 +117,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
         lines.push(Line::from(Span::styled("\u{25bc} Download", Style::default().fg(theme.net_download))));
         lines.push(Line::from(Span::styled(
-            format!("cur: {}", format_bytes_rate_compact(total_rx)),
+            format_bytes_rate_compact(total_rx),
             Style::default().fg(theme.fg),
         )));
         lines.push(Line::from(Span::styled(
@@ -106,7 +125,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             Style::default().fg(theme.fg),
         )));
         lines.push(Line::from(Span::styled(
-            format!("tot: {}", format_bytes_compact(total_rx_bytes as f64)),
+            format!("total: {}", format_bytes_compact(total_rx_bytes as f64)),
             Style::default().fg(theme.fg),
         )));
 
@@ -136,6 +155,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
                 Rect::new(right.x, start_y + i as u16, right.width, 1),
             );
         }
+        // show_detail: skip frame-bottom info (detail panel has richer content)
+        return;
     } else {
         // Full-width: two graphs split 50/50
         let half_w = content_area.width / 2;
@@ -143,7 +164,9 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
         render_net_graph(f, left, &upload_data, theme.net_upload);
+        if upload_idle { render_idle_overlay(f, left); }
         render_net_graph(f, mid, &download_data, theme.net_download);
+        if download_idle { render_idle_overlay(f, mid); }
 
         // Fallback: primary interface name on bottom row
         if let Some(primary) = display_ifaces.first() {

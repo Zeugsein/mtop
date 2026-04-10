@@ -178,6 +178,10 @@ pub struct MemoryMetrics {
     pub wired: u64,
     pub app: u64,
     pub compressed: u64,
+    pub swap_in_bytes_sec: f64,
+    pub swap_out_bytes_sec: f64,
+    /// Memory pressure level: 1=normal, 2=warning, 4=critical
+    pub pressure_level: u8,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -281,6 +285,7 @@ pub struct MetricsHistory {
     pub package_power: HistoryBuffer,
     pub system_power: HistoryBuffer,
     pub mem_usage: HistoryBuffer,
+    pub mem_available: HistoryBuffer,
     pub net_upload: HistoryBuffer,
     pub net_download: HistoryBuffer,
     /// Per-interface rx/tx history for per-interface sparklines
@@ -310,6 +315,7 @@ impl MetricsHistory {
             package_power: HistoryBuffer::new(),
             system_power: HistoryBuffer::new(),
             mem_usage: HistoryBuffer::new(),
+            mem_available: HistoryBuffer::new(),
             net_upload: HistoryBuffer::new(),
             net_download: HistoryBuffer::new(),
             per_iface: std::collections::HashMap::new(),
@@ -332,11 +338,18 @@ impl MetricsHistory {
             Self::push_val(&mut self.package_power, snapshot.power.package_w as f64, self.max_len);
             Self::push_val(&mut self.system_power, snapshot.power.system_w as f64, self.max_len);
         }
-        // Memory usage as fraction (0.0 to 1.0)
+        // Memory usage and available as fractions (0.0 to 1.0)
         if snapshot.memory.ram_total > 0 {
+            let total = snapshot.memory.ram_total as f64;
             Self::push_val(
                 &mut self.mem_usage,
-                snapshot.memory.ram_used as f64 / snapshot.memory.ram_total as f64,
+                snapshot.memory.ram_used as f64 / total,
+                self.max_len,
+            );
+            let available = snapshot.memory.ram_total.saturating_sub(snapshot.memory.ram_used) as f64;
+            Self::push_val(
+                &mut self.mem_available,
+                available / total,
                 self.max_len,
             );
         }

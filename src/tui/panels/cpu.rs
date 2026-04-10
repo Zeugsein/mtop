@@ -100,10 +100,12 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
 
             let line = Line::from(vec![
                 Span::styled(format!("{:<w$}", name, w = name_width), Style::default().fg(theme.fg)),
+                Span::raw("  "),
+                Span::styled("•", Style::default().fg(gradient::value_to_color(cpu_norm))),
                 Span::raw(" "),
-                Span::styled("●", Style::default().fg(gradient::value_to_color(cpu_norm))),
-                Span::styled("●", Style::default().fg(gradient::value_to_color(mem_norm))),
-                Span::styled("●", Style::default().fg(gradient::value_to_color(pow_norm))),
+                Span::styled("•", Style::default().fg(gradient::value_to_color(mem_norm))),
+                Span::raw(" "),
+                Span::styled("•", Style::default().fg(gradient::value_to_color(pow_norm))),
             ]);
             f.render_widget(Paragraph::new(line), Rect::new(detail_area.x, y, detail_area.width, 1));
         }

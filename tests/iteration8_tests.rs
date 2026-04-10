@@ -139,6 +139,9 @@ fn memory_metrics_has_pressure_fields() {
         wired: 3_000_000_000,
         app: 8_000_000_000,
         compressed: 2_000_000_000,
+        swap_in_bytes_sec: 0.0,
+        swap_out_bytes_sec: 0.0,
+        pressure_level: 1,
     };
     assert!(m.wired > 0);
     assert!(m.app > 0);

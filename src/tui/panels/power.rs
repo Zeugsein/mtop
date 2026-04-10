@@ -55,13 +55,19 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     let cpu_power_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
     let gpu_power_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
 
+    let gpu_idle = s.power.gpu_w < 0.5;
+
     // Helper to render a labeled power sparkline into an area
-    let render_labeled_sparkline = |f: &mut Frame, area: Rect, label: &str, watts: f32, data: &[f64], max: f64, label_color: Color| {
+    let render_labeled_sparkline = |f: &mut Frame, area: Rect, label: &str, watts: f32, data: &[f64], max: f64, label_color: Color, show_idle: bool| {
+        let mut spans = vec![
+            Span::styled(format!("{label} "), Style::default().fg(label_color)),
+            Span::styled(format!("{watts:.1}W"), Style::default().fg(theme.fg)),
+        ];
+        if show_idle {
+            spans.push(Span::styled(" (idle)", Style::default().fg(theme.muted)));
+        }
         f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled(format!("{label} "), Style::default().fg(label_color)),
-                Span::styled(format!("{watts:.1}W"), Style::default().fg(theme.fg)),
-            ])),
+            Paragraph::new(Line::from(spans)),
             Rect::new(area.x, area.y, area.width, 1),
         );
         if area.height > 1 {
@@ -81,8 +87,23 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     if state.show_detail {
         let (left, mid, right) = layout::split_type_b(content_area);
 
-        render_labeled_sparkline(f, left, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent);
-        render_labeled_sparkline(f, mid, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent);
+        // Sub-frame borders for CPU and GPU areas
+        let sub_border_color = theme::dim_color(border_color, 0.8);
+        let cpu_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let gpu_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let cpu_inner = cpu_block.inner(left);
+        let gpu_inner = gpu_block.inner(mid);
+        f.render_widget(cpu_block, left);
+        f.render_widget(gpu_block, mid);
+
+        render_labeled_sparkline(f, cpu_inner, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
+        render_labeled_sparkline(f, gpu_inner, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, gpu_idle);
 
         // Right 25%: Per-process energy ranking (white text)
         let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
@@ -103,7 +124,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
 
             let line = Line::from(vec![
                 Span::styled(pad_to_display_width(&name, name_width), Style::default().fg(theme.fg)),
-                Span::raw(" "),
+                Span::raw("  "),
                 Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.fg)),
             ]);
             f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
@@ -114,8 +135,8 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
         let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
         let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
-        render_labeled_sparkline(f, left, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent);
-        render_labeled_sparkline(f, mid, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent);
+        render_labeled_sparkline(f, left, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
+        render_labeled_sparkline(f, mid, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, gpu_idle);
     }
 
     // Bottom info inside panel
