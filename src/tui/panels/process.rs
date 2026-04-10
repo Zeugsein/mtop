@@ -115,7 +115,7 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let pow_dot_color = if proc.power_w < 0.1 { theme.muted } else { gradient::value_to_color(pow_norm) };
 
         let line = Line::from(vec![
-            Span::styled(format!("{:<w$}", proc.pid, w = COL_PID), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:<w$}", proc.pid, w = COL_PID), Style::default().fg(theme.muted)),
             Span::styled(" ", Style::default()),
             Span::styled(name_padded, Style::default().fg(theme.fg)),
             Span::styled(" \u{2022}", Style::default().fg(cpu_dot_color)),
