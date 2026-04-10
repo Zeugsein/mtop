@@ -8,9 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = config::load();
     let args = Cli::parse();
 
-    // CLI args override config values (clap defaults are distinguishable via matches)
-    let interval = if args.interval != 1000 { args.interval } else { cfg.interval_ms };
-    let color = if args.color != "default" { args.color.clone() } else { cfg.theme.clone() };
+    // CLI args override config values; None means "not specified, use config"
+    let interval = args.interval.unwrap_or(cfg.interval_ms);
+    let color = args.color.unwrap_or_else(|| cfg.theme.clone());
     let temp_unit = args.temp_unit.to_string();
 
     match args.command {

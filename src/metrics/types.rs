@@ -342,7 +342,7 @@ impl MetricsHistory {
         Self::push_val(&mut self.net_upload, total_upload, self.max_len);
         Self::push_val(&mut self.net_download, total_download, self.max_len);
 
-        // Per-interface history (skip loopback and infrastructure)
+        // Per-interface history (skip loopback)
         for iface in &snapshot.network.interfaces {
             if iface.name.starts_with("lo") {
                 continue;
@@ -353,6 +353,10 @@ impl MetricsHistory {
             Self::push_val(rx_buf, iface.rx_bytes_sec, self.max_len);
             Self::push_val(tx_buf, iface.tx_bytes_sec, self.max_len);
         }
+        // Prune interfaces not seen in this snapshot to bound memory
+        self.per_iface.retain(|name, _| {
+            snapshot.network.interfaces.iter().any(|i| i.name == *name)
+        });
     }
 
     fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {

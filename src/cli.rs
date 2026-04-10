@@ -22,12 +22,12 @@ pub struct Cli {
     pub command: Option<Command>,
 
     /// Update interval in milliseconds
-    #[arg(short, long, global = true, default_value_t = 1000)]
-    pub interval: u32,
+    #[arg(short, long, global = true)]
+    pub interval: Option<u32>,
 
     /// Color theme name
-    #[arg(long, global = true, default_value = "default")]
-    pub color: String,
+    #[arg(long, global = true)]
+    pub color: Option<String>,
 
     /// Temperature unit: celsius or fahrenheit
     #[arg(long, global = true, value_enum, default_value_t = TempUnit::Celsius)]

@@ -57,16 +57,17 @@ fn per_iface_skips_loopback() {
 }
 
 #[test]
-fn per_iface_stale_not_removed() {
+fn per_iface_stale_pruned() {
     let mut h = MetricsHistory::new();
     // First push with en0 and en1
     let snap1 = make_iface_snapshot(&[("en0", 100.0, 200.0), ("en1", 300.0, 400.0)]);
     h.push(&snap1);
+    assert!(h.per_iface.contains_key("en1"));
     // Second push with only en0
     let snap2 = make_iface_snapshot(&[("en0", 150.0, 250.0)]);
     h.push(&snap2);
-    // en1 buffer should still exist (stale interfaces not removed)
-    assert!(h.per_iface.contains_key("en1"), "stale interface buffer should persist");
+    // en1 buffer should be pruned (stale interfaces removed to bound memory)
+    assert!(!h.per_iface.contains_key("en1"), "stale interface buffer should be pruned");
 }
 
 #[test]
