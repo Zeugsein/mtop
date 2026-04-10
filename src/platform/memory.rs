@@ -71,9 +71,10 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         let page_size = if raw <= 0 { 16384u64 } else { raw as u64 };
 
         let (ram_used, wired, app, compressed) = if ret == 0 {
-            // btop formula: used = total - free, available = free
-            let free = vm_stat.free_count as u64 * page_size;
-            let used = ram_total.saturating_sub(free);
+            // btop formula: used = (active + wired) × page_size
+            // This excludes inactive, speculative, compressor, and file-cache pages
+            // that macOS reclaims on demand — matching what btop reports.
+            let used = (vm_stat.active_count as u64 + vm_stat.wire_count as u64) * page_size;
             let wired = vm_stat.wire_count as u64 * page_size;
             let app = (vm_stat.internal_page_count as u64)
                 .saturating_sub(vm_stat.purgeable_count as u64)

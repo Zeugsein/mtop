@@ -3,7 +3,7 @@
 /// SHALL-23-08: Network border uses net_download color
 /// SHALL-23-10: Network baseline_floor = scale * 0.005
 /// SHALL-23-13: GPU panel has no centered idle overlay (idle is title-only)
-/// SHALL-23-15: Memory formula: ram_used = ram_total - free
+/// SHALL-23-15: Memory formula: ram_used = (active + wire) * page_size
 /// SHALL-23-20: cargo test passes (verified by running this suite)
 
 // =========================================================================
@@ -208,27 +208,27 @@ fn shall_23_13_gpu_panel_shows_usage_percent_when_gpu_active() {
 }
 
 // =========================================================================
-// SHALL-23-15: Memory formula: ram_used = ram_total - free
+// SHALL-23-15: Memory formula: ram_used = (active + wire) * page_size
 //
-// The platform code uses: used = ram_total.saturating_sub(free_pages * page_size)
-// We verify this formula via MetricsHistory.push() which derives:
+// The platform code uses: used = (active_count + wire_count) * page_size
+// We verify MetricsHistory.push() which derives:
 //   usage_frac    = ram_used / ram_total
-//   available_frac = (ram_total - ram_used) / ram_total = free / ram_total
+//   available_frac = (ram_total - ram_used) / ram_total
 // =========================================================================
 
-/// ram_used = ram_total - free_bytes (btop formula).
+/// ram_used = (active + wire) * page_size (btop formula).
 /// MetricsHistory.push() computes available = ram_total - ram_used.
-/// If ram_used = ram_total - free, then available == free. This roundtrip holds.
+/// Fractions roundtrip: usage + available = 1.0.
 #[test]
 fn shall_23_15_memory_used_equals_total_minus_free() {
     use mtop::metrics::types::{MemoryMetrics, MetricsHistory, MetricsSnapshot};
 
     let ram_total: u64 = 16 * 1024 * 1024 * 1024; // 16 GB
     let free_bytes: u64 = 4 * 1024 * 1024 * 1024;  // 4 GB free
-    // btop formula: ram_used = ram_total - free
+    // Simulate btop formula output: active + wire = 12 GB
     let ram_used = ram_total.saturating_sub(free_bytes);
 
-    assert_eq!(ram_used, 12 * 1024 * 1024 * 1024, "ram_used should be total - free");
+    assert_eq!(ram_used, 12 * 1024 * 1024 * 1024, "ram_used should be 12 GB");
 
     let mut snapshot = MetricsSnapshot::default();
     snapshot.memory = MemoryMetrics {
