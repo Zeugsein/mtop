@@ -191,8 +191,15 @@ fn server_has_per_ip_connection_limit() {
 
 #[test]
 fn tui_handles_sensor_unavailable() {
-    let tui_source = std::fs::read_to_string("src/tui/mod.rs")
+    // After mod.rs split, N/A handling lives in panel submodules
+    let mut tui_source = std::fs::read_to_string("src/tui/mod.rs")
         .expect("failed to read src/tui/mod.rs");
+    // Also check panel files where N/A rendering now lives
+    for panel in &["cpu", "gpu", "power"] {
+        if let Ok(s) = std::fs::read_to_string(format!("src/tui/panels/{panel}.rs")) {
+            tui_source.push_str(&s);
+        }
+    }
     let _types_source = std::fs::read_to_string("src/metrics/types.rs")
         .expect("failed to read src/metrics/types.rs");
     // Must have concept of sensor availability (Option or flag)
