@@ -11,7 +11,9 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Char('q') => return true,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return true,
         KeyCode::Esc => {
-            if state.expanded_panel.is_some() {
+            if state.show_help {
+                state.show_help = false;
+            } else if state.expanded_panel.is_some() {
                 state.expanded_panel = None;
             } else {
                 return true;
@@ -44,6 +46,12 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         }
         KeyCode::Up | KeyCode::Char('k') => {
             state.process_scroll = state.process_scroll.saturating_sub(1);
+        }
+        KeyCode::Char('.') => {
+            state.show_detail = !state.show_detail;
+        }
+        KeyCode::Char('h') | KeyCode::Char('?') => {
+            state.show_help = !state.show_help;
         }
         KeyCode::Char('s') => {
             state.sort_mode = state.sort_mode.next();
