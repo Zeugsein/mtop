@@ -182,7 +182,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     // RAM gauge
     let bar_width = inner.width.saturating_sub(16) as usize;
     let ram_label = format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb);
-    let ram_gauge = gauge::render_gauge_bar(s.memory.ram_used as f64, s.memory.ram_total as f64, bar_width, &ram_label);
+    let ram_gauge = gauge::render_gauge_bar(s.memory.ram_used as f64, s.memory.ram_total as f64, bar_width, &ram_label, theme);
     if inner.height > 1 {
         f.render_widget(Paragraph::new(Line::from(vec![
             Span::styled("RAM  ", Style::default().fg(theme.mem_accent)),
@@ -194,7 +194,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     let swap_used_gb = s.memory.swap_used as f64 / gb;
     let swap_total_gb = s.memory.swap_total as f64 / gb;
     let swap_label = format!("{:.1}/{:.1} GB", swap_used_gb, swap_total_gb);
-    let swap_gauge = gauge::render_gauge_bar(s.memory.swap_used as f64, s.memory.swap_total as f64, bar_width, &swap_label);
+    let swap_gauge = gauge::render_gauge_bar(s.memory.swap_used as f64, s.memory.swap_total as f64, bar_width, &swap_label, theme);
     if inner.height > 3 {
         f.render_widget(Paragraph::new(Line::from(vec![
             Span::styled("Swap ", Style::default().fg(theme.muted)),

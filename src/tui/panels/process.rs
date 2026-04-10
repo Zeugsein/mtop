@@ -7,15 +7,17 @@ use crate::tui::helpers::{truncate_with_ellipsis, sort_indices};
 
 /// Process panel: sorted process list with color indicator dots
 pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    let border_color = theme::dim_color(theme.fg, 0.3);
+
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled(" Processes ", Style::default().fg(theme.fg).bold()),
+            Span::styled(" proc ", Style::default().fg(theme.fg).bold()),
             Span::styled(format!("({})", state.sort_mode.label()), Style::default().fg(theme.muted)),
             Span::raw(" "),
         ]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(border_color));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -24,13 +26,10 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         return;
     }
 
-    // Legend row
+    // Legend row (no colored dots)
     let legend = Line::from(vec![
-        Span::styled("●", Style::default().fg(theme.cpu_accent)),
         Span::styled("c ", Style::default().fg(theme.muted)),
-        Span::styled("●", Style::default().fg(theme.mem_accent)),
         Span::styled("m ", Style::default().fg(theme.muted)),
-        Span::styled("●", Style::default().fg(theme.power_accent)),
         Span::styled("p", Style::default().fg(theme.muted)),
     ]);
     f.render_widget(Paragraph::new(legend), Rect::new(inner.x, inner.y, inner.width, 1));

@@ -12,11 +12,13 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         (rx + i.rx_bytes_sec, tx + i.tx_bytes_sec)
     });
 
+    let border_color = theme::dim_color(theme.net_upload, 0.4);
+
     let title_spans = vec![
-        Span::styled(" Network  ", Style::default().fg(theme.net_upload).bold()),
-        Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
+        Span::styled(" net  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)),
         Span::styled("  ", Style::default()),
-        Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
+        Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
 
@@ -31,60 +33,52 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         .filter(|i| !is_infrastructure_interface(&i.name))
         .collect();
 
-    let bottom_text = if let Some(primary) = display_ifaces.first() {
-        format!(" {} ({}) ", primary.name, primary.iface_type)
-    } else {
-        " No active interfaces ".to_string()
-    };
-    let bottom_spans = vec![
-        Span::styled(bottom_text, Style::default().fg(theme.muted)),
-    ];
-
     let block = Block::default()
         .title(Line::from(title_spans))
-        .title_bottom(Line::from(bottom_spans).alignment(ratatui::layout::Alignment::Left))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border))
+        .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let (left, mid, right) = layout::split_type_b(inner);
+    if inner.height < 2 {
+        return;
+    }
+
+    // Reserve last row for bottom info
+    let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+    let bottom_y = inner.y + inner.height.saturating_sub(1);
+
+    let (left, mid, right) = layout::split_type_b(content_area);
 
     let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
 
-    // Left 37.5%: Upload braille sparkline
+    // Left 37.5%: Upload multi-row braille graph
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
-    let upload_spark = braille::render_braille_sparkline(&upload_data, scale, left.width as usize);
-    let upload_spans: Vec<Span> = upload_spark
-        .iter()
-        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_upload)))
-        .collect();
-    if !upload_spans.is_empty() {
-        let y_offset = left.height / 2;
-        f.render_widget(
-            Paragraph::new(Line::from(upload_spans)),
-            Rect::new(left.x, left.y + y_offset, left.width, 1),
-        );
+    let graph = braille::render_braille_graph(&upload_data, scale, left.width as usize, left.height as usize);
+    for (row_idx, row) in graph.iter().enumerate() {
+        let y = left.y + left.height.saturating_sub(1) - row_idx as u16;
+        if y < left.y { break; }
+        let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_upload))).collect();
+        if !spans.is_empty() {
+            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(left.x, y, left.width, 1));
+        }
     }
 
-    // Middle 37.5%: Download braille sparkline
+    // Middle 37.5%: Download multi-row braille graph
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
-    let download_spark = braille::render_braille_sparkline(&download_data, scale, mid.width as usize);
-    let download_spans: Vec<Span> = download_spark
-        .iter()
-        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
-        .collect();
-    if !download_spans.is_empty() {
-        let y_offset = mid.height / 2;
-        f.render_widget(
-            Paragraph::new(Line::from(download_spans)),
-            Rect::new(mid.x, mid.y + y_offset, mid.width, 1),
-        );
+    let graph = braille::render_braille_graph(&download_data, scale, mid.width as usize, mid.height as usize);
+    for (row_idx, row) in graph.iter().enumerate() {
+        let y = mid.y + mid.height.saturating_sub(1) - row_idx as u16;
+        if y < mid.y { break; }
+        let spans: Vec<Span> = row.iter().map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download))).collect();
+        if !spans.is_empty() {
+            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(mid.x, y, mid.width, 1));
+        }
     }
 
-    // Right 25%: Interface ranking by throughput
+    // Right 25%: Interface ranking (white text)
     if display_ifaces.is_empty() {
         f.render_widget(
             Paragraph::new("No interfaces").style(Style::default().fg(theme.muted)),
@@ -101,11 +95,11 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
                 Span::styled(&*iface.name, Style::default().fg(theme.fg)),
                 Span::styled(
                     format!("  ↑{}", format_bytes_rate_compact(iface.tx_bytes_sec)),
-                    Style::default().fg(theme.net_upload),
+                    Style::default().fg(theme.fg),
                 ),
                 Span::styled(
                     format!("  ↓{}", format_bytes_rate_compact(iface.rx_bytes_sec)),
-                    Style::default().fg(theme.net_download),
+                    Style::default().fg(theme.fg),
                 ),
             ]);
             f.render_widget(
@@ -114,4 +108,15 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             );
         }
     }
+
+    // Bottom info inside panel
+    let bottom_text = if let Some(primary) = display_ifaces.first() {
+        format!(" {} ({}) ", primary.name, primary.iface_type)
+    } else {
+        " No active interfaces ".to_string()
+    };
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(bottom_text, Style::default().fg(theme.muted)))),
+        Rect::new(inner.x, bottom_y, inner.width, 1),
+    );
 }
