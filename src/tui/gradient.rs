@@ -16,8 +16,8 @@ pub fn value_to_color(normalized: f64, theme: &Theme) -> Color {
 
     // Find the two stops surrounding t
     let mut lo = 0;
-    for i in 1..stops.len() {
-        if stops[i].0 >= t {
+    for (i, stop) in stops.iter().enumerate().skip(1) {
+        if stop.0 >= t {
             lo = i - 1;
             break;
         }
