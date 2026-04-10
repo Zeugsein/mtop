@@ -281,6 +281,8 @@ pub struct MetricsHistory {
     pub mem_usage: HistoryBuffer,
     pub net_upload: HistoryBuffer,
     pub net_download: HistoryBuffer,
+    /// Per-interface rx/tx history for per-interface sparklines
+    pub per_iface: std::collections::HashMap<String, (HistoryBuffer, HistoryBuffer)>,
     max_len: usize,
 }
 
@@ -304,6 +306,7 @@ impl MetricsHistory {
             mem_usage: HistoryBuffer::new(),
             net_upload: HistoryBuffer::new(),
             net_download: HistoryBuffer::new(),
+            per_iface: std::collections::HashMap::new(),
             max_len: 128,
         }
     }
@@ -338,6 +341,18 @@ impl MetricsHistory {
             .sum();
         Self::push_val(&mut self.net_upload, total_upload, self.max_len);
         Self::push_val(&mut self.net_download, total_download, self.max_len);
+
+        // Per-interface history (skip loopback and infrastructure)
+        for iface in &snapshot.network.interfaces {
+            if iface.name.starts_with("lo") {
+                continue;
+            }
+            let (rx_buf, tx_buf) = self.per_iface
+                .entry(iface.name.clone())
+                .or_insert_with(|| (HistoryBuffer::new(), HistoryBuffer::new()));
+            Self::push_val(rx_buf, iface.rx_bytes_sec, self.max_len);
+            Self::push_val(tx_buf, iface.tx_bytes_sec, self.max_len);
+        }
     }
 
     fn push_val(buf: &mut HistoryBuffer, val: f64, max: usize) {
