@@ -1,31 +1,58 @@
 use crate::metrics::ThermalMetrics;
 
-/// Stateful temperature collector with cached SMC connection.
+/// Temperature source: SMC (preferred) or IOHIDEventSystem (fallback for M4 Pro etc).
+enum TempSource {
+    Smc(u32),
+    Hid,
+}
+
+/// Stateful temperature collector with cached connection.
 pub struct TemperatureState {
-    conn: u32,
+    source: TempSource,
 }
 
 impl TemperatureState {
-    /// Open SMC connection. Returns None if SMC is unavailable.
+    /// Open temperature source. Tries SMC first, falls back to IOHIDEventSystem.
     pub fn new() -> Option<Self> {
-        let conn = smc_open()?;
-        Some(Self { conn })
+        // Try SMC first (works on most Apple Silicon + Intel Macs)
+        if let Some(conn) = smc_open() {
+            return Some(Self { source: TempSource::Smc(conn) });
+        }
+        // SMC unavailable — try IOHIDEventSystem (works on M4 Pro etc)
+        if hid_read_temperatures().is_some() {
+            return Some(Self { source: TempSource::Hid });
+        }
+        None
     }
 
-    /// Collect temperature metrics using the cached SMC connection.
+    /// Collect temperature metrics. SMC source falls back to HID if no temps found.
     pub fn collect(&self) -> ThermalMetrics {
-        read_smc_temperatures(self.conn).unwrap_or_default()
+        match self.source {
+            TempSource::Smc(conn) => {
+                read_smc_temperatures(conn)
+                    .or_else(hid_read_temperatures)
+                    .unwrap_or_default()
+            }
+            TempSource::Hid => {
+                hid_read_temperatures().unwrap_or_default()
+            }
+        }
     }
 
     /// Return the SMC connection handle for debug enumeration.
     pub fn conn(&self) -> u32 {
-        self.conn
+        match self.source {
+            TempSource::Smc(conn) => conn,
+            TempSource::Hid => 0,
+        }
     }
 }
 
 impl Drop for TemperatureState {
     fn drop(&mut self) {
-        smc_close(self.conn);
+        if let TempSource::Smc(conn) = self.source {
+            smc_close(conn);
+        }
     }
 }
 
@@ -254,6 +281,68 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
         Some(u32::from_be_bytes([
             output.bytes[0], output.bytes[1], output.bytes[2], output.bytes[3],
         ]))
+    }
+}
+
+/// IOHIDEventSystem fallback for temperature reading.
+/// Works on M4 Pro and other Apple Silicon where SMC may not expose temp keys.
+/// Iterates all HID services, reads temperature events from temperature sensors.
+fn hid_read_temperatures() -> Option<ThermalMetrics> {
+    // SAFETY: IOHIDEventSystem and CoreFoundation calls with opaque pointer types.
+    // All returned objects are checked for null and released via CFRelease.
+    unsafe {
+        let client = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
+        if client.is_null() {
+            return None;
+        }
+
+        let services = IOHIDEventSystemClientCopyServices(client);
+        if services.is_null() {
+            CFRelease(client);
+            return None;
+        }
+
+        let count = CFArrayGetCount(services);
+        let mut temps: Vec<f32> = Vec::new();
+
+        for i in 0..count {
+            let service = CFArrayGetValueAtIndex(services, i);
+            if service.is_null() { continue; }
+
+            // Try to get a temperature event from this service
+            let event = IOHIDServiceClientCopyEvent(
+                service,
+                15, // kIOHIDEventTypeTemperature
+                0,
+                0,
+            );
+            if event.is_null() { continue; }
+
+            let temp = IOHIDEventGetFloatValue(event, 15 << 16); // kIOHIDEventFieldTemperatureLevel
+            CFRelease(event);
+
+            if temp > 0.0 && (temp as f32) < 130.0 {
+                temps.push(temp as f32);
+            }
+        }
+
+        CFRelease(services);
+        CFRelease(client);
+
+        if temps.is_empty() {
+            return None;
+        }
+
+        let avg = temps.iter().sum::<f32>() / temps.len() as f32;
+
+        Some(ThermalMetrics {
+            cpu_avg_c: avg,
+            gpu_avg_c: avg,
+            ssd_avg_c: 0.0,
+            battery_avg_c: 0.0,
+            fan_speeds: Vec::new(),
+            available: true,
+        })
     }
 }
 
@@ -487,4 +576,24 @@ unsafe extern "C" {
         output_size: *mut usize,
     ) -> i32;
     fn mach_task_self() -> u32;
+
+    // IOHIDEventSystem private API (temperature fallback for M4 Pro)
+    fn IOHIDEventSystemClientCreate(allocator: *const libc::c_void) -> *const libc::c_void;
+    fn IOHIDEventSystemClientCopyServices(client: *const libc::c_void) -> *const libc::c_void;
+    fn IOHIDServiceClientCopyEvent(
+        service: *const libc::c_void,
+        event_type: i64,
+        sub_type: i32,
+        options: i32,
+    ) -> *const libc::c_void;
+    fn IOHIDEventGetFloatValue(event: *const libc::c_void, field: i32) -> f64;
+}
+
+// --- CoreFoundation FFI (minimal subset for HID temperature fallback) ---
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    static kCFAllocatorDefault: *const libc::c_void;
+    fn CFRelease(cf: *const libc::c_void);
+    fn CFArrayGetCount(array: *const libc::c_void) -> i64;
+    fn CFArrayGetValueAtIndex(array: *const libc::c_void, idx: i64) -> *const libc::c_void;
 }
