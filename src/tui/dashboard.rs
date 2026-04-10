@@ -30,14 +30,16 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
     // Two-column page layout
     let page = layout::split_page(area);
 
-    // Header (full width)
+    // Header: plain white text, no background color
+    // Format: mtop — {chip} ({E}E+{P}P+{GPU}GPU {RAM}GB)  centered
     let header_text = format!(
-        " mtop — {} — {}E+{}P — {}GPU — {}GB ",
+        "mtop \u{2014} {} ({}E+{}P+{}GPU {}GB)",
         s.soc.chip, s.soc.e_cores, s.soc.p_cores,
         s.soc.gpu_cores, s.soc.memory_gb
     );
     let header = Paragraph::new(header_text)
-        .style(Style::default().bg(theme.header_bg).fg(theme.header_fg).bold());
+        .alignment(ratatui::layout::Alignment::Center)
+        .style(Style::default().fg(theme.fg));
     f.render_widget(header, page.header);
 
     // Expand/collapse layout
@@ -69,10 +71,10 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         }
     }
 
-    // Footer (full width)
+    // Footer: minimal, just theme name and interval
     let theme_name = theme::THEMES[state.theme_idx].name;
     let footer = Paragraph::new(format!(
-        " q:quit  c:theme({theme_name})  1-6:select  e:expand  +/-:interval({}ms)  j/k:scroll  s:sort  w:save ",
+        " q:quit  c:theme({theme_name})  1-6:expand  +/-:interval({}ms)  j/k:scroll  s:sort ",
         state.interval_ms
     ))
     .style(Style::default().fg(theme.muted));

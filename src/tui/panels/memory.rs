@@ -2,10 +2,11 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
-use crate::tui::{AppState, theme, braille, gauge, layout};
+use crate::tui::{AppState, theme, gauge, layout};
 use crate::tui::helpers::format_bytes_rate;
+use super::cpu::render_graph;
 
-/// Memory+Disk panel: Type A layout (75% sparkline+gauges + 25% disk detail)
+/// Memory+Disk panel: Type A layout (75% multi-row braille graph + 25% disk detail)
 pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let gb = 1024.0 * 1024.0 * 1024.0;
     let ram_used_gb = s.memory.ram_used as f64 / gb;
@@ -16,122 +17,85 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         0
     };
 
-    let disk_used_gb = s.disk.used_bytes as f64 / gb;
-    let disk_total_gb = s.disk.total_bytes as f64 / gb;
-    let disk_pct = if s.disk.total_bytes > 0 {
-        (s.disk.used_bytes as f64 / s.disk.total_bytes as f64 * 100.0) as u32
-    } else {
-        0
-    };
+    let border_color = theme::dim_color(theme.mem_accent, 0.4);
 
     let title_spans = vec![
-        Span::styled(" Memory  ", Style::default().fg(theme.mem_accent).bold()),
-        Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0} GB  {ram_pct}%"), Style::default().fg(theme.fg)),
-        Span::styled("  Disk  ", Style::default().fg(theme.muted)),
-        Span::styled(format!("{disk_used_gb:.0}/{disk_total_gb:.0} GB  {disk_pct}%"), Style::default().fg(theme.fg)),
+        Span::styled(" mem  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"), Style::default().fg(theme.fg)),
         Span::raw(" "),
-    ];
-
-    let swap_used_gb = s.memory.swap_used as f64 / gb;
-    let swap_total_gb = s.memory.swap_total as f64 / gb;
-    let bottom_left = vec![
-        Span::styled(format!(" Swap {swap_used_gb:.1}/{swap_total_gb:.1} GB"), Style::default().fg(theme.muted)),
-    ];
-    let bottom_right = vec![
-        Span::styled(
-            format!("R: {}  W: {} ", format_bytes_rate(s.disk.read_bytes_sec as f64), format_bytes_rate(s.disk.write_bytes_sec as f64)),
-            Style::default().fg(theme.muted),
-        ),
     ];
 
     let block = Block::default()
         .title(Line::from(title_spans))
-        .title_bottom(Line::from(bottom_left).alignment(ratatui::layout::Alignment::Left))
-        .title_bottom(Line::from(bottom_right).alignment(ratatui::layout::Alignment::Right))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border))
+        .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let (trend_area, detail_area) = layout::split_type_a(inner);
+    if inner.height < 2 {
+        return;
+    }
 
-    // Left 75%: RAM sparkline + RAM gauge + Swap gauge
-    let left_rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(trend_area);
+    // Reserve last row for bottom info
+    let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+    let bottom_y = inner.y + inner.height.saturating_sub(1);
 
-    // RAM sparkline
+    let (trend_area, detail_area) = layout::split_type_a(content_area);
+
+    // Left: Memory usage multi-row braille graph (no RAM/swap gauges)
     let sparkline_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
-    let spark_width = left_rows[0].width as usize;
-    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width);
-    let spark_spans: Vec<Span> = spark
-        .iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-    if !spark_spans.is_empty() {
-        let y_offset = left_rows[0].height / 2;
-        let spark_rect = Rect::new(left_rows[0].x, left_rows[0].y + y_offset, left_rows[0].width, 1);
-        f.render_widget(Paragraph::new(Line::from(spark_spans)), spark_rect);
-    }
+    render_graph(f, trend_area, &sparkline_data, 1.0, theme.mem_accent);
 
-    // RAM gauge bar
-    let ram_label = format!("{ram_used_gb:.1}/{ram_total_gb:.0} GB");
-    let ram_gauge_spans = gauge::render_gauge_bar(
-        s.memory.ram_used as f64, s.memory.ram_total as f64,
-        left_rows[1].width.saturating_sub(16) as usize,
-        &ram_label,
-    );
-    f.render_widget(Paragraph::new(Line::from(ram_gauge_spans)), left_rows[1]);
+    // Right: Disk detail (vertically centered)
+    let disk_used_gb = s.disk.used_bytes as f64 / gb;
+    let disk_total_gb = s.disk.total_bytes as f64 / gb;
+    let disk_fraction = if s.disk.total_bytes > 0 {
+        s.disk.used_bytes as f64 / s.disk.total_bytes as f64
+    } else {
+        0.0
+    };
 
-    // Swap gauge bar
-    let swap_label = format!("{swap_used_gb:.1}/{swap_total_gb:.1} GB");
-    let swap_gauge_spans = gauge::render_gauge_bar(
-        s.memory.swap_used as f64, s.memory.swap_total as f64,
-        left_rows[2].width.saturating_sub(16) as usize,
-        &swap_label,
-    );
-    f.render_widget(Paragraph::new(Line::from(swap_gauge_spans)), left_rows[2]);
+    let detail_lines: Vec<Line> = vec![
+        Line::from(Span::styled("Disk", Style::default().fg(theme.fg).bold())),
+        Line::from(gauge::render_compact_gauge(disk_fraction, detail_area.width as usize, theme)),
+        Line::from(Span::styled(
+            format!("{disk_used_gb:.0}/{disk_total_gb:.0} GB"),
+            Style::default().fg(theme.fg),
+        )),
+        Line::from(Span::styled(
+            format!("R: {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
+            Style::default().fg(theme.fg),
+        )),
+        Line::from(Span::styled(
+            format!("W: {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
+            Style::default().fg(theme.fg),
+        )),
+    ];
 
-    // Right 25%: Disk capacity gauge + IO rates
-    let right_rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(detail_area);
+    let content_h = detail_lines.len().min(detail_area.height as usize);
+    let y_offset = (detail_area.height as usize).saturating_sub(content_h) / 2;
 
-    // Disk capacity gauge
-    let disk_gauge_spans = gauge::render_compact_gauge(
-        if s.disk.total_bytes > 0 { s.disk.used_bytes as f64 / s.disk.total_bytes as f64 } else { 0.0 },
-        right_rows[0].width as usize,
-    );
-    f.render_widget(Paragraph::new(Line::from(disk_gauge_spans)), right_rows[0]);
-
-    // IO read rate
-    if right_rows.len() > 2 {
-        let read_text = format!("R: {}", format_bytes_rate(s.disk.read_bytes_sec as f64));
+    for (i, line) in detail_lines.iter().enumerate().take(content_h) {
+        let y = detail_area.y + y_offset as u16 + i as u16;
+        if y >= detail_area.y + detail_area.height {
+            break;
+        }
         f.render_widget(
-            Paragraph::new(read_text).style(Style::default().fg(theme.fg)),
-            right_rows[2],
+            Paragraph::new(line.clone()),
+            Rect::new(detail_area.x, y, detail_area.width, 1),
         );
     }
 
-    // IO write rate
-    if right_rows.len() > 3 {
-        let write_text = format!("W: {}", format_bytes_rate(s.disk.write_bytes_sec as f64));
-        f.render_widget(
-            Paragraph::new(write_text).style(Style::default().fg(theme.fg)),
-            right_rows[3],
-        );
-    }
+    // Bottom info inside panel
+    let swap_used_gb = s.memory.swap_used as f64 / gb;
+    let swap_total_gb = s.memory.swap_total as f64 / gb;
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            format!(" Swap {swap_used_gb:.1}/{swap_total_gb:.1} GB"),
+            Style::default().fg(theme.muted),
+        ))),
+        Rect::new(inner.x, bottom_y, inner.width, 1),
+    );
 }

@@ -283,7 +283,7 @@ fn dashboard_contains_cpu_text() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("CPU"), "Dashboard should contain 'CPU' text");
+    assert!(text.contains("cpu"), "Dashboard should contain 'cpu' text");
 }
 
 #[test]
@@ -303,7 +303,7 @@ fn dashboard_contains_network_text() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("Network"), "Dashboard should contain 'Network' text");
+    assert!(text.contains("net"), "Dashboard should contain 'net' text");
 }
 
 #[test]
@@ -313,7 +313,7 @@ fn dashboard_contains_process_text() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("Processes"), "Dashboard should contain 'Processes' text");
+    assert!(text.contains("proc"), "Dashboard should contain 'proc' text");
 }
 
 #[test]

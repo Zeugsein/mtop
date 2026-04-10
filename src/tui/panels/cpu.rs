@@ -5,7 +5,29 @@ use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, braille, gradient, layout};
 use crate::tui::helpers::truncate_with_ellipsis;
 
-/// CPU panel: Type A layout (75% braille sparkline + 25% process dots)
+/// Helper to render a multi-row braille graph into a frame area.
+pub(crate) fn render_graph(f: &mut Frame, area: Rect, data: &[f64], max: f64, accent: ratatui::style::Color) {
+    let graph = braille::render_braille_graph(data, max, area.width as usize, area.height as usize);
+    for (row_idx, row) in graph.iter().enumerate() {
+        let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
+        if y < area.y {
+            break;
+        }
+        let spans: Vec<Span> = row
+            .iter()
+            .map(|&(ch, color)| {
+                // Use accent color if value_to_color returns green (low), otherwise use gradient
+                let _ = accent;
+                Span::styled(ch.to_string(), Style::default().fg(color))
+            })
+            .collect();
+        if !spans.is_empty() {
+            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(area.x, y, area.width, 1));
+        }
+    }
+}
+
+/// CPU panel: Type A layout (75% multi-row braille graph + 25% process dots)
 pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let cpu_pct = s.cpu.total_usage * 100.0;
     let temp_color = gradient::temp_to_color(s.temperature.cpu_avg_c);
@@ -15,8 +37,10 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         "N/A".to_string()
     };
 
+    let border_color = theme::dim_color(theme.cpu_accent, 0.4);
+
     let title_spans = vec![
-        Span::styled(" CPU  ", Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(" cpu  ", Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
         Span::styled(format!(" @ {}MHz", s.cpu.p_cluster.freq_mhz.max(s.cpu.e_cluster.freq_mhz)), Style::default().fg(theme.muted)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
@@ -27,53 +51,30 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     let block = Block::default()
         .title(Line::from(title_spans))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border))
+        .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
-
-    let bottom_spans = vec![
-        Span::styled(
-            format!(" E: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz),
-            Style::default().fg(theme.muted),
-        ),
-    ];
-    let block = block.title_bottom(Line::from(bottom_spans).alignment(ratatui::layout::Alignment::Left));
-
-    let p_spans = vec![
-        Span::styled(
-            format!("P: {:.0}% @ {}MHz ", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz),
-            Style::default().fg(theme.muted),
-        ),
-    ];
-    let block = block.title_bottom(Line::from(p_spans).alignment(ratatui::layout::Alignment::Right));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let (trend_area, detail_area) = layout::split_type_a(inner);
-
-    // Left: braille sparkline
-    let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
-    let spark_width = trend_area.width as usize;
-    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width);
-
-    let spark_spans: Vec<Span> = spark
-        .iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-
-    if !spark_spans.is_empty() {
-        let y_offset = trend_area.height / 2;
-        let spark_rect = Rect::new(trend_area.x, trend_area.y + y_offset, trend_area.width, 1);
-        f.render_widget(Paragraph::new(Line::from(spark_spans)), spark_rect);
+    if inner.height < 2 {
+        return;
     }
 
-    // Right: process list with colored dots
+    // Reserve last row for bottom info (inside panel)
+    let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+    let bottom_y = inner.y + inner.height.saturating_sub(1);
+
+    let (trend_area, detail_area) = layout::split_type_a(content_area);
+
+    // Left: multi-row braille graph
+    let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
+    render_graph(f, trend_area, &sparkline_data, 1.0, theme.cpu_accent);
+
+    // Right: process list with dots (white text, no colored legend)
     let legend = Line::from(vec![
-        Span::styled("●", Style::default().fg(theme.cpu_accent)),
         Span::styled("c ", Style::default().fg(theme.muted)),
-        Span::styled("●", Style::default().fg(theme.mem_accent)),
         Span::styled("m ", Style::default().fg(theme.muted)),
-        Span::styled("●", Style::default().fg(theme.power_accent)),
         Span::styled("p", Style::default().fg(theme.muted)),
     ]);
     f.render_widget(Paragraph::new(legend), Rect::new(detail_area.x, detail_area.y, detail_area.width, 1));
@@ -103,4 +104,24 @@ pub(crate) fn draw_cpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(detail_area.x, y, detail_area.width, 1));
     }
+
+    // Bottom info inside panel
+    let bottom_left = Span::styled(
+        format!(" E: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz),
+        Style::default().fg(theme.muted),
+    );
+    let bottom_right = Span::styled(
+        format!("P: {:.0}% @ {}MHz ", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz),
+        Style::default().fg(theme.muted),
+    );
+
+    // Render left-aligned and right-aligned on the same bottom row
+    f.render_widget(
+        Paragraph::new(Line::from(bottom_left)),
+        Rect::new(inner.x, bottom_y, inner.width / 2, 1),
+    );
+    f.render_widget(
+        Paragraph::new(Line::from(bottom_right).alignment(ratatui::layout::Alignment::Right)),
+        Rect::new(inner.x, bottom_y, inner.width, 1),
+    );
 }

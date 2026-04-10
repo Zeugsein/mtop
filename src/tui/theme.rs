@@ -296,6 +296,22 @@ pub fn default_theme() -> &'static Theme {
     &HORIZON
 }
 
+/// Dim an RGB color by a factor (0.0 = black, 1.0 = unchanged).
+/// Used to create subtle tinted border colors from panel accent colors.
+pub fn dim_color(color: Color, factor: f64) -> Color {
+    match color {
+        Color::Rgb(r, g, b) => {
+            let f = factor.clamp(0.0, 1.0);
+            Color::Rgb(
+                (r as f64 * f).round() as u8,
+                (g as f64 * f).round() as u8,
+                (b as f64 * f).round() as u8,
+            )
+        }
+        other => other,
+    }
+}
+
 /// Rounded corner box-drawing characters for panel frames.
 pub mod frame_chars {
     pub const TOP_LEFT: &str = "╭";
