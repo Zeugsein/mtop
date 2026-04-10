@@ -195,7 +195,7 @@ fn draw_dashboard(f: &mut Frame, state: &AppState) {
     // Footer (full width)
     let theme_name = theme::THEMES[state.theme_idx].name;
     let footer = Paragraph::new(format!(
-        " q:quit  c:theme({theme_name})  1-6:select  e:expand  +/-:interval({}ms)  j/k:scroll ",
+        " q:quit  c:theme({theme_name})  1-6:select  e:expand  +/-:interval({}ms)  j/k:scroll  s:sort  w:save ",
         state.interval_ms
     ))
     .style(Style::default().fg(theme.muted));

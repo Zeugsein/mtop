@@ -2,6 +2,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::{PanelId, AppState, theme};
+use crate::config;
 
 /// Process a key event and mutate AppState accordingly.
 /// Returns `true` if the application should quit.
@@ -46,6 +47,24 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         }
         KeyCode::Char('s') => {
             state.sort_mode = state.sort_mode.next();
+        }
+        KeyCode::Char('w') => {
+            let theme_name = theme::THEMES[state.theme_idx].name;
+            let sort_label = match state.sort_mode {
+                crate::metrics::SortMode::WeightedScore => "score",
+                crate::metrics::SortMode::Cpu => "cpu",
+                crate::metrics::SortMode::Memory => "memory",
+                crate::metrics::SortMode::Power => "power",
+                crate::metrics::SortMode::Pid => "pid",
+                crate::metrics::SortMode::Name => "name",
+            };
+            let cfg = config::Config {
+                theme: theme_name.to_string(),
+                interval_ms: state.interval_ms,
+                temp_unit: "celsius".to_string(),
+                sort_mode: sort_label.to_string(),
+            };
+            let _ = config::save(&cfg); // best-effort save
         }
         _ => {}
     }
