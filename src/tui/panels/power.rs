@@ -63,27 +63,31 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
 
     // Helper to render a labeled power sparkline into an area
     let render_labeled_sparkline = |f: &mut Frame, area: Rect, label: &str, watts: f32, data: &[f64], max: f64, label_color: Color, show_idle: bool| {
-        let mut spans = vec![
-            Span::styled(format!("{label} "), Style::default().fg(label_color)),
-            Span::styled(format!("{watts:.1}W"), Style::default().fg(theme.fg)),
-        ];
-        if show_idle {
-            spans.push(Span::styled(" (idle)", Style::default().fg(theme.muted)));
-        }
-        f.render_widget(
-            Paragraph::new(Line::from(spans)),
-            Rect::new(area.x, area.y, area.width, 1),
-        );
-        if area.height > 1 {
-            let graph_area = Rect::new(area.x, area.y + 1, area.width, area.height - 1);
-            let graph = braille::render_braille_graph(data, max, graph_area.width as usize, graph_area.height as usize);
-            for (row_idx, row) in graph.iter().enumerate() {
-                let y = graph_area.y + graph_area.height.saturating_sub(1) - row_idx as u16;
-                if y < graph_area.y { break; }
-                let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
-                if !spans.is_empty() {
-                    f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(graph_area.x, y, graph_area.width, 1));
-                }
+        let graph_area = if label.is_empty() {
+            // No label line — graph fills entire area (title bar has info)
+            area
+        } else {
+            let mut spans = vec![
+                Span::styled(format!("{label} "), Style::default().fg(label_color)),
+                Span::styled(format!("{watts:.1}W"), Style::default().fg(theme.fg)),
+            ];
+            if show_idle {
+                spans.push(Span::styled(" (idle)", Style::default().fg(theme.muted)));
+            }
+            f.render_widget(
+                Paragraph::new(Line::from(spans)),
+                Rect::new(area.x, area.y, area.width, 1),
+            );
+            if area.height <= 1 { return; }
+            Rect::new(area.x, area.y + 1, area.width, area.height - 1)
+        };
+        let graph = braille::render_braille_graph(data, max, graph_area.width as usize, graph_area.height as usize);
+        for (row_idx, row) in graph.iter().enumerate() {
+            let y = graph_area.y + graph_area.height.saturating_sub(1) - row_idx as u16;
+            if y < graph_area.y { break; }
+            let spans: Vec<Span> = row.iter().map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color))).collect();
+            if !spans.is_empty() {
+                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(graph_area.x, y, graph_area.width, 1));
             }
         }
     };
@@ -134,51 +138,38 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
         }
     } else {
-        // Type A layout: 74% package power trend + 25% compact CPU/GPU detail
-        let (trend_area, detail_area) = layout::split_type_a(content_area);
+        // 50/50 split: bordered cpu + gpu sub-panels (no detail text)
+        let half_w = content_area.width / 2;
+        let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
+        let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
-        // Left: package power sparkline
-        let pkg_data: Vec<f64> = state.history.package_power.iter().copied().collect();
-        let pkg_max = (s.soc.cpu_tdp_w() + s.soc.gpu_tdp_w()) as f64;
-        super::cpu::render_graph(f, trend_area, &pkg_data, pkg_max, theme.power_accent);
+        let sub_border_color = theme::dim_color(border_color, 0.8);
+        let cpu_block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(" cpu ", Style::default().fg(theme.fg).bold()),
+                Span::styled(format!("{:.1}W", s.power.cpu_w), Style::default().fg(theme.fg)),
+                Span::raw(" "),
+            ]))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let cpu_inner = cpu_block.inner(left);
+        f.render_widget(cpu_block, left);
+        render_labeled_sparkline(f, cpu_inner, "", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
 
-        // Right: compact CPU/GPU breakdown
-        let mut lines: Vec<Line> = Vec::new();
-        lines.push(Line::from(vec![
-            Span::styled("cpu ", Style::default().fg(theme.cpu_accent)),
-            Span::styled(format!("{:.1}W", s.power.cpu_w), Style::default().fg(theme.fg)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("gpu ", Style::default().fg(theme.gpu_accent)),
-            Span::styled(format!("{:.1}W", s.power.gpu_w), Style::default().fg(theme.fg)),
-            if gpu_idle {
-                Span::styled(" (idle)", Style::default().fg(theme.muted))
-            } else {
-                Span::raw("")
-            },
-        ]));
-        if s.power.ane_w > 0.01 {
-            lines.push(Line::from(vec![
-                Span::styled("ane ", Style::default().fg(theme.muted)),
-                Span::styled(format!("{:.1}W", s.power.ane_w), Style::default().fg(theme.fg)),
-            ]));
-        }
-        if s.power.dram_w > 0.01 {
-            lines.push(Line::from(vec![
-                Span::styled("ram ", Style::default().fg(theme.muted)),
-                Span::styled(format!("{:.1}W", s.power.dram_w), Style::default().fg(theme.fg)),
-            ]));
-        }
-
-        let content_h = lines.len().min(detail_area.height as usize);
-        let y_offset = (detail_area.height as usize).saturating_sub(content_h) / 2;
-        for (i, line) in lines.into_iter().enumerate().take(content_h) {
-            let y = detail_area.y + y_offset as u16 + i as u16;
-            if y >= detail_area.y + detail_area.height {
-                break;
-            }
-            f.render_widget(Paragraph::new(line), Rect::new(detail_area.x, y, detail_area.width, 1));
-        }
+        let gpu_block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(" gpu ", Style::default().fg(theme.fg).bold()),
+                Span::styled(format!("{:.1}W", s.power.gpu_w), Style::default().fg(theme.fg)),
+                if gpu_idle { Span::styled(" (idle)", Style::default().fg(theme.muted)) } else { Span::raw("") },
+                Span::raw(" "),
+            ]))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let gpu_inner = gpu_block.inner(mid);
+        f.render_widget(gpu_block, mid);
+        render_labeled_sparkline(f, gpu_inner, "", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, false);
     }
 
     // Bottom info inside panel
