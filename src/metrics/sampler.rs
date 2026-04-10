@@ -16,6 +16,7 @@ pub struct Sampler {
 impl Sampler {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let soc = platform::soc::detect_soc();
+        // SAFETY: mach_host_self() returns the host port for the current task; always succeeds.
         let host_port = unsafe { mach_host_self() };
         Ok(Self {
             soc,
@@ -136,6 +137,8 @@ impl Sampler {
 
 impl Drop for Sampler {
     fn drop(&mut self) {
+        // SAFETY: host_port was obtained from mach_host_self() in new(); deallocating it
+        // releases the send right. mach_task_self() always returns the current task port.
         unsafe {
             mach_port_deallocate(mach_task_self(), self.host_port);
         }

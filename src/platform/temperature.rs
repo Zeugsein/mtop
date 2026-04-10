@@ -130,6 +130,9 @@ fn smc_read_fan_rpm(conn: u32, key: &str) -> Option<u32> {
     let key_bytes: [u8; 4] = [
         key.as_bytes()[0], key.as_bytes()[1], key.as_bytes()[2], key.as_bytes()[3],
     ];
+    // SAFETY: SmcKeyData is repr(C, packed) with compile-time size/offset assertions.
+    // smc_call communicates with the SMC driver via IOConnectCallStructMethod.
+    // conn is a valid IOService connection obtained from smc_open.
     unsafe {
         let mut input = SmcKeyData::zeroed();
         let mut output = SmcKeyData::zeroed();
@@ -171,6 +174,7 @@ pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>, Vec<Stri
     let mut battery_keys = Vec::new();
 
     for idx in 0..total {
+        // SAFETY: SmcKeyData is zeroed; smc_call reads/writes within the struct bounds.
         unsafe {
             let mut input = SmcKeyData::zeroed();
             let mut output = SmcKeyData::zeroed();
@@ -224,6 +228,7 @@ pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>, Vec<Stri
 }
 
 fn smc_read_key_count(conn: u32) -> Option<u32> {
+    // SAFETY: SmcKeyData zeroed; reading #KEY via smc_call to get total key count.
     unsafe {
         let mut input = SmcKeyData::zeroed();
         let mut output = SmcKeyData::zeroed();
@@ -253,6 +258,9 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
 }
 
 fn smc_open() -> Option<u32> {
+    // SAFETY: IOKit framework calls to find and open the AppleSMC service.
+    // All returned handles are checked for validity before use; iterator and
+    // service objects are released via IOObjectRelease.
     unsafe {
         let matching = IOServiceMatching(c"AppleSMC".as_ptr());
         if matching.is_null() {
@@ -316,6 +324,9 @@ fn smc_read_temp(conn: u32, key: &str) -> Option<f32> {
         key.as_bytes()[3],
     ];
 
+    // SAFETY: SmcKeyData is repr(C, packed) with verified layout. Two smc_call rounds:
+    // first reads key info (data type + size), second reads the actual value bytes.
+    // Decoding uses the returned data type to interpret bytes correctly (sp78/flt/fpe2).
     unsafe {
         // First, get the key info to find the data type
         let mut input = SmcKeyData::zeroed();
@@ -414,6 +425,11 @@ struct SmcKeyInfoData {
 // SmcKeyData must be exactly 80 bytes to match the macOS kernel struct layout.
 const _: () = assert!(std::mem::size_of::<SmcKeyInfoData>() == 9);
 const _: () = assert!(std::mem::size_of::<SmcKeyData>() == 80);
+// Field offset assertions (from macOS AppleSMC kernel interface).
+const _: () = assert!(std::mem::offset_of!(SmcKeyData, key) == 0);
+const _: () = assert!(std::mem::offset_of!(SmcKeyData, data8) == 37);
+const _: () = assert!(std::mem::offset_of!(SmcKeyData, data32) == 38);
+const _: () = assert!(std::mem::offset_of!(SmcKeyData, bytes) == 48);
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
