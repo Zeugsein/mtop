@@ -13,7 +13,6 @@ fn appstate_default_has_sensible_values() {
     assert_eq!(state.interval_ms, 1000);
     assert_eq!(state.process_scroll, 0);
     assert_eq!(state.theme_idx, 0);
-    assert_eq!(state.selected_panel, PanelId::Cpu);
     assert_eq!(state.expanded_panel, None);
     assert_eq!(state.sort_mode, SortMode::default());
     assert_eq!(state.temp_unit, "celsius");
@@ -392,55 +391,71 @@ fn key_c_wraps_theme() {
 }
 
 #[test]
-fn key_1_selects_cpu() {
+fn key_1_expands_cpu() {
     let mut state = AppState::default();
-    state.selected_panel = PanelId::Network;
     input::handle_key_event(make_key(KeyCode::Char('1')), &mut state);
-    assert_eq!(state.selected_panel, PanelId::Cpu);
+    assert_eq!(state.expanded_panel, Some(PanelId::Cpu));
 }
 
 #[test]
-fn key_2_selects_gpu() {
+fn key_2_expands_gpu() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('2')), &mut state);
-    assert_eq!(state.selected_panel, PanelId::Gpu);
+    assert_eq!(state.expanded_panel, Some(PanelId::Gpu));
 }
 
 #[test]
-fn key_3_selects_memdisk() {
+fn key_3_expands_memdisk() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('3')), &mut state);
-    assert_eq!(state.selected_panel, PanelId::MemDisk);
+    assert_eq!(state.expanded_panel, Some(PanelId::MemDisk));
 }
 
 #[test]
-fn key_4_selects_network() {
+fn key_4_expands_network() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('4')), &mut state);
-    assert_eq!(state.selected_panel, PanelId::Network);
+    assert_eq!(state.expanded_panel, Some(PanelId::Network));
 }
 
 #[test]
-fn key_5_selects_power() {
+fn key_5_expands_power() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('5')), &mut state);
-    assert_eq!(state.selected_panel, PanelId::Power);
+    assert_eq!(state.expanded_panel, Some(PanelId::Power));
 }
 
 #[test]
-fn key_6_selects_process() {
+fn key_6_expands_process() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('6')), &mut state);
-    assert_eq!(state.selected_panel, PanelId::Process);
+    assert_eq!(state.expanded_panel, Some(PanelId::Process));
 }
 
 #[test]
-fn key_e_toggles_expand() {
+fn key_1_toggles_expand_collapse() {
     let mut state = AppState::default();
-    state.selected_panel = PanelId::Gpu;
-    input::handle_key_event(make_key(KeyCode::Char('e')), &mut state);
-    assert_eq!(state.expanded_panel, Some(PanelId::Gpu));
-    // Toggle again to collapse
+    input::handle_key_event(make_key(KeyCode::Char('1')), &mut state);
+    assert_eq!(state.expanded_panel, Some(PanelId::Cpu));
+    // Same key again collapses
+    input::handle_key_event(make_key(KeyCode::Char('1')), &mut state);
+    assert_eq!(state.expanded_panel, None);
+}
+
+#[test]
+fn key_switches_expanded_panel() {
+    let mut state = AppState::default();
+    input::handle_key_event(make_key(KeyCode::Char('1')), &mut state);
+    assert_eq!(state.expanded_panel, Some(PanelId::Cpu));
+    // Different key switches
+    input::handle_key_event(make_key(KeyCode::Char('4')), &mut state);
+    assert_eq!(state.expanded_panel, Some(PanelId::Network));
+}
+
+#[test]
+fn key_e_collapses_expanded() {
+    let mut state = AppState::default();
+    state.expanded_panel = Some(PanelId::Gpu);
     input::handle_key_event(make_key(KeyCode::Char('e')), &mut state);
     assert_eq!(state.expanded_panel, None);
 }
@@ -509,10 +524,11 @@ fn key_s_cycles_sort_mode() {
 }
 
 #[test]
-fn key_enter_toggles_expand() {
+fn key_enter_collapses_expanded() {
     let mut state = AppState::default();
+    state.expanded_panel = Some(PanelId::Cpu);
     input::handle_key_event(make_key(KeyCode::Enter), &mut state);
-    assert_eq!(state.expanded_panel, Some(PanelId::Cpu));
+    assert_eq!(state.expanded_panel, None);
 }
 
 #[test]

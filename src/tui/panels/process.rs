@@ -15,12 +15,12 @@ const COL_FIXED_TOTAL: usize = COL_PID + COL_CPU + COL_MEM + COL_POW + COL_THR +
 
 /// Process panel: sorted process table with fixed-position columns
 pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
-    let border_color = theme::dim_color(theme.fg, 0.3);
+    let border_color = theme::dim_color(theme.fg, theme::adaptive_border_dim(theme));
 
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled(" proc ", Style::default().fg(theme.fg).bold()),
-            Span::raw(" "),
+            Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[5]), Style::default().fg(theme.accent)),
+            Span::styled("proc ", Style::default().fg(theme.fg).bold()),
         ]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
