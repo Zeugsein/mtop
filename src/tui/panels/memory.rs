@@ -64,49 +64,58 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         0.0
     };
 
+    let sub_border_color = theme::dim_color(border_color, 0.8);
+    let mb = 1024.0 * 1024.0;
+
+    // Value strings for sub-panel titles (same calculation in both modes)
+    let used_value_str = if ram_used_gb >= 1.0 {
+        format!("{ram_used_gb:.1}GB")
+    } else {
+        format!("{:.0}MB", s.memory.ram_used as f64 / mb)
+    };
+    let avail_value_str = if ram_avail_gb >= 1.0 {
+        format!("{ram_avail_gb:.1}GB")
+    } else {
+        let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
+        format!("{:.0}MB", ram_avail_bytes / mb)
+    };
+
     if state.show_detail {
         let (left, mid, right) = layout::split_type_b(content_area);
 
-        // Left: "Used" title + value label + used braille graph
+        // Left: "Used" sub-frame with bordered frame
         if left.height > 0 {
-            let mb = 1024.0 * 1024.0;
-            let value_str = if ram_used_gb >= 1.0 {
-                format!("{ram_used_gb:.1}GB")
-            } else {
-                format!("{:.0}MB", s.memory.ram_used as f64 / mb)
-            };
-            f.render_widget(
-                Paragraph::new(Line::from(vec![
-                    Span::styled("Used ", Style::default().fg(theme.fg).bold()),
-                    Span::styled(value_str, Style::default().fg(theme.fg)),
-                ])),
-                Rect::new(left.x, left.y, left.width, 1),
-            );
-            if left.height > 1 {
-                let graph_area = Rect::new(left.x, left.y + 1, left.width, left.height - 1);
-                render_graph(f, graph_area, &sparkline_data, 1.0, theme.mem_accent);
+            let used_block = Block::default()
+                .title(Line::from(vec![
+                    Span::styled(" Used ", Style::default().fg(theme.fg).bold()),
+                    Span::styled(used_value_str.clone(), Style::default().fg(theme.fg)),
+                    Span::raw(" "),
+                ]))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(sub_border_color));
+            let used_inner = used_block.inner(left);
+            f.render_widget(used_block, left);
+            if used_inner.height > 0 {
+                render_graph(f, used_inner, &sparkline_data, 1.0, theme.mem_accent);
             }
         }
 
-        // Mid: "Available" title + value label + available braille graph
+        // Mid: "Avail" sub-frame with bordered frame
         if mid.height > 0 {
-            let mb = 1024.0 * 1024.0;
-            let value_str = if ram_avail_gb >= 1.0 {
-                format!("{ram_avail_gb:.1}GB")
-            } else {
-                let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
-                format!("{:.0}MB", ram_avail_bytes / mb)
-            };
-            f.render_widget(
-                Paragraph::new(Line::from(vec![
-                    Span::styled("Avail ", Style::default().fg(theme.fg).bold()),
-                    Span::styled(value_str, Style::default().fg(theme.fg)),
-                ])),
-                Rect::new(mid.x, mid.y, mid.width, 1),
-            );
-            if mid.height > 1 {
-                let graph_area = Rect::new(mid.x, mid.y + 1, mid.width, mid.height - 1);
-                render_graph(f, graph_area, &available_data, 1.0, theme.mem_accent);
+            let avail_block = Block::default()
+                .title(Line::from(vec![
+                    Span::styled(" Avail ", Style::default().fg(theme.fg).bold()),
+                    Span::styled(avail_value_str.clone(), Style::default().fg(theme.fg)),
+                    Span::raw(" "),
+                ]))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(sub_border_color));
+            let avail_inner = avail_block.inner(mid);
+            f.render_widget(avail_block, mid);
+            if avail_inner.height > 0 {
+                render_graph(f, avail_inner, &available_data, 1.0, theme.mem_accent);
             }
         }
 
@@ -151,13 +160,40 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             );
         }
     } else {
-        // 50/50 split: used + available graphs
+        // 50/50 split: used + available graphs with sub-panel borders
         let half_w = content_area.width / 2;
         let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
         let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
 
-        render_graph(f, left, &sparkline_data, 1.0, theme.mem_accent);
-        render_graph(f, mid, &available_data, 1.0, theme.mem_accent);
+        let used_block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(" Used ", Style::default().fg(theme.fg).bold()),
+                Span::styled(used_value_str, Style::default().fg(theme.fg)),
+                Span::raw(" "),
+            ]))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let used_inner = used_block.inner(left);
+        f.render_widget(used_block, left);
+        if used_inner.height > 0 {
+            render_graph(f, used_inner, &sparkline_data, 1.0, theme.mem_accent);
+        }
+
+        let avail_block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(" Avail ", Style::default().fg(theme.fg).bold()),
+                Span::styled(avail_value_str, Style::default().fg(theme.fg)),
+                Span::raw(" "),
+            ]))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let avail_inner = avail_block.inner(mid);
+        f.render_widget(avail_block, mid);
+        if avail_inner.height > 0 {
+            render_graph(f, avail_inner, &available_data, 1.0, theme.mem_accent);
+        }
 
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
         let disk_total_gb = s.disk.total_bytes as f64 / gb;
