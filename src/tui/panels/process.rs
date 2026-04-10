@@ -11,7 +11,8 @@ const COL_CPU: usize = 5;
 const COL_MEM: usize = 5;
 const COL_POW: usize = 5;
 const COL_THR: usize = 4;
-const COL_FIXED_TOTAL: usize = COL_PID + COL_CPU + COL_MEM + COL_POW + COL_THR + 5; // +5 for spaces
+// +5 for spaces, +3 for colored dots before cpu/mem/pow columns
+const COL_FIXED_TOTAL: usize = COL_PID + COL_CPU + COL_MEM + COL_POW + COL_THR + 5 + 3;
 
 /// Process panel: sorted process table with fixed-position columns
 pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -19,7 +20,7 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[5]), Style::default().fg(theme.accent)),
+            Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[5]), Style::default().fg(theme.fg)),
             Span::styled("proc ", Style::default().fg(theme.fg).bold()),
         ]))
         .borders(Borders::ALL)
@@ -43,9 +44,12 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             Style::default().fg(theme.muted),
         ),
         Span::styled(format!("{:>w$}", "pid", w = COL_PID + 1), Style::default().fg(theme.muted)),
-        Span::styled(format!("{:>w$}", "cpu", w = COL_CPU + 1), Style::default().fg(theme.muted)),
-        Span::styled(format!("{:>w$}", "mem", w = COL_MEM + 1), Style::default().fg(theme.muted)),
-        Span::styled(format!("{:>w$}", "pow", w = COL_POW), Style::default().fg(theme.muted)),
+        Span::styled(" •", Style::default().fg(theme.cpu_accent)),
+        Span::styled(format!("{:>w$}", "cpu", w = COL_CPU), Style::default().fg(theme.muted)),
+        Span::styled(" •", Style::default().fg(theme.mem_accent)),
+        Span::styled(format!("{:>w$}", "mem", w = COL_MEM), Style::default().fg(theme.muted)),
+        Span::styled(" •", Style::default().fg(theme.power_accent)),
+        Span::styled(format!("{:>w$}", "pow", w = COL_POW - 1), Style::default().fg(theme.muted)),
         Span::styled(format!("{:>w$}", "thr", w = COL_THR), Style::default().fg(theme.muted)),
     ]);
     f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));
@@ -95,12 +99,19 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             format!("{:.0}M", proc.mem_bytes as f64 / mb)
         };
 
+        let cpu_dot_color = if proc.cpu_pct < 0.1 { theme.muted } else { theme.cpu_accent };
+        let mem_dot_color = if proc.mem_bytes < 1_048_576 { theme.muted } else { theme.mem_accent };
+        let pow_dot_color = if proc.power_w < 0.1 { theme.muted } else { theme.power_accent };
+
         let line = Line::from(vec![
             Span::styled(name_padded, Style::default().fg(theme.fg)),
             Span::styled(format!("{:>w$}", proc.pid, w = COL_PID + 1), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>w$.1}", proc.cpu_pct, w = COL_CPU + 1), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>w$}", mem_str, w = COL_MEM + 1), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>w$.1}", proc.power_w, w = COL_POW), Style::default().fg(theme.fg)),
+            Span::styled(" •", Style::default().fg(cpu_dot_color)),
+            Span::styled(format!("{:>w$.1}", proc.cpu_pct, w = COL_CPU), Style::default().fg(theme.fg)),
+            Span::styled(" •", Style::default().fg(mem_dot_color)),
+            Span::styled(format!("{:>w$}", mem_str, w = COL_MEM), Style::default().fg(theme.fg)),
+            Span::styled(" •", Style::default().fg(pow_dot_color)),
+            Span::styled(format!("{:>w$.1}", proc.power_w, w = COL_POW - 1), Style::default().fg(theme.fg)),
             Span::styled(format!("{:>w$}", proc.thread_count, w = COL_THR), Style::default().fg(theme.fg)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));

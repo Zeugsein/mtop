@@ -3,10 +3,10 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, gauge, layout};
-use crate::tui::helpers::format_bytes_rate;
+use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact};
 use super::cpu::render_graph;
 
-/// Memory+Disk panel: Type A layout (75% multi-row braille graph + 25% disk detail)
+/// Memory+Disk panel: Type B layout when detail, 50/50 when not
 pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let gb = 1024.0 * 1024.0 * 1024.0;
     let ram_used_gb = s.memory.ram_used as f64 / gb;
@@ -19,10 +19,18 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
     let border_color = theme::dim_color(theme.mem_accent, theme::adaptive_border_dim(theme));
 
+    // Memory pressure colored dot
+    let pressure_dot_color = match s.memory.pressure_level {
+        2 => Color::Rgb(255, 214, 0),
+        4 => Color::Rgb(255, 61, 0),
+        _ => Color::Rgb(0, 200, 83),
+    };
+
     let title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[2]), Style::default().fg(theme.mem_accent)),
         Span::styled("mem  ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"), Style::default().fg(theme.fg)),
+        Span::styled(" \u{25cf}", Style::default().fg(pressure_dot_color)),
         Span::raw(" "),
     ];
 
@@ -44,14 +52,45 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
     let sparkline_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
+    let available_data: Vec<f64> = state.history.mem_available.iter().copied().collect();
+
+    // Compute available GB for label
+    let ram_avail_gb = if s.memory.ram_total > 0 {
+        (s.memory.ram_total.saturating_sub(s.memory.ram_used)) as f64 / gb
+    } else {
+        0.0
+    };
 
     if state.show_detail {
-        let (trend_area, detail_area) = layout::split_type_a(content_area);
+        let (left, mid, right) = layout::split_type_b(content_area);
 
-        // Left: Memory usage multi-row braille graph
-        render_graph(f, trend_area, &sparkline_data, 1.0, theme.mem_accent);
+        // Left: "used X.XGB" label + used braille graph
+        if left.height > 0 {
+            let label = format!("used {ram_used_gb:.1}GB");
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(label, Style::default().fg(theme.fg)))),
+                Rect::new(left.x, left.y, left.width, 1),
+            );
+            if left.height > 1 {
+                let graph_area = Rect::new(left.x, left.y + 1, left.width, left.height - 1);
+                render_graph(f, graph_area, &sparkline_data, 1.0, theme.mem_accent);
+            }
+        }
 
-        // Right: Disk detail (vertically centered)
+        // Mid: "avail X.XGB" label + available braille graph
+        if mid.height > 0 {
+            let label = format!("avail {ram_avail_gb:.1}GB");
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(label, Style::default().fg(theme.fg)))),
+                Rect::new(mid.x, mid.y, mid.width, 1),
+            );
+            if mid.height > 1 {
+                let graph_area = Rect::new(mid.x, mid.y + 1, mid.width, mid.height - 1);
+                render_graph(f, graph_area, &available_data, 1.0, theme.mem_accent);
+            }
+        }
+
+        // Right 25%: Disk detail (vertically centered)
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
         let disk_total_gb = s.disk.total_bytes as f64 / gb;
         let disk_fraction = if s.disk.total_bytes > 0 {
@@ -62,37 +101,43 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
         let detail_lines: Vec<Line> = vec![
             Line::from(Span::styled("Disk", Style::default().fg(theme.fg).bold())),
-            Line::from(gauge::render_compact_gauge(disk_fraction, detail_area.width as usize, theme)),
+            Line::from(gauge::render_compact_gauge(disk_fraction, right.width as usize, theme)),
             Line::from(Span::styled(
                 format!("{disk_used_gb:.0}/{disk_total_gb:.0} GB"),
                 Style::default().fg(theme.fg),
             )),
+            Line::from(Span::raw("")),
             Line::from(Span::styled(
-                format!("R: {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
+                format!("read  {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
                 Style::default().fg(theme.fg),
             )),
             Line::from(Span::styled(
-                format!("W: {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
+                format!("write {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
                 Style::default().fg(theme.fg),
             )),
         ];
 
-        let content_h = detail_lines.len().min(detail_area.height as usize);
-        let y_offset = (detail_area.height as usize).saturating_sub(content_h) / 2;
+        let content_h = detail_lines.len().min(right.height as usize);
+        let y_offset = (right.height as usize).saturating_sub(content_h) / 2;
 
         for (i, line) in detail_lines.iter().enumerate().take(content_h) {
-            let y = detail_area.y + y_offset as u16 + i as u16;
-            if y >= detail_area.y + detail_area.height {
+            let y = right.y + y_offset as u16 + i as u16;
+            if y >= right.y + right.height {
                 break;
             }
             f.render_widget(
                 Paragraph::new(line.clone()),
-                Rect::new(detail_area.x, y, detail_area.width, 1),
+                Rect::new(right.x, y, right.width, 1),
             );
         }
     } else {
-        // Full-width graph, fallback disk info on bottom row
-        render_graph(f, content_area, &sparkline_data, 1.0, theme.mem_accent);
+        // 50/50 split: used + available graphs
+        let half_w = content_area.width / 2;
+        let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
+        let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
+
+        render_graph(f, left, &sparkline_data, 1.0, theme.mem_accent);
+        render_graph(f, mid, &available_data, 1.0, theme.mem_accent);
 
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
         let disk_total_gb = s.disk.total_bytes as f64 / gb;
@@ -110,14 +155,27 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         return; // skip default bottom info
     }
 
-    // Bottom info inside panel
+    // Bottom info: Swap (only show if swap is configured)
+    if s.memory.swap_total == 0 {
+        return;
+    }
     let swap_used_gb = s.memory.swap_used as f64 / gb;
     let swap_total_gb = s.memory.swap_total as f64 / gb;
+    let swap_in = s.memory.swap_in_bytes_sec;
+    let swap_out = s.memory.swap_out_bytes_sec;
+
+    let swap_text = if swap_in == 0.0 && swap_out == 0.0 {
+        format!(" Swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB")
+    } else {
+        format!(
+            " Swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB  in {}/out {}",
+            format_bytes_rate_compact(swap_in),
+            format_bytes_rate_compact(swap_out),
+        )
+    };
+
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            format!(" Swap {swap_used_gb:.1}/{swap_total_gb:.1} GB"),
-            Style::default().fg(theme.muted),
-        ))),
+        Paragraph::new(Line::from(Span::styled(swap_text, Style::default().fg(theme.muted)))),
         Rect::new(inner.x, bottom_y, inner.width, 1),
     );
 }

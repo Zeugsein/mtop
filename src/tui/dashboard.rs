@@ -35,13 +35,29 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
     let chip_info = format!("{} ({}E+{}P+{}GPU {}GB)",
         s.soc.chip, s.soc.e_cores, s.soc.p_cores,
         s.soc.gpu_cores, s.soc.memory_gb);
-    let header_spans = vec![
-        Span::styled(&timestamp, Style::default().fg(theme.muted)),
-        Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
-        Span::styled("mtop", Style::default().fg(theme.accent).bold()),
-        Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
-        Span::styled(chip_info, Style::default().fg(theme.fg)),
-    ];
+    let header_text = format!("{} \u{2014} mtop \u{2014} {}", timestamp, chip_info);
+    let avail = page.header.width as usize;
+    let header_spans = if header_text.len() <= avail {
+        vec![
+            Span::styled(&timestamp, Style::default().fg(theme.muted)),
+            Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
+            Span::styled("mtop", Style::default().fg(theme.accent).bold()),
+            Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
+            Span::styled(chip_info, Style::default().fg(theme.fg)),
+        ]
+    } else {
+        // Truncated: just "mtop — chip" or "mtop" if very narrow
+        let short = format!("mtop \u{2014} {}", chip_info);
+        if short.len() <= avail {
+            vec![
+                Span::styled("mtop", Style::default().fg(theme.accent).bold()),
+                Span::styled(" \u{2014} ", Style::default().fg(theme.muted)),
+                Span::styled(chip_info, Style::default().fg(theme.fg)),
+            ]
+        } else {
+            vec![Span::styled("mtop", Style::default().fg(theme.accent).bold())]
+        }
+    };
     let header_line = Line::from(header_spans).alignment(ratatui::layout::Alignment::Center);
     f.render_widget(Paragraph::new(header_line), page.header);
 

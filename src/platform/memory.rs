@@ -1,5 +1,54 @@
 use crate::metrics::MemoryMetrics;
 
+/// Stateful memory collector — tracks previous swapins/swapouts for I/O rate calculation.
+pub struct MemoryState {
+    prev_swapins: u64,
+    prev_swapouts: u64,
+    prev_time: std::time::Instant,
+}
+
+impl Default for MemoryState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MemoryState {
+    pub fn new() -> Self {
+        Self {
+            prev_swapins: 0,
+            prev_swapouts: 0,
+            prev_time: std::time::Instant::now(),
+        }
+    }
+
+    pub fn collect(&mut self, host: u32) -> MemoryMetrics {
+        let mut metrics = collect_memory(host);
+
+        // Swap I/O rates from VmStatistics64 swapins/swapouts delta
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.prev_time).as_secs_f64().max(0.001);
+
+        let (swapins, swapouts) = get_swap_page_counts(host);
+        let page_size = get_page_size();
+
+        if self.prev_swapins > 0 || self.prev_swapouts > 0 {
+            // Not first sample
+            metrics.swap_in_bytes_sec = swapins.saturating_sub(self.prev_swapins) as f64 * page_size as f64 / dt;
+            metrics.swap_out_bytes_sec = swapouts.saturating_sub(self.prev_swapouts) as f64 * page_size as f64 / dt;
+        }
+
+        self.prev_swapins = swapins;
+        self.prev_swapouts = swapouts;
+        self.prev_time = now;
+
+        // Memory pressure level via sysctl
+        metrics.pressure_level = get_memory_pressure_level();
+
+        metrics
+    }
+}
+
 pub fn collect_memory(host: u32) -> MemoryMetrics {
     let ram_total = sysctl_u64("hw.memsize").unwrap_or(0);
 
@@ -51,6 +100,9 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         wired,
         app,
         compressed,
+        swap_in_bytes_sec: 0.0,
+        swap_out_bytes_sec: 0.0,
+        pressure_level: 1,
     }
 }
 
@@ -141,6 +193,63 @@ const _: () = assert!(std::mem::offset_of!(VmStatistics64, compressor_page_count
 const _: () = assert!(std::mem::offset_of!(VmStatistics64, internal_page_count) == 140);
 
 const HOST_VM_INFO64: i32 = 4;
+
+fn get_page_size() -> u64 {
+    // SAFETY: sysconf always succeeds for _SC_PAGESIZE on macOS.
+    let raw = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    if raw <= 0 { 16384 } else { raw as u64 }
+}
+
+/// Read cumulative swap page counts from vm_statistics64.
+fn get_swap_page_counts(host: u32) -> (u64, u64) {
+    // SAFETY: same pattern as collect_memory — zeroed struct, host_statistics64 fills it.
+    unsafe {
+        let mut vm_stat: VmStatistics64 = std::mem::zeroed();
+        let mut count = (std::mem::size_of::<VmStatistics64>() / std::mem::size_of::<i32>()) as u32;
+        let ret = host_statistics64(
+            host,
+            HOST_VM_INFO64,
+            &mut vm_stat as *mut _ as *mut i32,
+            &mut count,
+        );
+        if ret == 0 {
+            (vm_stat.swapins, vm_stat.swapouts)
+        } else {
+            (0, 0)
+        }
+    }
+}
+
+/// Read macOS memory pressure level via sysctl.
+/// Returns: 1=normal, 2=warning, 4=critical. Defaults to 1 on failure.
+fn get_memory_pressure_level() -> u8 {
+    let name = match std::ffi::CString::new("kern.memorystatus_vm_pressure_level") {
+        Ok(n) => n,
+        Err(_) => return 1,
+    };
+    let mut val: i32 = 0;
+    let mut size = std::mem::size_of::<i32>() as libc::size_t;
+    // SAFETY: name is a valid C string; val is a properly-sized i32 buffer.
+    let ret = unsafe {
+        libc::sysctlbyname(
+            name.as_ptr(),
+            &mut val as *mut i32 as *mut libc::c_void,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if ret == 0 {
+        match val {
+            1 => 1, // normal
+            2 => 2, // warning
+            4 => 4, // critical
+            _ => 1, // unknown → normal
+        }
+    } else {
+        1 // fallback: normal
+    }
+}
 
 unsafe extern "C" {
     fn host_statistics64(host: u32, flavor: i32, info: *mut i32, count: *mut u32) -> i32;

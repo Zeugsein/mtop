@@ -6,6 +6,7 @@ pub struct Sampler {
     host_port: u32,
     cpu_ticks: Vec<(u64, u64)>,
     net_state: platform::network::NetworkState,
+    mem_state: platform::memory::MemoryState,
     disk_state: platform::disk::DiskState,
     proc_cpu_state: platform::process::ProcessCpuState,
     gpu_state: Option<platform::gpu::GpuState>,
@@ -23,6 +24,7 @@ impl Sampler {
             host_port,
             cpu_ticks: Vec::new(),
             net_state: platform::network::NetworkState::new(),
+            mem_state: platform::memory::MemoryState::new(),
             disk_state: platform::disk::DiskState::new(),
             proc_cpu_state: platform::process::ProcessCpuState::new(),
             gpu_state: platform::gpu::GpuState::new(),
@@ -54,7 +56,7 @@ impl Sampler {
             Some(state) => state.collect(),
             None => platform::temperature::collect_temperature(),
         };
-        let memory = platform::memory::collect_memory(self.host_port);
+        let memory = self.mem_state.collect(self.host_port);
         let network = self.net_state.collect();
         let processes = platform::process::collect_processes(&mut self.proc_cpu_state);
 
