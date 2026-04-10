@@ -54,7 +54,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let spark_height = 2.min(inner.height);
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
     let spark_width = inner.width as usize;
-    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width);
+    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width, theme);
     let spark_spans: Vec<Span> = spark.iter()
         .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
@@ -83,7 +83,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         let norm = usage.clamp(0.0, 1.0);
         let filled = (bar_width as f32 * norm) as usize;
         let empty = bar_width.saturating_sub(filled);
-        let color = gradient::value_to_color(norm as f64);
+        let color = gradient::value_to_color(norm as f64, theme);
 
         let line = Line::from(vec![
             Span::styled(format!("Core {:>2} ", i), Style::default().fg(theme.muted)),
@@ -125,7 +125,7 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     // Sparkline at top (gradient coloring like CPU)
     let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, inner.width as usize);
+    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, inner.width as usize, theme);
     let spark_spans: Vec<Span> = spark.iter()
         .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
@@ -304,7 +304,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     // Upload sparkline
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&upload_data, scale, inner.width as usize);
+    let spark = braille::render_braille_sparkline(&upload_data, scale, inner.width as usize, theme);
     let spans: Vec<Span> = spark.iter()
         .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_upload)))
         .collect();
@@ -317,7 +317,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     // Download sparkline
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&download_data, scale, inner.width as usize);
+    let spark = braille::render_braille_sparkline(&download_data, scale, inner.width as usize, theme);
     let spans: Vec<Span> = spark.iter()
         .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
         .collect();
@@ -369,7 +369,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
                     scale
                 };
                 let rx_data: Vec<f64> = rx_buf.iter().copied().collect();
-                let spark = braille::render_braille_sparkline(&rx_data, iface_scale, inner.width as usize);
+                let spark = braille::render_braille_sparkline(&rx_data, iface_scale, inner.width as usize, theme);
                 let spark_spans: Vec<Span> = spark.iter()
                     .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
                     .collect();
@@ -405,7 +405,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     // CPU power sparkline
     let cpu_tdp = s.soc.cpu_tdp_w() as f64;
     let cpu_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&cpu_data, cpu_tdp, inner.width as usize);
+    let spark = braille::render_braille_sparkline(&cpu_data, cpu_tdp, inner.width as usize, theme);
     let spans: Vec<Span> = spark.iter()
         .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
@@ -420,7 +420,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     // GPU power sparkline
     let gpu_tdp = s.soc.gpu_tdp_w() as f64;
     let gpu_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&gpu_data, gpu_tdp, inner.width as usize);
+    let spark = braille::render_braille_sparkline(&gpu_data, gpu_tdp, inner.width as usize, theme);
     let spans: Vec<Span> = spark.iter()
         .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
@@ -579,7 +579,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
         let line = Line::from(vec![
             Span::styled(format!("{:<18}", truncate_with_ellipsis(&proc.name, 18)), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>5.1}%", proc.cpu_pct), Style::default().fg(gradient::value_to_color(cpu_norm))),
+            Span::styled(format!("{:>5.1}%", proc.cpu_pct), Style::default().fg(gradient::value_to_color(cpu_norm, theme))),
             Span::styled(format!("{:>8}", mem_display), Style::default().fg(theme.fg)),
             Span::styled(format!("{:>6.1}W", proc.power_w), Style::default().fg(theme.fg)),
             Span::styled(format!("{:>4}", proc.thread_count), Style::default().fg(theme.muted)),

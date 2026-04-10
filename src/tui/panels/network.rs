@@ -2,9 +2,31 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
-use crate::platform::network::speed_tier_from_baudrate;
 use crate::tui::{AppState, theme, braille, layout};
 use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact, format_bytes_compact, is_infrastructure_interface};
+
+/// Dynamic tier thresholds (bytes/sec) and their display labels.
+const NET_TIERS: [(f64, &str); 4] = [
+    (1_000_000.0,       "1 MB/s"),
+    (10_000_000.0,      "10 MB/s"),
+    (100_000_000.0,     "100 MB/s"),
+    (1_000_000_000.0,   "1 GB/s"),
+];
+
+/// Select the smallest tier that contains the maximum visible value.
+/// Returns (scale_bytes_per_sec, label).
+fn compute_net_tier(upload: &[f64], download: &[f64]) -> (f64, &'static str) {
+    let max_val = upload.iter().chain(download.iter())
+        .copied()
+        .fold(0.0_f64, f64::max);
+    for &(threshold, label) in &NET_TIERS {
+        if max_val < threshold {
+            return (threshold, label);
+        }
+    }
+    // Above all tiers — use the largest
+    (NET_TIERS[3].0, NET_TIERS[3].1)
+}
 
 /// Network panel: Type B layout (37.5% upload + 37.5% download + 25% interface ranking)
 pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -49,8 +71,8 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left/right + 1-line top padding
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
+    // 1-char padding left/right, no top padding (UAT-07)
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -60,9 +82,9 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
-    let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
+    let (scale, tier_label) = compute_net_tier(&upload_data, &download_data);
 
     // Minimum baseline value: ensures at least 1 braille dot renders at zero
     let baseline_floor = scale * 0.005;
@@ -72,7 +94,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let height = area.height as usize;
         // Clamp data so zero values produce 1 dot (baseline)
         let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
-        let graph = braille::render_braille_graph(&clamped, scale, area.width as usize, height);
+        let graph = braille::render_braille_graph(&clamped, scale, area.width as usize, height, theme);
 
         // Map original data visibility for per-column muted detection
         let needed = area.width as usize * 2;
@@ -83,14 +105,14 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             let y = area.y + area.height.saturating_sub(1) - row_idx as u16;
             if y < area.y { break; }
             let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
-            let gradient_color = crate::tui::gradient::value_to_color(y_frac);
+            let gradient_color = crate::tui::gradient::value_to_color(y_frac, theme);
 
             let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
                 // Each braille column maps to 2 data points; out-of-bounds → muted (no data yet)
                 let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
                 let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
                 let is_baseline = orig_l < 1.0 && orig_r < 1.0;
-                let color = if is_baseline { theme.muted } else { gradient_color };
+                let color = if is_baseline { theme::baseline_color(theme) } else { gradient_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))
             }).collect();
             if !spans.is_empty() {
@@ -99,11 +121,11 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         }
     };
 
-    // Helper to render graph growing downward (top-to-bottom, mirrored) with muted baseline
+    // Helper to render graph growing downward (top-to-bottom, mirrored) with baseline color
     let render_graph_downward = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
         let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
-        let graph = braille::render_braille_graph_down(&clamped, scale, area.width as usize, height);
+        let graph = braille::render_braille_graph_down(&clamped, scale, area.width as usize, height, theme);
 
         let needed = area.width as usize * 2;
         let start = data.len().saturating_sub(needed);
@@ -116,7 +138,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
                 let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
                 let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
                 let is_baseline = orig_l < 1.0 && orig_r < 1.0;
-                let color = if is_baseline { theme.muted } else { orig_color };
+                let color = if is_baseline { theme::baseline_color(theme) } else { orig_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))
             }).collect();
             if !spans.is_empty() {
@@ -138,10 +160,23 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         render_graph_downward(f, bottom_area, ul_data);
     };
 
+    // Render tier label at top-right of a chart area
+    let render_tier_label = |f: &mut Frame, chart_area: Rect| {
+        let label_len = tier_label.len() as u16;
+        if chart_area.width > label_len + 1 {
+            let lx = chart_area.x + chart_area.width - label_len;
+            f.render_widget(
+                Paragraph::new(Span::styled(tier_label, Style::default().fg(theme.muted))),
+                Rect::new(lx, chart_area.y, label_len, 1),
+            );
+        }
+    };
+
     if state.show_detail {
         let (chart_area, right) = layout::split_type_a(content_area);
 
         render_symmetric_chart(f, chart_area, &download_data, &upload_data);
+        render_tier_label(f, chart_area);
 
         // Right 25%: download on top, upload on bottom (matching chart order)
         let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
@@ -212,6 +247,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     } else {
         // Full-width symmetric chart
         render_symmetric_chart(f, content_area, &download_data, &upload_data);
+        render_tier_label(f, content_area);
 
         // Fallback: primary interface name on bottom row
         if let Some(primary) = display_ifaces.first() {

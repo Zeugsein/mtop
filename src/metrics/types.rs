@@ -211,6 +211,14 @@ pub struct DiskMetrics {
     pub used_bytes: u64,
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct BatteryMetrics {
+    pub is_present: bool,
+    pub charge_pct: f32,
+    pub is_charging: bool,
+    pub is_on_ac: bool,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub enum SortMode {
     #[default]
@@ -271,6 +279,7 @@ pub struct MetricsSnapshot {
     pub memory: MemoryMetrics,
     pub network: NetworkMetrics,
     pub disk: DiskMetrics,
+    pub battery: BatteryMetrics,
     pub processes: Vec<ProcessInfo>,
 }
 

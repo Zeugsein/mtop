@@ -32,7 +32,7 @@ pub fn render_gauge_bar<'a>(value: f64, max: f64, width: usize, label: &'a str, 
     if filled > 0 {
         if filled < 3 {
             // Fall back to single color for narrow bars
-            let fill_color = value_to_color(fraction);
+            let fill_color = value_to_color(fraction, theme);
             spans.push(Span::styled(
                 GAUGE_CHAR.repeat(filled),
                 Style::default().fg(fill_color),
@@ -40,7 +40,7 @@ pub fn render_gauge_bar<'a>(value: f64, max: f64, width: usize, label: &'a str, 
         } else {
             // Per-character gradient
             for i in 0..filled {
-                let color = value_to_color(i as f64 / width as f64);
+                let color = value_to_color(i as f64 / width as f64, theme);
                 spans.push(Span::styled(
                     GAUGE_CHAR.to_string(),
                     Style::default().fg(color),
@@ -77,7 +77,7 @@ pub fn render_compact_gauge(fraction: f64, width: usize, theme: &Theme) -> Vec<S
     let filled = filled.min(bar_width);
     let empty = bar_width - filled;
 
-    let fill_color = value_to_color(fraction);
+    let fill_color = value_to_color(fraction, theme);
     let mut spans = Vec::with_capacity(filled + 3);
 
     // Bar first (LEFT)
@@ -89,7 +89,7 @@ pub fn render_compact_gauge(fraction: f64, width: usize, theme: &Theme) -> Vec<S
             ));
         } else {
             for i in 0..filled {
-                let color = value_to_color(i as f64 / bar_width as f64);
+                let color = value_to_color(i as f64 / bar_width as f64, theme);
                 spans.push(Span::styled(
                     GAUGE_CHAR.to_string(),
                     Style::default().fg(color),

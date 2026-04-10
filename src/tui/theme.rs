@@ -72,10 +72,10 @@ pub const HORIZON: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
 
-    gradient_green: Color::Rgb(0, 200, 83),
-    gradient_yellow: Color::Rgb(255, 214, 0),
-    gradient_orange: Color::Rgb(255, 152, 0),
-    gradient_red: Color::Rgb(255, 61, 0),
+    gradient_green: Color::Rgb(39, 215, 150),
+    gradient_yellow: Color::Rgb(208, 198, 151),
+    gradient_orange: Color::Rgb(243, 143, 134),
+    gradient_red: Color::Rgb(233, 86, 120),
 };
 
 /// Dracula theme
@@ -98,10 +98,10 @@ pub const DRACULA: Theme = Theme {
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
-    gradient_green: Color::Rgb(80, 250, 123),
-    gradient_yellow: Color::Rgb(241, 250, 140),
-    gradient_orange: Color::Rgb(255, 184, 108),
-    gradient_red: Color::Rgb(255, 85, 85),
+    gradient_green: Color::Rgb(189, 147, 249),
+    gradient_yellow: Color::Rgb(242, 126, 208),
+    gradient_orange: Color::Rgb(255, 93, 186),
+    gradient_red: Color::Rgb(255, 51, 168),
 };
 
 /// Catppuccin Mocha theme
@@ -125,8 +125,8 @@ pub const CATPPUCCIN: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(166, 227, 161),
-    gradient_yellow: Color::Rgb(249, 226, 175),
-    gradient_orange: Color::Rgb(250, 179, 135),
+    gradient_yellow: Color::Rgb(232, 227, 172),
+    gradient_orange: Color::Rgb(247, 186, 172),
     gradient_red: Color::Rgb(243, 139, 168),
 };
 
@@ -151,8 +151,8 @@ pub const NORD: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(163, 190, 140),
-    gradient_yellow: Color::Rgb(235, 203, 139),
-    gradient_orange: Color::Rgb(208, 135, 112),
+    gradient_yellow: Color::Rgb(221, 200, 139),
+    gradient_orange: Color::Rgb(209, 155, 120),
     gradient_red: Color::Rgb(191, 97, 106),
 };
 
@@ -176,10 +176,10 @@ pub const SOLARIZED_DARK: Theme = Theme {
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
-    gradient_green: Color::Rgb(133, 153, 0),
-    gradient_yellow: Color::Rgb(181, 137, 0),
-    gradient_orange: Color::Rgb(203, 75, 22),
-    gradient_red: Color::Rgb(220, 50, 47),
+    gradient_green: Color::Rgb(173, 199, 0),
+    gradient_yellow: Color::Rgb(206, 169, 0),
+    gradient_orange: Color::Rgb(220, 130, 14),
+    gradient_red: Color::Rgb(230, 83, 23),
 };
 
 /// Solarized Light theme
@@ -202,10 +202,10 @@ pub const SOLARIZED_LIGHT: Theme = Theme {
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
-    gradient_green: Color::Rgb(133, 153, 0),
-    gradient_yellow: Color::Rgb(181, 137, 0),
-    gradient_orange: Color::Rgb(203, 75, 22),
-    gradient_red: Color::Rgb(220, 50, 47),
+    gradient_green: Color::Rgb(173, 199, 0),
+    gradient_yellow: Color::Rgb(206, 169, 0),
+    gradient_orange: Color::Rgb(220, 130, 14),
+    gradient_red: Color::Rgb(230, 83, 23),
 };
 
 /// Gruvbox Dark theme
@@ -229,8 +229,8 @@ pub const GRUVBOX: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(184, 187, 38),
-    gradient_yellow: Color::Rgb(250, 189, 47),
-    gradient_orange: Color::Rgb(254, 128, 25),
+    gradient_yellow: Color::Rgb(209, 161, 34),
+    gradient_orange: Color::Rgb(237, 121, 45),
     gradient_red: Color::Rgb(251, 73, 52),
 };
 
@@ -255,8 +255,8 @@ pub const TOKYO_NIGHT: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(158, 206, 106),
-    gradient_yellow: Color::Rgb(224, 175, 104),
-    gradient_orange: Color::Rgb(255, 158, 100),
+    gradient_yellow: Color::Rgb(211, 188, 105),
+    gradient_orange: Color::Rgb(238, 150, 129),
     gradient_red: Color::Rgb(247, 118, 142),
 };
 
@@ -281,8 +281,8 @@ pub const ONE_DARK: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(152, 195, 121),
-    gradient_yellow: Color::Rgb(229, 192, 123),
-    gradient_orange: Color::Rgb(209, 154, 102),
+    gradient_yellow: Color::Rgb(213, 193, 123),
+    gradient_orange: Color::Rgb(227, 154, 119),
     gradient_red: Color::Rgb(224, 108, 117),
 };
 
@@ -307,8 +307,8 @@ pub const MONOKAI: Theme = Theme {
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
     gradient_green: Color::Rgb(166, 226, 46),
-    gradient_yellow: Color::Rgb(230, 219, 116),
-    gradient_orange: Color::Rgb(253, 151, 31),
+    gradient_yellow: Color::Rgb(236, 181, 34),
+    gradient_orange: Color::Rgb(251, 102, 75),
     gradient_red: Color::Rgb(249, 38, 114),
 };
 
@@ -456,6 +456,26 @@ pub fn bg_luminance(theme: &Theme) -> f64 {
 /// Light themes (luminance >= 0.5) get 0.35 (darker borders for contrast).
 pub fn adaptive_border_dim(theme: &Theme) -> f64 {
     if bg_luminance(theme) >= 0.5 { 0.35 } else { 0.55 }
+}
+
+/// Baseline color for sparse braille dots (network, GPU, power at near-zero).
+/// Guarantees visible separation from theme.bg by applying a relative brightness
+/// boost (+30 on dark themes, -30 on light themes) to theme.muted.
+const BASELINE_DELTA: u8 = 30;
+
+pub fn baseline_color(theme: &Theme) -> Color {
+    match theme.muted {
+        Color::Rgb(r, g, b) => {
+            if bg_luminance(theme) >= 0.5 {
+                // Light theme: darken muted
+                Color::Rgb(r.saturating_sub(BASELINE_DELTA), g.saturating_sub(BASELINE_DELTA), b.saturating_sub(BASELINE_DELTA))
+            } else {
+                // Dark theme: brighten muted
+                Color::Rgb(r.saturating_add(BASELINE_DELTA), g.saturating_add(BASELINE_DELTA), b.saturating_add(BASELINE_DELTA))
+            }
+        }
+        other => other,
+    }
 }
 
 /// Panel superscript number characters, indexed 1-6.

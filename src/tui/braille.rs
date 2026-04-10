@@ -1,6 +1,7 @@
 use ratatui::style::Color;
 
 use super::gradient::value_to_color;
+use super::theme::Theme;
 
 /// 5×5 braille lookup table for multi-row graphs.
 /// Index: [left_fill][right_fill] where fill = 0..4 (number of vertical dots set).
@@ -35,6 +36,7 @@ pub fn render_braille_graph(
     max_value: f64,
     width: usize,
     height: usize,
+    theme: &Theme,
 ) -> Vec<Vec<(char, Color)>> {
     if values.is_empty() || width == 0 || height == 0 {
         return vec![vec![]; height];
@@ -76,7 +78,7 @@ pub fn render_braille_graph(
         // Fill each row — color by Y-position (bottom=green, top=red)
         for (row_idx, row_vec) in rows.iter_mut().enumerate() {
             let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
-            let color = value_to_color(y_frac);
+            let color = value_to_color(y_frac, theme);
             let row_base = row_idx * 4; // bottom dot position for this row
 
             let left_fill = if scaled_left > row_base {
@@ -117,6 +119,7 @@ pub fn render_braille_graph_down(
     max_value: f64,
     width: usize,
     height: usize,
+    theme: &Theme,
 ) -> Vec<Vec<(char, Color)>> {
     if values.is_empty() || width == 0 || height == 0 {
         return vec![vec![]; height];
@@ -144,7 +147,7 @@ pub fn render_braille_graph_down(
         // Fill from top down: row 0 = top row
         for (row_idx, row_vec) in rows.iter_mut().enumerate() {
             let y_frac = row_idx as f64 / (height as f64 - 1.0).max(1.0);
-            let color = value_to_color(y_frac);
+            let color = value_to_color(y_frac, theme);
             let row_base = row_idx * 4;
 
             let left_fill = if scaled_left > row_base {
@@ -170,7 +173,7 @@ pub fn render_braille_graph_down(
 ///
 /// Each value maps to one braille character using the left-column dots (4 vertical levels).
 /// Returns `(braille_char, color)` pairs, truncated or padded to `width`.
-pub fn render_braille_sparkline(values: &[f64], max_value: f64, width: usize) -> Vec<(char, Color)> {
+pub fn render_braille_sparkline(values: &[f64], max_value: f64, width: usize, theme: &Theme) -> Vec<(char, Color)> {
     if values.is_empty() || width == 0 {
         return Vec::new();
     }
@@ -188,13 +191,13 @@ pub fn render_braille_sparkline(values: &[f64], max_value: f64, width: usize) ->
 
         // Use left-column only from BRAILLE_UP table (right_fill = 0)
         let ch = BRAILLE_UP[filled.min(4)][0];
-        let color = value_to_color(normalized);
+        let color = value_to_color(normalized, theme);
         result.push((ch, color));
     }
 
     // Pad with empty braille if fewer values than width
     while result.len() < width {
-        result.push((' ', value_to_color(0.0)));
+        result.push((' ', value_to_color(0.0, theme)));
     }
 
     result
@@ -203,23 +206,28 @@ pub fn render_braille_sparkline(values: &[f64], max_value: f64, width: usize) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::theme::THEMES;
+
+    fn test_theme() -> &'static Theme {
+        &THEMES[0]
+    }
 
     #[test]
     fn test_empty_buffer() {
-        let result = render_braille_sparkline(&[], 100.0, 10);
+        let result = render_braille_sparkline(&[], 100.0, 10, test_theme());
         assert!(result.is_empty());
     }
 
     #[test]
     fn test_single_value() {
-        let result = render_braille_sparkline(&[50.0], 100.0, 5);
+        let result = render_braille_sparkline(&[50.0], 100.0, 5, test_theme());
         assert_eq!(result.len(), 5);
         assert_ne!(result[0].0, ' ');
     }
 
     #[test]
     fn test_full_scale() {
-        let result = render_braille_sparkline(&[100.0], 100.0, 1);
+        let result = render_braille_sparkline(&[100.0], 100.0, 1, test_theme());
         assert_eq!(result.len(), 1);
         // All 4 left dots filled = BRAILLE_UP[4][0] = '⡇'
         assert_eq!(result[0].0, '⡇');
@@ -227,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_zero_value() {
-        let result = render_braille_sparkline(&[0.0], 100.0, 1);
+        let result = render_braille_sparkline(&[0.0], 100.0, 1, test_theme());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, ' ');
     }
@@ -235,7 +243,7 @@ mod tests {
     #[test]
     fn test_correct_width() {
         let values: Vec<f64> = (0..20).map(|i| i as f64).collect();
-        let result = render_braille_sparkline(&values, 20.0, 10);
+        let result = render_braille_sparkline(&values, 20.0, 10, test_theme());
         assert_eq!(result.len(), 10);
     }
 
@@ -243,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_graph_empty() {
-        let result = render_braille_graph(&[], 100.0, 10, 5);
+        let result = render_braille_graph(&[], 100.0, 10, 5, test_theme());
         assert_eq!(result.len(), 5);
         for row in &result {
             assert!(row.is_empty());
@@ -252,81 +260,65 @@ mod tests {
 
     #[test]
     fn test_graph_full_scale() {
-        // 100% value with height=2 (8 dots total) should fill all rows with ⣿
         let values = vec![100.0, 100.0];
-        let result = render_braille_graph(&values, 100.0, 1, 2);
+        let result = render_braille_graph(&values, 100.0, 1, 2, test_theme());
         assert_eq!(result.len(), 2);
-        // Both rows should be fully filled (left=4, right=4 = ⣿)
-        assert_eq!(result[0][0].0, '⣿'); // bottom row
-        assert_eq!(result[1][0].0, '⣿'); // top row
+        assert_eq!(result[0][0].0, '⣿');
+        assert_eq!(result[1][0].0, '⣿');
     }
 
     #[test]
     fn test_graph_zero_scale() {
         let values = vec![0.0, 0.0];
-        let result = render_braille_graph(&values, 100.0, 1, 2);
+        let result = render_braille_graph(&values, 100.0, 1, 2, test_theme());
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0][0].0, ' '); // bottom row empty
-        assert_eq!(result[1][0].0, ' '); // top row empty
+        assert_eq!(result[0][0].0, ' ');
+        assert_eq!(result[1][0].0, ' ');
     }
 
     #[test]
     fn test_graph_half_height() {
-        // 50% with height=2 (8 dots). 50% of 8 = 4 dots from bottom.
-        // Row 0 (bottom): base=0, fill=4 for both → ⣿
-        // Row 1 (top): base=4, fill=0 for both → ' '
         let values = vec![50.0, 50.0];
-        let result = render_braille_graph(&values, 100.0, 1, 2);
-        assert_eq!(result[0][0].0, '⣿'); // bottom row fully filled
-        assert_eq!(result[1][0].0, ' ');  // top row empty
+        let result = render_braille_graph(&values, 100.0, 1, 2, test_theme());
+        assert_eq!(result[0][0].0, '⣿');
+        assert_eq!(result[1][0].0, ' ');
     }
 
     #[test]
     fn test_graph_29_percent() {
-        // 29% with height=10 (40 dots). 29% of 40 = 11.6 → rounds to 12 dots.
-        // Row 0 (base=0): fill=4 → ⣿
-        // Row 1 (base=4): fill=4 → ⣿
-        // Row 2 (base=8): fill=4 → ⣿
-        // Row 3 (base=12): fill=0 → ' '
         let values = vec![29.0, 29.0];
-        let result = render_braille_graph(&values, 100.0, 1, 10);
+        let result = render_braille_graph(&values, 100.0, 1, 10, test_theme());
         assert_eq!(result.len(), 10);
-        assert_eq!(result[0][0].0, '⣿'); // row 0
-        assert_eq!(result[1][0].0, '⣿'); // row 1
-        assert_eq!(result[2][0].0, '⣿'); // row 2
-        assert_eq!(result[3][0].0, ' ');  // row 3 empty
-        assert_eq!(result[9][0].0, ' ');  // top row empty
+        assert_eq!(result[0][0].0, '⣿');
+        assert_eq!(result[1][0].0, '⣿');
+        assert_eq!(result[2][0].0, '⣿');
+        assert_eq!(result[3][0].0, ' ');
+        assert_eq!(result[9][0].0, ' ');
     }
 
     #[test]
     fn test_graph_width_and_samples() {
-        // width=3 needs 6 samples, we provide 4 → last col gets 0,0
         let values = vec![25.0, 50.0, 75.0, 100.0];
-        let result = render_braille_graph(&values, 100.0, 3, 1);
+        let result = render_braille_graph(&values, 100.0, 3, 1, test_theme());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].len(), 3);
-        // Col 0: values 25.0, 50.0 → left=1, right=2 → ⣠
         assert_eq!(result[0][0].0, '⣠');
-        // Col 1: values 75.0, 100.0 → left=3, right=4 → ⣾
         assert_eq!(result[0][1].0, '⣾');
-        // Col 2: no data (out of bounds) → space
         assert_eq!(result[0][2].0, ' ');
     }
 
     #[test]
     fn test_graph_asymmetric_values() {
-        // Left value high, right value low within same braille char
         let values = vec![100.0, 0.0];
-        let result = render_braille_graph(&values, 100.0, 1, 1);
-        // left=4, right=0 → ⡇
+        let result = render_braille_graph(&values, 100.0, 1, 1, test_theme());
         assert_eq!(result[0][0].0, '⡇');
     }
 
     #[test]
     fn test_braille_up_table_corners() {
-        assert_eq!(BRAILLE_UP[0][0], ' ');   // nothing
-        assert_eq!(BRAILLE_UP[4][4], '⣿');   // everything
-        assert_eq!(BRAILLE_UP[4][0], '⡇');   // left full, right empty
-        assert_eq!(BRAILLE_UP[0][4], '⢸');   // left empty, right full
+        assert_eq!(BRAILLE_UP[0][0], ' ');
+        assert_eq!(BRAILLE_UP[4][4], '⣿');
+        assert_eq!(BRAILLE_UP[4][0], '⡇');
+        assert_eq!(BRAILLE_UP[0][4], '⢸');
     }
 }

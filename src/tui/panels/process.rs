@@ -30,12 +30,12 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left/right + 1-line top padding
+    // 1-char padding left/right, no top padding (UAT-07)
     let inner = Rect::new(
         raw_inner.x + 1,
-        raw_inner.y + 1,
+        raw_inner.y,
         raw_inner.width.saturating_sub(2),
-        raw_inner.height.saturating_sub(1),
+        raw_inner.height,
     );
 
     if inner.width == 0 || inner.height < 3 {
@@ -110,9 +110,9 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let mem_norm = if max_mem > 0 { (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0) } else { 0.0 };
         let pow_norm = if max_power > 0.0 { (proc.power_w / max_power).clamp(0.0, 1.0) as f64 } else { 0.0 };
 
-        let cpu_dot_color = if proc.cpu_pct < 0.1 { theme.muted } else { gradient::value_to_color(cpu_norm) };
-        let mem_dot_color = if proc.mem_bytes < 1_048_576 { theme.muted } else { gradient::value_to_color(mem_norm) };
-        let pow_dot_color = if proc.power_w < 0.1 { theme.muted } else { gradient::value_to_color(pow_norm) };
+        let cpu_dot_color = if proc.cpu_pct < 0.1 { theme.muted } else { gradient::value_to_color(cpu_norm, theme) };
+        let mem_dot_color = if proc.mem_bytes < 1_048_576 { theme.muted } else { gradient::value_to_color(mem_norm, theme) };
+        let pow_dot_color = if proc.power_w < 0.1 { theme.muted } else { gradient::value_to_color(pow_norm, theme) };
 
         let line = Line::from(vec![
             Span::styled(format!("{:<w$}", proc.pid, w = COL_PID), Style::default().fg(theme.muted)),

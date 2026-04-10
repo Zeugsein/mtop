@@ -43,8 +43,8 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 1-char padding left/right + 1-line top padding
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(1));
+    // 1-char padding left/right, no top padding (UAT-07)
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height < 2 || inner.width == 0 {
         return;
@@ -83,7 +83,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         if left.height > 0 {
             let used_block = Block::default()
                 .title(Line::from(vec![
-                    Span::styled(" Used ", Style::default().fg(theme.fg).bold()),
+                    Span::styled(" used ", Style::default().fg(theme.fg).bold()),
                     Span::styled(used_value_str.clone(), Style::default().fg(theme.fg)),
                     Span::raw(" "),
                 ]))
@@ -93,15 +93,15 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             let used_inner = used_block.inner(left);
             f.render_widget(used_block, left);
             if used_inner.height > 0 {
-                render_graph(f, used_inner, &sparkline_data, 1.0);
+                render_graph(f, used_inner, &sparkline_data, 1.0, theme);
             }
         }
 
-        // Mid: "Avail" sub-frame with bordered frame
+        // Mid: "avail" sub-frame with bordered frame
         if mid.height > 0 {
             let avail_block = Block::default()
                 .title(Line::from(vec![
-                    Span::styled(" Avail ", Style::default().fg(theme.fg).bold()),
+                    Span::styled(" avail ", Style::default().fg(theme.fg).bold()),
                     Span::styled(avail_value_str.clone(), Style::default().fg(theme.fg)),
                     Span::raw(" "),
                 ]))
@@ -111,7 +111,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             let avail_inner = avail_block.inner(mid);
             f.render_widget(avail_block, mid);
             if avail_inner.height > 0 {
-                render_graph(f, avail_inner, &available_data, 1.0);
+                render_graph(f, avail_inner, &available_data, 1.0, theme);
             }
         }
 
@@ -163,7 +163,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
         let used_block = Block::default()
             .title(Line::from(vec![
-                Span::styled(" Used ", Style::default().fg(theme.fg).bold()),
+                Span::styled(" used ", Style::default().fg(theme.fg).bold()),
                 Span::styled(used_value_str, Style::default().fg(theme.fg)),
                 Span::raw(" "),
             ]))
@@ -173,12 +173,12 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         let used_inner = used_block.inner(left);
         f.render_widget(used_block, left);
         if used_inner.height > 0 {
-            render_graph(f, used_inner, &sparkline_data, 1.0);
+            render_graph(f, used_inner, &sparkline_data, 1.0, theme);
         }
 
         let avail_block = Block::default()
             .title(Line::from(vec![
-                Span::styled(" Avail ", Style::default().fg(theme.fg).bold()),
+                Span::styled(" avail ", Style::default().fg(theme.fg).bold()),
                 Span::styled(avail_value_str, Style::default().fg(theme.fg)),
                 Span::raw(" "),
             ]))
@@ -188,7 +188,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         let avail_inner = avail_block.inner(mid);
         f.render_widget(avail_block, mid);
         if avail_inner.height > 0 {
-            render_graph(f, avail_inner, &available_data, 1.0);
+            render_graph(f, avail_inner, &available_data, 1.0, theme);
         }
 
         let disk_used_gb = s.disk.used_bytes as f64 / gb;
