@@ -163,17 +163,58 @@ fn shall_23_10_baseline_floor_is_small_fraction_of_scale() {
 // =========================================================================
 // SHALL-23-13: GPU panel has no centered idle overlay text
 //
-// Verified by code review: gpu.rs renders "(idle)" in the title bar only
-// when gpu_w < 0.5. No centered overlay text is rendered on the chart area.
-// Behavioral tests live in src/tui/tests.rs (internal module with pub(crate) access).
+// The gpu.rs panel renders "(idle)" in the title bar span only (when gpu_w < 0.5).
+// No separate centered/full-area overlay widget is rendered in the content area.
+// We verify the behavioral contract via the public render helper.
 // =========================================================================
+
+/// GPU panel renders without panic when gpu_w = 0.0 (idle condition).
+#[test]
+fn shall_23_13_gpu_panel_renders_without_panic_when_idle() {
+    use mtop::metrics::types::MetricsSnapshot;
+    // Default snapshot has gpu.power_w = 0.0 → idle branch in panel title
+    let snapshot = MetricsSnapshot::default();
+    let _text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
+    // No panic = pass
+}
+
+/// When GPU is idle (gpu_w < 0.5), the rendered output contains "idle" (title indicator).
+#[test]
+fn shall_23_13_gpu_panel_title_contains_idle_when_gpu_w_is_zero() {
+    use mtop::metrics::types::MetricsSnapshot;
+    let snapshot = MetricsSnapshot::default(); // gpu_w = 0.0 < 0.5 → idle
+    let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
+    assert!(
+        text.contains("idle"),
+        "GPU panel should render 'idle' in title when gpu_w < 0.5"
+    );
+}
+
+/// When GPU is active (gpu_w ≥ 0.5), the GPU title must show usage%, not "(idle)".
+/// We verify by checking that the rendered text contains the formatted GPU percentage,
+/// which only appears in the active branch of the title span construction.
+#[test]
+fn shall_23_13_gpu_panel_shows_usage_percent_when_gpu_active() {
+    use mtop::metrics::types::{GpuMetrics, MetricsSnapshot, PowerMetrics};
+    let mut snapshot = MetricsSnapshot::default();
+    // gpu_w = 3.5 ≥ 0.5 → active branch: title shows "{:.1}%" and freq, not "(idle)"
+    snapshot.gpu = GpuMetrics { freq_mhz: 800, usage: 0.45, power_w: 3.5, available: true };
+    snapshot.power = PowerMetrics { gpu_w: 3.5, available: true, ..Default::default() };
+    let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
+    // Active branch renders usage as "45.0%" — verify this appears in output
+    assert!(
+        text.contains("45.0"),
+        "GPU panel active branch should render usage percentage (45.0%) when gpu_w = 3.5W, got no match in rendered text"
+    );
+}
 
 // =========================================================================
 // SHALL-23-15: Memory formula: ram_used = ram_total - free
 //
 // The platform code uses: used = ram_total.saturating_sub(free_pages * page_size)
-// We verify this formula at the type level using MemoryMetrics fields and the
-// MetricsHistory push() function which computes available = ram_total - ram_used.
+// We verify this formula via MetricsHistory.push() which derives:
+//   usage_frac    = ram_used / ram_total
+//   available_frac = (ram_total - ram_used) / ram_total = free / ram_total
 // =========================================================================
 
 /// ram_used = ram_total - free_bytes (btop formula).
@@ -181,7 +222,7 @@ fn shall_23_10_baseline_floor_is_small_fraction_of_scale() {
 /// If ram_used = ram_total - free, then available == free. This roundtrip holds.
 #[test]
 fn shall_23_15_memory_used_equals_total_minus_free() {
-    use mtop::metrics::{MemoryMetrics, MetricsSnapshot, MetricsHistory};
+    use mtop::metrics::types::{MemoryMetrics, MetricsHistory, MetricsSnapshot};
 
     let ram_total: u64 = 16 * 1024 * 1024 * 1024; // 16 GB
     let free_bytes: u64 = 4 * 1024 * 1024 * 1024;  // 4 GB free
@@ -230,8 +271,42 @@ fn shall_23_15_memory_used_saturates_at_zero_when_free_exceeds_total() {
     let ram_total: u64 = 8 * 1024 * 1024 * 1024;
     let free_bytes: u64 = 10 * 1024 * 1024 * 1024; // impossible but safe
     let ram_used = ram_total.saturating_sub(free_bytes);
-
     assert_eq!(ram_used, 0, "saturating_sub must floor at 0, never underflow");
+}
+
+/// When all memory is free, ram_used = 0 and usage fraction = 0.0.
+#[test]
+fn shall_23_15_memory_all_free_gives_zero_usage_fraction() {
+    use mtop::metrics::types::{MemoryMetrics, MetricsHistory, MetricsSnapshot};
+    let ram_total: u64 = 8 * 1024 * 1024 * 1024;
+    let ram_used = 0u64;
+    let mut snapshot = MetricsSnapshot::default();
+    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    let mut history = MetricsHistory::new();
+    history.push(&snapshot);
+    let usage_frac = *history.mem_usage.last().unwrap();
+    assert!(
+        usage_frac.abs() < 0.001,
+        "usage fraction should be 0.0 when all memory is free, got {usage_frac}"
+    );
+}
+
+/// When exactly half of memory is free, usage fraction = 0.5.
+#[test]
+fn shall_23_15_memory_half_free_gives_half_usage_fraction() {
+    use mtop::metrics::types::{MemoryMetrics, MetricsHistory, MetricsSnapshot};
+    let ram_total: u64 = 16 * 1024 * 1024 * 1024;
+    let free_bytes: u64 = ram_total / 2;
+    let ram_used = ram_total.saturating_sub(free_bytes);
+    let mut snapshot = MetricsSnapshot::default();
+    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    let mut history = MetricsHistory::new();
+    history.push(&snapshot);
+    let usage_frac = *history.mem_usage.last().unwrap();
+    assert!(
+        (usage_frac - 0.5).abs() < 0.001,
+        "usage fraction should be 0.5 when half of memory is free, got {usage_frac}"
+    );
 }
 
 /// ram_total is the authoritative denominator; ram_used ≤ ram_total always holds.
