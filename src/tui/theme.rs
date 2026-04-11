@@ -120,7 +120,7 @@ pub const CATPPUCCIN: Theme = Theme {
     net_upload: Color::Rgb(166, 227, 161),
     net_download: Color::Rgb(245, 194, 231),
     power_accent: Color::Rgb(250, 179, 135),
-    process_accent: Color::Rgb(137, 220, 235), // sky (#89DCEB, catppuccin palette)
+    process_accent: Color::Rgb(137, 180, 250), // blue (#89B4FA, catppuccin palette — matches btop convention)
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
@@ -172,7 +172,7 @@ pub const SOLARIZED_DARK: Theme = Theme {
     net_upload: Color::Rgb(133, 153, 0),
     net_download: Color::Rgb(211, 54, 130),
     power_accent: Color::Rgb(203, 75, 22),
-    process_accent: Color::Rgb(42, 161, 152),  // cyan (#2AA198, solarized palette)
+    process_accent: Color::Rgb(38, 139, 210),  // blue (#268BD2, solarized palette — distinct from cpu cyan)
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
@@ -198,7 +198,7 @@ pub const SOLARIZED_LIGHT: Theme = Theme {
     net_upload: Color::Rgb(133, 153, 0),
     net_download: Color::Rgb(211, 54, 130),
     power_accent: Color::Rgb(203, 75, 22),
-    process_accent: Color::Rgb(42, 161, 152),  // cyan (#2AA198, solarized palette)
+    process_accent: Color::Rgb(38, 139, 210),  // blue (#268BD2, solarized palette — distinct from cpu cyan)
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
@@ -302,7 +302,7 @@ pub const MONOKAI: Theme = Theme {
     net_upload: Color::Rgb(166, 226, 46),
     net_download: Color::Rgb(249, 38, 114),
     power_accent: Color::Rgb(253, 151, 31),
-    process_accent: Color::Rgb(102, 217, 239), // cyan (#66D9EF, monokai palette)
+    process_accent: Color::Rgb(174, 129, 255), // purple (#AE81FF, monokai palette — distinct from cpu cyan)
     pressure_normal: Color::Rgb(0, 200, 83),
     pressure_warn: Color::Rgb(255, 214, 0),
     pressure_critical: Color::Rgb(255, 61, 0),
@@ -320,8 +320,8 @@ pub static THEMES: LazyLock<Vec<Theme>> = LazyLock::new(|| {
         SOLARIZED_LIGHT, GRUVBOX, TOKYO_NIGHT, ONE_DARK, MONOKAI,
     ];
     bases.into_iter().map(|mut t| {
-        t.gpu_accent = derive_companion(t.cpu_accent, 60.0, 0.85);
-        t.power_accent = derive_companion(t.mem_accent, 60.0, 0.85);
+        t.gpu_accent = hue_midpoint(t.cpu_accent, t.mem_accent);
+        t.power_accent = hue_midpoint(t.net_download, t.process_accent);
         t
     }).collect()
 });
@@ -358,6 +358,53 @@ pub fn dim_color(color: Color, factor: f64) -> Color {
         }
         other => other,
     }
+}
+
+/// Compute the HSL hue midpoint between two colors (shorter arc on the color wheel).
+/// Used to derive GPU accent (midpoint of CPU and MEM) and Power accent (midpoint of NET and Process).
+pub fn hue_midpoint(a: Color, b: Color) -> Color {
+    let (ar, ag, ab) = match a {
+        Color::Rgb(r, g, b) => (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0),
+        _ => return a,
+    };
+    let (br, bg, bb) = match b {
+        Color::Rgb(r, g, b) => (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0),
+        _ => return a,
+    };
+
+    let to_hsl = |r: f32, g: f32, b: f32| -> (f32, f32, f32) {
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let l = (max + min) / 2.0;
+        let delta = max - min;
+        if delta < 1e-6 {
+            return (0.0, 0.0, l);
+        }
+        let s = if l <= 0.5 { delta / (max + min) } else { delta / (2.0 - max - min) };
+        let h = if (max - r).abs() < 1e-6 {
+            let mut h = (g - b) / delta;
+            if h < 0.0 { h += 6.0; }
+            h * 60.0
+        } else if (max - g).abs() < 1e-6 {
+            ((b - r) / delta + 2.0) * 60.0
+        } else {
+            ((r - g) / delta + 4.0) * 60.0
+        };
+        (h, s, l)
+    };
+
+    let (h1, s1, l1) = to_hsl(ar, ag, ab);
+    let (h2, s2, l2) = to_hsl(br, bg, bb);
+
+    // Average hue via shorter arc
+    let mut diff = h2 - h1;
+    if diff > 180.0 { diff -= 360.0; }
+    if diff < -180.0 { diff += 360.0; }
+    let mid_h = (h1 + diff / 2.0).rem_euclid(360.0);
+    let mid_s = (s1 + s2) / 2.0;
+    let mid_l = (l1 + l2) / 2.0;
+
+    hsl_to_rgb(mid_h, mid_s, mid_l)
 }
 
 /// Derive a companion color via HSL hue rotation and saturation adjustment.
@@ -626,19 +673,19 @@ mod tests {
     }
 
     #[test]
-    fn test_gpu_power_derived_from_companion() {
+    fn test_gpu_power_derived_from_hue_midpoint() {
         for theme in THEMES.iter() {
-            let expected_gpu = derive_companion(theme.cpu_accent, 60.0, 0.85);
-            let expected_power = derive_companion(theme.mem_accent, 60.0, 0.85);
+            let expected_gpu = hue_midpoint(theme.cpu_accent, theme.mem_accent);
+            let expected_power = hue_midpoint(theme.net_download, theme.process_accent);
             assert_eq!(
                 format!("{:?}", theme.gpu_accent),
                 format!("{:?}", expected_gpu),
-                "theme '{}': gpu_accent should match derive_companion(cpu_accent)", theme.name
+                "theme '{}': gpu_accent should match hue_midpoint(cpu_accent, mem_accent)", theme.name
             );
             assert_eq!(
                 format!("{:?}", theme.power_accent),
                 format!("{:?}", expected_power),
-                "theme '{}': power_accent should match derive_companion(mem_accent)", theme.name
+                "theme '{}': power_accent should match hue_midpoint(net_download, process_accent)", theme.name
             );
         }
     }

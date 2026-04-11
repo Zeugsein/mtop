@@ -638,3 +638,104 @@ fn key_minus_at_minimum_stays_at_100() {
     input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
     assert_eq!(state.interval_ms, 100, "interval should not go below 100");
 }
+
+// =========================================================================
+// Reverse theme cycling (Shift+C)
+// =========================================================================
+
+/// Reverse cycle from index 0 wraps to last theme. (ref: SHALL-AD-02a)
+#[test]
+fn theme_reverse_cycle_wraps_to_last() {
+    let mut state = AppState::default();
+    state.theme_idx = 0;
+    input::handle_key_event(make_key(KeyCode::Char('C')), &mut state);
+    assert_eq!(state.theme_idx, theme::THEMES.len() - 1,
+        "reverse cycling from 0 should wrap to last theme");
+}
+
+/// Reverse cycle from index 5 decrements to 4. (ref: SHALL-AD-02b)
+#[test]
+fn theme_reverse_cycle_decrements() {
+    let mut state = AppState::default();
+    state.theme_idx = 5;
+    input::handle_key_event(make_key(KeyCode::Char('C')), &mut state);
+    assert_eq!(state.theme_idx, 4, "reverse cycling from 5 should go to 4");
+}
+
+/// Forward then reverse theme cycling round-trips: 0 -> 1 -> 0. (ref: SHALL-AD-02c)
+#[test]
+fn theme_forward_reverse_roundtrip() {
+    let mut state = AppState::default();
+    state.theme_idx = 0;
+    input::handle_key_event(make_key(KeyCode::Char('c')), &mut state);
+    assert_eq!(state.theme_idx, 1, "forward from 0 -> 1");
+    input::handle_key_event(make_key(KeyCode::Char('C')), &mut state);
+    assert_eq!(state.theme_idx, 0, "reverse from 1 -> 0 (round-trip)");
+}
+
+// =========================================================================
+// Interval preset ladder (+/-/= keys)
+// =========================================================================
+
+/// Interval 1000ms + key -> 1500ms. (ref: SHALL-26-05a)
+#[test]
+fn interval_1000_plus_becomes_1500() {
+    let mut state = AppState::default();
+    state.interval_ms = 1000;
+    input::handle_key_event(make_key(KeyCode::Char('+')), &mut state);
+    assert_eq!(state.interval_ms, 1500);
+}
+
+/// Interval 1000ms - key -> 750ms. (ref: SHALL-26-05b)
+#[test]
+fn interval_1000_minus_becomes_750() {
+    let mut state = AppState::default();
+    state.interval_ms = 1000;
+    input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
+    assert_eq!(state.interval_ms, 750);
+}
+
+/// Interval caps at 10000ms maximum. (ref: SHALL-26-05c)
+#[test]
+fn interval_caps_at_10000() {
+    let mut state = AppState::default();
+    state.interval_ms = 10000;
+    input::handle_key_event(make_key(KeyCode::Char('+')), &mut state);
+    assert_eq!(state.interval_ms, 10000);
+}
+
+/// Interval floors at 100ms minimum. (ref: SHALL-26-05d)
+#[test]
+fn interval_floors_at_100() {
+    let mut state = AppState::default();
+    state.interval_ms = 100;
+    input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
+    assert_eq!(state.interval_ms, 100);
+}
+
+/// Interval 750ms + key -> 1000ms (1000 always reachable). (ref: SHALL-26-05e)
+#[test]
+fn interval_750_plus_reaches_1000() {
+    let mut state = AppState::default();
+    state.interval_ms = 750;
+    input::handle_key_event(make_key(KeyCode::Char('+')), &mut state);
+    assert_eq!(state.interval_ms, 1000);
+}
+
+/// Interval 1500ms - key -> 1000ms (1000 always reachable). (ref: SHALL-26-05f)
+#[test]
+fn interval_1500_minus_reaches_1000() {
+    let mut state = AppState::default();
+    state.interval_ms = 1500;
+    input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
+    assert_eq!(state.interval_ms, 1000);
+}
+
+/// '=' key behaves same as '+'. (ref: SHALL-26-05g)
+#[test]
+fn interval_equals_same_as_plus() {
+    let mut state = AppState::default();
+    state.interval_ms = 1000;
+    input::handle_key_event(make_key(KeyCode::Char('=')), &mut state);
+    assert_eq!(state.interval_ms, 1500, "'=' should behave like '+'");
+}
