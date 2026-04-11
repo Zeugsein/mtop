@@ -358,7 +358,7 @@ impl MetricsHistory {
             let total = snapshot.memory.ram_total as f64;
             Self::push_val(
                 &mut self.mem_usage,
-                snapshot.memory.ram_used as f64 / total,
+                (snapshot.memory.ram_used as f64 / total).min(1.0),
                 self.max_len,
             );
             let available = snapshot.memory.ram_total.saturating_sub(snapshot.memory.ram_used) as f64;

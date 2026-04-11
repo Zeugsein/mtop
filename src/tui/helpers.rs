@@ -98,7 +98,7 @@ pub fn truncate_with_ellipsis(name: &str, max_width: usize) -> String {
 }
 
 pub fn is_infrastructure_interface(name: &str) -> bool {
-    const INFRA_PREFIXES: &[&str] = &["bridge", "awdl", "llw", "gif", "stf", "XHC", "ap", "utun"];
+    const INFRA_PREFIXES: &[&str] = &["bridge", "awdl", "llw", "gif", "stf", "XHC", "ap", "utun", "ipsec"];
     INFRA_PREFIXES.iter().any(|prefix| name.starts_with(prefix))
 }
 
