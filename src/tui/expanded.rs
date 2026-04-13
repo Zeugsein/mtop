@@ -28,7 +28,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         theme.muted
     };
     let title_spans = vec![
-        Span::styled(" CPU [expanded]  ", Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled("¹ CPU  ", Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
         if s.temperature.available {
@@ -76,7 +76,8 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     }
 
     let bar_width = inner.width.saturating_sub(12) as usize;
-    for (i, &usage) in s.cpu.core_usages.iter().enumerate() {
+    let e_count = s.soc.e_cores as usize;
+    for (i, &usage) in s.cpu.core_usages.iter().take(e_count).enumerate() {
         let y = core_start_y + 1 + i as u16;
         if y >= inner.y + inner.height { break; }
 
@@ -93,6 +94,33 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
+
+    // P-cluster header and cores
+    let p_header_y = core_start_y + 1 + e_count as u16;
+    if p_header_y < inner.y + inner.height {
+        f.render_widget(
+            Paragraph::new(format!("P-cluster: {:.0}% @ {}MHz", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz))
+                .style(Style::default().fg(theme.cpu_accent)),
+            Rect::new(inner.x, p_header_y, inner.width, 1),
+        );
+    }
+    for (i, &usage) in s.cpu.core_usages.iter().skip(e_count).enumerate() {
+        let y = p_header_y + 1 + i as u16;
+        if y >= inner.y + inner.height { break; }
+
+        let norm = usage.clamp(0.0, 1.0);
+        let filled = (bar_width as f32 * norm) as usize;
+        let empty = bar_width.saturating_sub(filled);
+        let color = gradient::value_to_color(norm as f64, theme);
+
+        let line = Line::from(vec![
+            Span::styled(format!("Core {:>2} ", e_count + i), Style::default().fg(theme.muted)),
+            Span::styled("▓".repeat(filled), Style::default().fg(color)),
+            Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
+            Span::styled(format!(" {:>5.1}%", usage * 100.0), Style::default().fg(theme.fg)),
+        ]);
+        f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
+    }
 }
 
 fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -101,8 +129,9 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     } else {
         theme.muted
     };
+    let idle_suffix = if s.power.gpu_w < 0.5 { " (idle)" } else { "" };
     let title_spans = vec![
-        Span::styled(" GPU [expanded]  ", Style::default().fg(theme.gpu_accent).bold()),
+        Span::styled(format!("² GPU{}  ", idle_suffix), Style::default().fg(theme.gpu_accent).bold()),
         Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)),
         if s.temperature.available {
             Span::styled(format!("  {:.0}°C", s.temperature.gpu_avg_c), Style::default().fg(temp_col))
@@ -133,18 +162,13 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, inner.y, inner.width, 1));
     }
 
-    // Detailed metrics table
-    let gb = 1024.0 * 1024.0 * 1024.0;
+    // Detailed metrics table (GPU Cores and Memory lines removed per SHALL-28-12)
     let metrics = [
         format!("Frequency:    {} MHz", s.gpu.freq_mhz),
         format!("Usage:        {:.1}%", s.gpu.usage * 100.0),
         format!("GPU Power:    {:.2} W", s.power.gpu_w),
         format!("ANE Power:    {:.2} W", s.power.ane_w),
         format!("DRAM Power:   {:.2} W", s.power.dram_w),
-        format!("GPU Cores:    {}", s.soc.gpu_cores),
-        String::new(),
-        format!("Memory Used:  {:.1} GB", s.memory.ram_used as f64 / gb),
-        format!("Memory Total: {:.0} GB", s.memory.ram_total as f64 / gb),
     ];
 
     for (i, text) in metrics.iter().enumerate() {
@@ -163,7 +187,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     let ram_total_gb = s.memory.ram_total as f64 / gb;
 
     let title_spans = vec![
-        Span::styled(" Memory+Disk [expanded]  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled("³ Memory  ", Style::default().fg(theme.mem_accent).bold()),
         Span::styled(format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
@@ -228,9 +252,9 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
             let free_chars = gauge_width.saturating_sub(w_chars + a_chars + c_chars);
 
             let line = Line::from(vec![
-                Span::styled("▓".repeat(w_chars), Style::default().fg(Color::Red)),
-                Span::styled("▓".repeat(a_chars), Style::default().fg(Color::Blue)),
-                Span::styled("▓".repeat(c_chars), Style::default().fg(Color::Yellow)),
+                Span::styled("▓".repeat(w_chars), Style::default().fg(theme.cpu_accent)),
+                Span::styled("▓".repeat(a_chars), Style::default().fg(theme.mem_accent)),
+                Span::styled("▓".repeat(c_chars), Style::default().fg(theme.power_accent)),
                 Span::styled("░".repeat(free_chars), Style::default().fg(theme.border)),
             ]);
             f.render_widget(Paragraph::new(line), Rect::new(inner.x, pressure_y, inner.width, 1));
@@ -239,9 +263,9 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
 
         // Legend
         let pressure_items = [
-            ("■ Wired: ", wired_gb, Color::Red),
-            ("  ■ App: ", app_gb, Color::Blue),
-            ("  ■ Compressed: ", compressed_gb, Color::Yellow),
+            ("■ Wired: ", wired_gb, theme.cpu_accent),
+            ("  ■ App: ", app_gb, theme.mem_accent),
+            ("  ■ Compressed: ", compressed_gb, theme.power_accent),
         ];
         if pressure_y < inner.y + inner.height {
             let legend: Vec<Span> = pressure_items.iter().flat_map(|(label, val, color)| {
@@ -282,7 +306,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     });
 
     let title_spans = vec![
-        Span::styled(" Network [expanded]  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled("⁴ Network  ", Style::default().fg(theme.net_upload).bold()),
         Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
         Span::styled("  ", Style::default()),
         Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
@@ -292,7 +316,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let block = Block::default()
         .title(Line::from(title_spans))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.net_upload))
+        .border_style(Style::default().fg(theme.net_download))
         .border_type(BorderType::Rounded);
 
     let inner = block.inner(area);
@@ -302,11 +326,11 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
 
-    // Upload sparkline
+    // Upload sparkline (gradient colors from braille renderer)
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
     let spark = braille::render_braille_sparkline(&upload_data, scale, inner.width as usize, theme);
     let spans: Vec<Span> = spark.iter()
-        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_upload)))
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
     if !spans.is_empty() {
         f.render_widget(Paragraph::new(Line::from(vec![
@@ -315,11 +339,11 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
     }
 
-    // Download sparkline
+    // Download sparkline (gradient colors from braille renderer)
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
     let spark = braille::render_braille_sparkline(&download_data, scale, inner.width as usize, theme);
     let spans: Vec<Span> = spark.iter()
-        .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
+        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
     if !spans.is_empty() && inner.height > 3 {
         f.render_widget(Paragraph::new(Line::from(vec![
@@ -371,7 +395,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
                 let rx_data: Vec<f64> = rx_buf.iter().copied().collect();
                 let spark = braille::render_braille_sparkline(&rx_data, iface_scale, inner.width as usize, theme);
                 let spark_spans: Vec<Span> = spark.iter()
-                    .map(|&(ch, _)| Span::styled(ch.to_string(), Style::default().fg(theme.net_download)))
+                    .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
                     .collect();
                 if !spark_spans.is_empty() {
                     f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, cur_y, inner.width, 1));
@@ -386,7 +410,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let total_w = s.power.package_w.max(s.power.cpu_w + s.power.gpu_w + s.power.ane_w + s.power.dram_w);
 
     let title_spans = vec![
-        Span::styled(" Power [expanded]  ", Style::default().fg(theme.power_accent).bold()),
+        Span::styled("⁵ Power  ", Style::default().fg(theme.power_accent).bold()),
         Span::styled(format!("{:.1}W total", total_w), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
@@ -514,12 +538,12 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let sort_label = state.sort_mode.label();
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled(" Processes [expanded] ", Style::default().fg(theme.fg).bold()),
+            Span::styled("⁶ Processes  ", Style::default().fg(theme.fg).bold()),
             Span::styled(format!(" sort: {} ", sort_label), Style::default().fg(theme.muted)),
         ]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(theme.process_accent));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -535,7 +559,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         Span::styled(format!("{:>6}", "CPU%"), Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:>8}", "Mem"), Style::default().fg(theme.mem_accent).bold()),
         Span::styled(format!("{:>7}", "Power"), Style::default().fg(theme.power_accent).bold()),
-        Span::styled(format!("{:>4}", "Thr"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "thread"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "IO R"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "IO W"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "PID"), Style::default().fg(theme.muted).bold()),
@@ -576,13 +600,21 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         };
 
         let cpu_norm = if max_cpu > 0.0 { (proc.cpu_pct / max_cpu).clamp(0.0, 1.0) as f64 } else { 0.0 };
+        let mem_norm = if max_mem > 0 { (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0) } else { 0.0 };
+        let pwr_norm = if max_power > 0.0 { (proc.power_w / max_power).clamp(0.0, 1.0) as f64 } else { 0.0 };
+        let cpu_color = gradient::value_to_color(cpu_norm, theme);
+        let mem_color = gradient::value_to_color(mem_norm, theme);
+        let pwr_color = gradient::value_to_color(pwr_norm, theme);
 
         let line = Line::from(vec![
             Span::styled(format!("{:<18}", truncate_with_ellipsis(&proc.name, 18)), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>5.1}%", proc.cpu_pct), Style::default().fg(gradient::value_to_color(cpu_norm, theme))),
-            Span::styled(format!("{:>8}", mem_display), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>6.1}W", proc.power_w), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>4}", proc.thread_count), Style::default().fg(theme.muted)),
+            Span::styled("•", Style::default().fg(cpu_color)),
+            Span::styled(format!("{:>4.1}%", proc.cpu_pct), Style::default().fg(cpu_color)),
+            Span::styled("•", Style::default().fg(mem_color)),
+            Span::styled(format!("{:>7}", mem_display), Style::default().fg(mem_color)),
+            Span::styled("•", Style::default().fg(pwr_color)),
+            Span::styled(format!("{:>5.1}W", proc.power_w), Style::default().fg(pwr_color)),
+            Span::styled(format!("{:>7}", proc.thread_count), Style::default().fg(theme.muted)),
             Span::styled(format!("{:>7}", format_bytes_rate_compact(proc.io_read_bytes_sec)), Style::default().fg(theme.muted)),
             Span::styled(format!("{:>7}", format_bytes_rate_compact(proc.io_write_bytes_sec)), Style::default().fg(theme.muted)),
             Span::styled(format!("{:>7}", proc.pid), Style::default().fg(theme.muted)),
@@ -591,4 +623,3 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 }
-

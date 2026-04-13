@@ -173,6 +173,9 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
     let mut terminal = Terminal::new(backend)?;
 
     loop {
+        // Resize history buffers to terminal width
+        state.history.resize_buffers(terminal.size()?.width);
+
         // Render
         terminal.draw(|f| draw_dashboard(f, &state))?;
 
