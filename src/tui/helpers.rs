@@ -39,13 +39,13 @@ pub fn format_bytes_rate_compact(b: f64) -> String {
     const MB: f64 = 1024.0 * 1024.0;
     const GB: f64 = 1024.0 * 1024.0 * 1024.0;
     if b >= GB {
-        format!("{:.1}G", b / GB)
+        format!("{:.1}G/s", b / GB)
     } else if b >= MB {
-        format!("{:.1}M", b / MB)
+        format!("{:.1}M/s", b / MB)
     } else if b >= KB {
-        format!("{:.1}K", b / KB)
+        format!("{:.1}K/s", b / KB)
     } else {
-        format!("{:.0}B", b)
+        format!("{:.0}B/s", b)
     }
 }
 

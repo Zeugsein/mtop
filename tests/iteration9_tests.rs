@@ -259,23 +259,23 @@ fn thermal_metrics_fan_speeds_set() {
 #[test]
 fn format_bytes_rate_compact_bytes() {
     let result = mtop::tui::helpers::format_bytes_rate_compact(500.0);
-    assert_eq!(result, "500B");
+    assert_eq!(result, "500B/s");
 }
 
 #[test]
 fn format_bytes_rate_compact_kilobytes() {
     let result = mtop::tui::helpers::format_bytes_rate_compact(2048.0);
-    assert_eq!(result, "2.0K");
+    assert_eq!(result, "2.0K/s");
 }
 
 #[test]
 fn format_bytes_rate_compact_megabytes() {
     let result = mtop::tui::helpers::format_bytes_rate_compact(5_242_880.0);
-    assert_eq!(result, "5.0M");
+    assert_eq!(result, "5.0M/s");
 }
 
 #[test]
 fn format_bytes_rate_compact_gigabytes() {
     let result = mtop::tui::helpers::format_bytes_rate_compact(2_147_483_648.0);
-    assert_eq!(result, "2.0G");
+    assert_eq!(result, "2.0G/s");
 }

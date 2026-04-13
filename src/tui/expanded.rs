@@ -45,8 +45,9 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         .border_style(Style::default().fg(theme.cpu_accent))
         .border_type(BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -87,7 +88,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         let color = gradient::value_to_color(norm as f64, theme);
 
         let line = Line::from(vec![
-            Span::styled(format!("Core {:>2} ", i), Style::default().fg(theme.muted)),
+            Span::styled(format!("core {:>2} ",i), Style::default().fg(theme.muted)),
             Span::styled("▓".repeat(filled), Style::default().fg(color)),
             Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
             Span::styled(format!(" {:>5.1}%", usage * 100.0), Style::default().fg(theme.fg)),
@@ -114,7 +115,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         let color = gradient::value_to_color(norm as f64, theme);
 
         let line = Line::from(vec![
-            Span::styled(format!("Core {:>2} ", e_count + i), Style::default().fg(theme.muted)),
+            Span::styled(format!("core {:>2} ",e_count + i), Style::default().fg(theme.muted)),
             Span::styled("▓".repeat(filled), Style::default().fg(color)),
             Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
             Span::styled(format!(" {:>5.1}%", usage * 100.0), Style::default().fg(theme.fg)),
@@ -147,8 +148,9 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         .border_style(Style::default().fg(theme.gpu_accent))
         .border_type(BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -164,8 +166,8 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     // Detailed metrics table (GPU Cores and Memory lines removed per SHALL-28-12)
     let metrics = [
-        format!("Frequency:    {} MHz", s.gpu.freq_mhz),
-        format!("Usage:        {:.1}%", s.gpu.usage * 100.0),
+        format!("frequency:    {} MHz", s.gpu.freq_mhz),
+        format!("usage:        {:.1}%", s.gpu.usage * 100.0),
         format!("GPU Power:    {:.2} W", s.power.gpu_w),
         format!("ANE Power:    {:.2} W", s.power.ane_w),
         format!("DRAM Power:   {:.2} W", s.power.dram_w),
@@ -198,8 +200,9 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
         .border_style(Style::default().fg(theme.mem_accent))
         .border_type(BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -221,7 +224,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     let swap_gauge = gauge::render_gauge_bar(s.memory.swap_used as f64, s.memory.swap_total as f64, bar_width, &swap_label, theme);
     if inner.height > 3 {
         f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("Swap ", Style::default().fg(theme.muted)),
+            Span::styled("swap ", Style::default().fg(theme.muted)),
         ])), Rect::new(inner.x, inner.y + 3, inner.width, 1));
         f.render_widget(Paragraph::new(Line::from(swap_gauge)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
     }
@@ -235,7 +238,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
         let total = ram_total_gb.max(0.01);
 
         f.render_widget(
-            Paragraph::new("Memory Pressure").style(Style::default().fg(theme.muted)),
+            Paragraph::new("memory pressure").style(Style::default().fg(theme.muted)),
             Rect::new(inner.x, pressure_y, inner.width, 1),
         );
         pressure_y += 1;
@@ -285,9 +288,9 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     let disk_total_gb = s.disk.total_bytes as f64 / gb;
     if disk_start < inner.y + inner.height {
         let disk_metrics = [
-            format!("Disk: {:.0}/{:.0} GB", disk_used_gb, disk_total_gb),
-            format!("Read:  {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
-            format!("Write: {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
+            format!("disk: {:.0}/{:.0} GB", disk_used_gb, disk_total_gb),
+            format!("read:  {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
+            format!("write: {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
         ];
         for (i, text) in disk_metrics.iter().enumerate() {
             let y = disk_start + i as u16;
@@ -319,8 +322,9 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         .border_style(Style::default().fg(theme.net_download))
         .border_type(BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -334,7 +338,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         .collect();
     if !spans.is_empty() {
         f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("Upload ", Style::default().fg(theme.net_upload)),
+            Span::styled("upload ", Style::default().fg(theme.net_upload)),
         ])), Rect::new(inner.x, inner.y, inner.width, 1));
         f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
     }
@@ -347,7 +351,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         .collect();
     if !spans.is_empty() && inner.height > 3 {
         f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("Download ", Style::default().fg(theme.net_download)),
+            Span::styled("download ", Style::default().fg(theme.net_download)),
         ])), Rect::new(inner.x, inner.y + 3, inner.width, 1));
         f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
     }
@@ -365,7 +369,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let header_y = inner.y.saturating_add(6);
     if header_y < inner.y.saturating_add(inner.height) {
         let hdr = Line::from(vec![
-            Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>8}", "Interface", "Type", "Baudrate", "Upload", "Download", "Pkt In"), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>8}", "interface", "type", "baudrate", "upload", "download", "pkt in"), Style::default().fg(theme.muted)),
         ]);
         f.render_widget(Paragraph::new(hdr), Rect::new(inner.x, header_y, inner.width, 1));
     }
@@ -421,8 +425,9 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         .border_style(Style::default().fg(theme.power_accent))
         .border_type(BorderType::Rounded);
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -464,13 +469,13 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         ("GPU", s.power.gpu_w, theme.gpu_accent),
         ("ANE", s.power.ane_w, theme.power_accent),
         ("DRAM", s.power.dram_w, theme.mem_accent),
-        ("System", s.power.system_w, theme.muted),
-        ("Package", s.power.package_w, theme.fg),
+        ("system", s.power.system_w, theme.muted),
+        ("package", s.power.package_w, theme.fg),
     ];
 
     if inner.height > 6 {
         f.render_widget(
-            Paragraph::new("Component Breakdown").style(Style::default().fg(theme.muted)),
+            Paragraph::new("component breakdown").style(Style::default().fg(theme.muted)),
             Rect::new(inner.x, inner.y + 6, inner.width, 1),
         );
     }
@@ -499,7 +504,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let mut fan_y = inner.y.saturating_add(14);
     if !s.temperature.fan_speeds.is_empty() && fan_y < inner.y.saturating_add(inner.height) {
         let fan_text: String = s.temperature.fan_speeds.iter().enumerate()
-            .map(|(i, rpm)| format!("Fan {}: {} RPM", i, rpm))
+            .map(|(i, rpm)| format!("fan {}: {} RPM", i, rpm))
             .collect::<Vec<_>>()
             .join("  ");
         f.render_widget(
@@ -518,7 +523,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let proc_start_y = fan_y.saturating_add(1);
     if proc_start_y < inner.y.saturating_add(inner.height) {
         f.render_widget(
-            Paragraph::new("Top Processes by Power").style(Style::default().fg(theme.muted)),
+            Paragraph::new("top processes by power").style(Style::default().fg(theme.muted)),
             Rect::new(inner.x, proc_start_y, inner.width, 1),
         );
     }
@@ -545,8 +550,9 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme.process_accent));
 
-    let inner = block.inner(area);
+    let raw_inner = block.inner(area);
     f.render_widget(block, area);
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
 
     if inner.width == 0 || inner.height == 0 { return; }
 
@@ -555,15 +561,15 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     // Header row with thread count and I/O
     let header = Line::from(vec![
-        Span::styled(format!("{:<18}", "Name"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>6}", "CPU%"), Style::default().fg(theme.cpu_accent).bold()),
-        Span::styled(format!("{:>8}", "Mem"), Style::default().fg(theme.mem_accent).bold()),
-        Span::styled(format!("{:>7}", "Power"), Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!("{:<18}", "name"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>6}", "cpu%"), Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(format!("{:>8}", "mem"), Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{:>7}", "power"), Style::default().fg(theme.power_accent).bold()),
         Span::styled(format!("{:>7}", "thread"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "IO R"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "IO W"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>7}", "PID"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!(" {:<8}", "User"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!(" {:<8}", "user"), Style::default().fg(theme.muted).bold()),
     ]);
     f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));
 
@@ -578,7 +584,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     if indices.is_empty() {
         if inner.height > 1 {
             f.render_widget(
-                Paragraph::new("No processes").style(Style::default().fg(theme.muted)),
+                Paragraph::new("no processes").style(Style::default().fg(theme.muted)),
                 Rect::new(inner.x, inner.y + 1, inner.width, 1),
             );
         }
