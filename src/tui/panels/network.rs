@@ -33,12 +33,13 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     if net_idle {
         title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
     }
-    {
-        let tier_idx = state.history.net_tier_idx;
-        let label = NET_TIERS[tier_idx].1;
-        title_spans.push(Span::styled(format!("(100%={})", label), Style::default().fg(theme.muted)));
-    }
     title_spans.push(Span::raw(" "));
+
+    let tier_idx = state.history.net_tier_idx;
+    let scale_label = NET_TIERS[tier_idx].1;
+    let right_title = Line::from(vec![
+        Span::styled(format!("100%={} ", scale_label), Style::default().fg(theme.muted)),
+    ]);
 
     let mut sorted_ifaces: Vec<&crate::metrics::NetInterface> = s.network.interfaces.iter().collect();
     sorted_ifaces.sort_by(|a, b| {
@@ -53,6 +54,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
     let block = Block::default()
         .title(Line::from(title_spans))
+        .title_top(right_title.alignment(ratatui::layout::Alignment::Right))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
