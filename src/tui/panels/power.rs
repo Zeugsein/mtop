@@ -139,7 +139,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
             let idle_y = right.y + right.height / 2;
             if idle_y < right.y + right.height {
                 f.render_widget(
-                    Paragraph::new("idle").style(Style::default().fg(theme.muted)),
+                    Paragraph::new("idle").style(Style::default().fg(theme.muted)).alignment(ratatui::layout::Alignment::Center),
                     Rect::new(right.x, idle_y, right.width, 1),
                 );
             }
