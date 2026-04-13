@@ -147,17 +147,14 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Sparkline at top (gradient coloring like CPU)
+    // Multi-row braille chart (~30% height, min 3 rows)
+    let chart_height = (inner.height * 3 / 10).max(3).min(inner.height);
+    let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
     let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, inner.width as usize, theme);
-    let spark_spans: Vec<Span> = spark.iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-    if !spark_spans.is_empty() {
-        f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, inner.y, inner.width, 1));
-    }
+    super::panels::render_graph(f, chart_area, &sparkline_data, 1.0, theme);
 
-    // Detailed metrics table (GPU Cores and Memory lines removed per SHALL-28-12)
+    // Detailed metrics table
+    let metrics_y = inner.y + chart_height;
     let metrics = [
         format!("frequency:    {} MHz", s.gpu.freq_mhz),
         format!("usage:        {:.1}%", s.gpu.usage * 100.0),
@@ -167,7 +164,7 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     ];
 
     for (i, text) in metrics.iter().enumerate() {
-        let y = inner.y + 2 + i as u16;
+        let y = metrics_y + i as u16;
         if y >= inner.y + inner.height || text.is_empty() { continue; }
         f.render_widget(
             Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
@@ -461,39 +458,35 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // CPU power sparkline
+    // CPU power multi-row chart (~20% height, min 2 rows)
+    let cpu_chart_h = (inner.height / 5).max(2).min(inner.height);
     let cpu_tdp = s.soc.cpu_tdp_w() as f64;
     let cpu_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&cpu_data, cpu_tdp, inner.width as usize, theme);
-    let spans: Vec<Span> = spark.iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
     f.render_widget(
         Paragraph::new("cpu power").style(Style::default().fg(theme.cpu_accent)),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
-    if !spans.is_empty() && inner.height > 1 {
-        f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
-    }
+    let cpu_chart_area = Rect::new(inner.x, inner.y + 1, inner.width, cpu_chart_h);
+    super::panels::render_graph(f, cpu_chart_area, &cpu_data, cpu_tdp, theme);
 
-    // GPU power sparkline
+    // GPU power multi-row chart (~20% height, min 2 rows)
+    let gpu_chart_start = inner.y + 1 + cpu_chart_h;
+    let gpu_chart_h = (inner.height / 5).max(2).min(inner.height.saturating_sub(1 + cpu_chart_h));
     let gpu_tdp = s.soc.gpu_tdp_w() as f64;
     let gpu_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&gpu_data, gpu_tdp, inner.width as usize, theme);
-    let spans: Vec<Span> = spark.iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-    if inner.height > 3 {
+    if gpu_chart_start < inner.y + inner.height {
         f.render_widget(
             Paragraph::new("gpu power").style(Style::default().fg(theme.gpu_accent)),
-            Rect::new(inner.x, inner.y + 3, inner.width, 1),
+            Rect::new(inner.x, gpu_chart_start, inner.width, 1),
         );
-        if !spans.is_empty() {
-            f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
+        if gpu_chart_h > 0 && gpu_chart_start + 1 < inner.y + inner.height {
+            let gpu_chart_area = Rect::new(inner.x, gpu_chart_start + 1, inner.width, gpu_chart_h);
+            super::panels::render_graph(f, gpu_chart_area, &gpu_data, gpu_tdp, theme);
         }
     }
 
     // Component breakdown
+    let breakdown_y = gpu_chart_start + 1 + gpu_chart_h;
     let components = [
         ("CPU", s.power.cpu_w, theme.cpu_accent),
         ("GPU", s.power.gpu_w, theme.gpu_accent),
@@ -503,10 +496,10 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         ("package", s.power.package_w, theme.fg),
     ];
 
-    if inner.height > 6 {
+    if breakdown_y < inner.y + inner.height {
         f.render_widget(
             Paragraph::new("component breakdown").style(Style::default().fg(theme.muted)),
-            Rect::new(inner.x, inner.y + 6, inner.width, 1),
+            Rect::new(inner.x, breakdown_y, inner.width, 1),
         );
     }
 
@@ -514,7 +507,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let max_component = components.iter().map(|(_, w, _)| *w).fold(0.0f32, f32::max).max(0.01);
 
     for (i, (name, watts, color)) in components.iter().enumerate() {
-        let y = inner.y + 7 + i as u16;
+        let y = breakdown_y + 1 + i as u16;
         if y >= inner.y + inner.height { break; }
 
         let norm = (*watts / max_component).clamp(0.0, 1.0);
@@ -531,7 +524,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     }
 
     // Fan speeds
-    let mut fan_y = inner.y.saturating_add(14);
+    let mut fan_y = breakdown_y + 1 + components.len() as u16 + 1;
     if !s.temperature.fan_speeds.is_empty() && fan_y < inner.y.saturating_add(inner.height) {
         let fan_text: String = s.temperature.fan_speeds.iter().enumerate()
             .map(|(i, rpm)| format!("fan {}: {} RPM", i, rpm))
@@ -591,7 +584,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     // Header row with thread count and I/O
     let header = Line::from(vec![
-        Span::styled(format!("{:<18}", "name"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:<24}", "name"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!("{:>6}", "cpu%"), Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:>8}", "mem"), Style::default().fg(theme.mem_accent).bold()),
         Span::styled(format!("{:>7}", "power"), Style::default().fg(theme.power_accent).bold()),
@@ -643,7 +636,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         let pwr_color = gradient::value_to_color(pwr_norm, theme);
 
         let line = Line::from(vec![
-            Span::styled(format!("{:<18}", truncate_with_ellipsis(&proc.name, 18)), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:<24}", truncate_with_ellipsis(&proc.name, 24)), Style::default().fg(theme.fg)),
             Span::styled("•", Style::default().fg(cpu_color)),
             Span::styled(format!("{:>4.1}%", proc.cpu_pct), Style::default().fg(cpu_color)),
             Span::styled("•", Style::default().fg(mem_color)),
