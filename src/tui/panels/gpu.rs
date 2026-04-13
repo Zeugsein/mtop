@@ -65,10 +65,10 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         // Right: orphan metrics (vertically centered, white text)
         let gb = 1024.0 * 1024.0 * 1024.0;
         let metrics: Vec<String> = vec![
-            format!("ane  {:.1}W", s.power.ane_w),
-            format!("dram {:.1}W", s.power.dram_w),
+            format!("ANE  {:.1}W", s.power.ane_w),
+            format!("DRAM {:.1}W", s.power.dram_w),
             String::new(),
-            format!("vram {:.1}/{:.0}GB", s.memory.ram_used as f64 / gb, s.memory.ram_total as f64 / gb),
+            format!("VRAM {:.1}/{:.0}GB", s.memory.ram_used as f64 / gb, s.memory.ram_total as f64 / gb),
         ];
 
         let content_lines = metrics.iter().filter(|m| !m.is_empty()).count() + metrics.iter().filter(|m| m.is_empty()).count();
@@ -103,7 +103,7 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         Style::default().fg(theme.muted),
     );
     let bottom_right = Span::styled(
-        format!("ane {:.1}W ", s.power.ane_w),
+        format!("ANE {:.1}W ", s.power.ane_w),
         Style::default().fg(theme.muted),
     );
     f.render_widget(
