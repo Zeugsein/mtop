@@ -1252,3 +1252,18 @@ The memory expanded panel SHALL render a multi-row braille chart of mem_usage hi
 The network expanded panel SHALL render a symmetric center-baseline chart (download top half growing upward, upload bottom half growing downward) with baseline coloring, replacing separate single-row sparklines. The chart SHALL occupy ~50% of panel height, with per-interface table below.
 
 > SHALL-32-03a, SHALL-32-03b, SHALL-32-03c
+
+### Requirement: GPU expanded multi-row braille chart [I33-F1]
+The GPU expanded panel SHALL render a multi-row braille chart of gpu_usage history using `render_graph`, occupying ~30% of panel height (minimum 3 rows), replacing the single-row sparkline.
+
+> SHALL-33-01a, SHALL-33-01b
+
+### Requirement: Power expanded multi-row braille charts [I33-F2]
+The power expanded panel SHALL render multi-row braille charts for both cpu_power and gpu_power histories, each ~20% of panel height (minimum 2 rows), replacing single-row sparklines. Component breakdown and fan/process sections SHALL be positioned below both charts.
+
+> SHALL-33-02a, SHALL-33-02b, SHALL-33-02c
+
+### Requirement: Process expanded sort indicator and wider name [I33-F3]
+The process expanded panel SHALL display sort mode in the header, use a 24-character name column (wider than hide-mode), and include a thread count column.
+
+> SHALL-33-03a, SHALL-33-03b, SHALL-33-03c
