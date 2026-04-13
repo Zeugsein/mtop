@@ -199,7 +199,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             .collect();
         if !active_ifaces.is_empty() {
             lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled("• active", Style::default().fg(theme.fg))));
+            lines.push(Line::from(Span::styled("■ active", Style::default().fg(theme.fg))));
             for iface in active_ifaces.iter().take(3) {
                 lines.push(Line::from(Span::styled(
                     format!("{} ({})", iface.name, iface.iface_type),
