@@ -1267,3 +1267,18 @@ The power expanded panel SHALL render multi-row braille charts for both cpu_powe
 The process expanded panel SHALL display sort mode in the header, use a 24-character name column (wider than hide-mode), and include a thread count column.
 
 > SHALL-33-03a, SHALL-33-03b, SHALL-33-03c
+
+### Requirement: Remove unused re-export [I34-F1]
+The `render_graph_with_baseline` re-export from `panels/mod.rs` SHALL be removed to eliminate compiler warning.
+
+> SHALL-34-05a
+
+### Requirement: 80x24 expanded panel test coverage [I34-F2]
+All 6 expanded panels SHALL have 80x24 render-without-panic tests.
+
+> SHALL-34-F2
+
+### Requirement: Expanded panel content verification [I34-F3]
+Expanded panel render tests SHALL verify content presence (titles, labels, metrics) beyond empty-string checks.
+
+> SHALL-34-F3
