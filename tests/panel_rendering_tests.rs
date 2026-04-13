@@ -201,6 +201,30 @@ fn render_with_expanded_process_panel() {
 }
 
 #[test]
+fn render_expanded_cpu_80x24_no_panic() {
+    let text = mtop::tui::render_dashboard_with_state(
+        80, 24, empty_snapshot(), false, Some(PanelId::Cpu), SortMode::default(),
+    );
+    assert!(!text.is_empty());
+}
+
+#[test]
+fn render_expanded_memdisk_80x24_no_panic() {
+    let text = mtop::tui::render_dashboard_with_state(
+        80, 24, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
+    );
+    assert!(!text.is_empty());
+}
+
+#[test]
+fn render_expanded_network_80x24_no_panic() {
+    let text = mtop::tui::render_dashboard_with_state(
+        80, 24, empty_snapshot(), false, Some(PanelId::Network), SortMode::default(),
+    );
+    assert!(!text.is_empty());
+}
+
+#[test]
 fn render_sort_mode_cpu() {
     let text = mtop::tui::render_dashboard_with_state(
         120, 40, empty_snapshot(), false, None, SortMode::Cpu,

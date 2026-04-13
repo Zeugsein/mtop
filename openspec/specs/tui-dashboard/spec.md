@@ -1237,3 +1237,18 @@ The expanded network panel SHALL use `state.history.net_tier_idx` for all sparkl
 When max network value exceeds the current tier, the tier SHALL immediately jump to the appropriate tier (no 10-sample delay). Downgrade delay SHALL be preserved unchanged.
 
 > SHALL-31-07a, SHALL-31-07b
+
+### Requirement: CPU expanded multi-row braille chart [I32-F1]
+The CPU expanded panel SHALL render a multi-row braille chart of cpu_usage history using `render_graph`, occupying ~30% of panel height (minimum 3 rows), replacing the single-row sparkline.
+
+> SHALL-32-01a, SHALL-32-01b
+
+### Requirement: Memory expanded usage trend chart [I32-F2]
+The memory expanded panel SHALL render a multi-row braille chart of mem_usage history at the top of the panel before gauges, occupying ~25% of panel height (minimum 2 rows). Pressure and disk sections SHALL be offset below the chart and gauges.
+
+> SHALL-32-02a, SHALL-32-02b, SHALL-32-02c
+
+### Requirement: Network expanded symmetric chart [I32-F3]
+The network expanded panel SHALL render a symmetric center-baseline chart (download top half growing upward, upload bottom half growing downward) with baseline coloring, replacing separate single-row sparklines. The chart SHALL occupy ~50% of panel height, with per-interface table below.
+
+> SHALL-32-03a, SHALL-32-03b, SHALL-32-03c

@@ -50,21 +50,15 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Top section: sparkline
-    let spark_height = 2.min(inner.height);
+    // Top section: multi-row braille graph (~30% of height, minimum 3 rows)
+    let chart_height = (inner.height * 3 / 10).max(3).min(inner.height);
+    let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
-    let spark_width = inner.width as usize;
-    let spark = braille::render_braille_sparkline(&sparkline_data, 1.0, spark_width, theme);
-    let spark_spans: Vec<Span> = spark.iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-    if !spark_spans.is_empty() {
-        f.render_widget(Paragraph::new(Line::from(spark_spans)), Rect::new(inner.x, inner.y, inner.width, 1));
-    }
+    super::panels::render_graph(f, chart_area, &sparkline_data, 1.0, theme);
 
     // Per-core usage bars
-    let core_start_y = inner.y + spark_height;
-    let available_rows = inner.height.saturating_sub(spark_height) as usize;
+    let core_start_y = inner.y + chart_height;
+    let available_rows = inner.height.saturating_sub(chart_height) as usize;
 
     // E-cluster header
     if available_rows > 0 {
@@ -182,7 +176,7 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     }
 }
 
-fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state: &AppState, theme: &theme::Theme) {
+fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let gb = 1024.0 * 1024.0 * 1024.0;
     let ram_used_gb = s.memory.ram_used as f64 / gb;
     let ram_total_gb = s.memory.ram_total as f64 / gb;
@@ -205,15 +199,23 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
 
     if inner.height == 0 || inner.width == 0 { return; }
 
+    // Top section: mem usage trend chart (~25% height, min 2 rows)
+    let chart_height = (inner.height / 4).max(2).min(inner.height);
+    let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
+    let mem_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
+    super::panels::render_graph(f, chart_area, &mem_data, 1.0, theme);
+
+    let gauge_y = inner.y + chart_height;
+
     // RAM gauge
     let bar_width = inner.width.saturating_sub(16) as usize;
     let ram_label = format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb);
     let ram_gauge = gauge::render_gauge_bar(s.memory.ram_used as f64, s.memory.ram_total as f64, bar_width, &ram_label, theme);
-    if inner.height > 1 {
+    if gauge_y + 1 < inner.y + inner.height {
         f.render_widget(Paragraph::new(Line::from(vec![
             Span::styled("RAM  ", Style::default().fg(theme.mem_accent)),
-        ])), Rect::new(inner.x, inner.y, inner.width, 1));
-        f.render_widget(Paragraph::new(Line::from(ram_gauge)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
+        ])), Rect::new(inner.x, gauge_y, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(ram_gauge)), Rect::new(inner.x, gauge_y + 1, inner.width, 1));
     }
 
     // Swap gauge
@@ -221,16 +223,16 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     let swap_total_gb = s.memory.swap_total as f64 / gb;
     let swap_label = format!("{:.1}/{:.1} GB", swap_used_gb, swap_total_gb);
     let swap_gauge = gauge::render_gauge_bar(s.memory.swap_used as f64, s.memory.swap_total as f64, bar_width, &swap_label, theme);
-    if inner.height > 3 {
+    if gauge_y + 3 < inner.y + inner.height {
         f.render_widget(Paragraph::new(Line::from(vec![
             Span::styled("swap ", Style::default().fg(theme.muted)),
-        ])), Rect::new(inner.x, inner.y + 3, inner.width, 1));
-        f.render_widget(Paragraph::new(Line::from(swap_gauge)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
+        ])), Rect::new(inner.x, gauge_y + 3, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(swap_gauge)), Rect::new(inner.x, gauge_y + 4, inner.width, 1));
     }
 
     // Memory pressure stacked gauge
-    let mut pressure_y = inner.y + 6;
-    if inner.height > 6 && (s.memory.wired > 0 || s.memory.app > 0 || s.memory.compressed > 0) {
+    let mut pressure_y = gauge_y + 6;
+    if gauge_y + 6 < inner.y + inner.height && (s.memory.wired > 0 || s.memory.app > 0 || s.memory.compressed > 0) {
         let wired_gb = s.memory.wired as f64 / gb;
         let app_gb = s.memory.app as f64 / gb;
         let compressed_gb = s.memory.compressed as f64 / gb;
@@ -328,31 +330,64 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     if inner.height == 0 || inner.width == 0 { return; }
 
     let scale = super::panels::NET_TIERS[state.history.net_tier_idx].0;
+    let baseline_floor = scale * 0.005;
 
-    // Upload sparkline (gradient colors from braille renderer)
+    // Symmetric center-baseline chart (~50% of panel height)
+    let chart_height = (inner.height / 2).max(4).min(inner.height);
+    let half_h = chart_height / 2;
+
+    let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&upload_data, scale, inner.width as usize, theme);
-    let spans: Vec<Span> = spark.iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-    if !spans.is_empty() {
-        f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("upload ", Style::default().fg(theme.net_upload)),
-        ])), Rect::new(inner.x, inner.y, inner.width, 1));
-        f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 1, inner.width, 1));
+
+    // Download TOP half: bars grow upward from center
+    if half_h > 0 {
+        let top_area = Rect::new(inner.x, inner.y, inner.width, half_h);
+        let clamped_dl: Vec<f64> = download_data.iter().map(|&v| v.max(baseline_floor)).collect();
+        let graph = braille::render_braille_graph(&clamped_dl, scale, inner.width as usize, half_h as usize, theme);
+        let needed = inner.width as usize * 2;
+        let start = download_data.len().saturating_sub(needed);
+        let visible_orig = &download_data[start..];
+        for (row_idx, row) in graph.iter().enumerate() {
+            let y = top_area.y + top_area.height.saturating_sub(1) - row_idx as u16;
+            if y < top_area.y { break; }
+            let y_frac = row_idx as f64 / (half_h as f64 - 1.0).max(1.0);
+            let gradient_color = super::gradient::value_to_color(y_frac, theme);
+            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
+                let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
+                let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
+                let color = if is_baseline { theme::baseline_color(theme) } else { gradient_color };
+                Span::styled(ch.to_string(), Style::default().fg(color))
+            }).collect();
+            if !spans.is_empty() {
+                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(top_area.x, y, top_area.width, 1));
+            }
+        }
     }
 
-    // Download sparkline (gradient colors from braille renderer)
-    let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
-    let spark = braille::render_braille_sparkline(&download_data, scale, inner.width as usize, theme);
-    let spans: Vec<Span> = spark.iter()
-        .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
-        .collect();
-    if !spans.is_empty() && inner.height > 3 {
-        f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("download ", Style::default().fg(theme.net_download)),
-        ])), Rect::new(inner.x, inner.y + 3, inner.width, 1));
-        f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(inner.x, inner.y + 4, inner.width, 1));
+    // Upload BOTTOM half: bars grow downward from center
+    let bottom_h = chart_height - half_h;
+    if bottom_h > 0 {
+        let bottom_area = Rect::new(inner.x, inner.y + half_h, inner.width, bottom_h);
+        let clamped_ul: Vec<f64> = upload_data.iter().map(|&v| v.max(baseline_floor)).collect();
+        let graph = braille::render_braille_graph_down(&clamped_ul, scale, inner.width as usize, bottom_h as usize, theme);
+        let needed = inner.width as usize * 2;
+        let start = upload_data.len().saturating_sub(needed);
+        let visible_orig = &upload_data[start..];
+        for (row_idx, row) in graph.iter().enumerate() {
+            let y = bottom_area.y + row_idx as u16;
+            if y >= bottom_area.y + bottom_area.height { break; }
+            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
+                let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
+                let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
+                let color = if is_baseline { theme::baseline_color(theme) } else { orig_color };
+                Span::styled(ch.to_string(), Style::default().fg(color))
+            }).collect();
+            if !spans.is_empty() {
+                f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(bottom_area.x, y, bottom_area.width, 1));
+            }
+        }
     }
 
     // Per-interface detailed stats (filter infrastructure interfaces consistently)
@@ -365,7 +400,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         b_total.partial_cmp(&a_total).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let header_y = inner.y.saturating_add(6);
+    let header_y = inner.y.saturating_add(chart_height);
     if header_y < inner.y.saturating_add(inner.height) {
         let hdr = Line::from(vec![
             Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>8}", "interface", "type", "baudrate", "upload", "download", "pkt in"), Style::default().fg(theme.muted)),
