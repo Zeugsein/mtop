@@ -4,7 +4,6 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
-use crate::platform::network::speed_tier_from_baudrate;
 use super::{AppState, PanelId, theme, braille, gauge, gradient};
 use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, temp_color, sort_indices, CPU_TEMP_WARN, CPU_TEMP_CRIT, GPU_TEMP_WARN, GPU_TEMP_CRIT};
 
@@ -391,11 +390,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         // Per-interface rx sparkline using interface-specific history
         if cur_y < inner.y.saturating_add(inner.height) {
             if let Some((rx_buf, _)) = state.history.per_iface.get(&iface.name) {
-                let iface_scale = if iface.baudrate > 0 {
-                    speed_tier_from_baudrate(iface.baudrate) as f64
-                } else {
-                    scale
-                };
+                let iface_scale = scale;
                 let rx_data: Vec<f64> = rx_buf.iter().copied().collect();
                 let spark = braille::render_braille_sparkline(&rx_data, iface_scale, inner.width as usize, theme);
                 let spark_spans: Vec<Span> = spark.iter()
