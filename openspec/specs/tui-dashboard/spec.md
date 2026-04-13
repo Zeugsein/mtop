@@ -1282,3 +1282,13 @@ All 6 expanded panels SHALL have 80x24 render-without-panic tests.
 Expanded panel render tests SHALL verify content presence (titles, labels, metrics) beyond empty-string checks.
 
 > SHALL-34-F3
+
+### Requirement: Clippy clean build [I35-F1]
+The codebase SHALL produce zero clippy warnings.
+
+> SHALL-35-01a
+
+### Requirement: Network expanded chart color symmetry [I35-F2]
+The expanded network symmetric chart SHALL use the same `gradient::value_to_color` coloring strategy for both download (top half) and upload (bottom half), ensuring visual symmetry.
+
+> SHALL-35-02a

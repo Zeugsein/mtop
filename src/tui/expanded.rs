@@ -374,11 +374,13 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         for (row_idx, row) in graph.iter().enumerate() {
             let y = bottom_area.y + row_idx as u16;
             if y >= bottom_area.y + bottom_area.height { break; }
-            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
+            let y_frac = row_idx as f64 / (bottom_h as f64 - 1.0).max(1.0);
+            let gradient_color = super::gradient::value_to_color(y_frac, theme);
+            let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
                 let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
                 let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
                 let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
-                let color = if is_baseline { theme::baseline_color(theme) } else { orig_color };
+                let color = if is_baseline { theme::baseline_color(theme) } else { gradient_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))
             }).collect();
             if !spans.is_empty() {

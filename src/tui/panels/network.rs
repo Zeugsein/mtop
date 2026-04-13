@@ -226,7 +226,6 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             );
         }
         // show_detail: skip frame-bottom info (detail panel has richer content)
-        return;
     } else {
         // Full-width symmetric chart
         render_symmetric_chart(f, content_area, &download_data, &upload_data);
