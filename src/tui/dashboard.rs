@@ -72,7 +72,7 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         let pct = bat.charge_pct as f64 / 100.0;
         let base_color = gradient::value_to_color(1.0 - pct, theme); // green=full, red=empty
         let mut spans = Vec::new();
-        if bat.is_charging {
+        if bat.is_on_ac {
             spans.push(Span::styled("\u{26a1}", muted_style));
         }
         // 6-char gauge bar, fills from right
@@ -155,6 +155,7 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         Span::styled("[?] help ", footer_muted),
         Span::styled(format!("[c] theme({}) ", theme_name), footer_muted),
         Span::styled("[.] detail ", footer_muted),
+        Span::styled("[1-6] expand ", footer_muted),
         Span::styled(format!("[+/-] {}ms ", state.interval_ms), footer_muted),
     ];
     f.render_widget(
@@ -178,12 +179,11 @@ fn draw_help_overlay(f: &mut Frame, area: Rect, theme: &theme::Theme) {
     // Clear area behind overlay
     f.render_widget(Clear, overlay_area);
 
-    let border_color = theme::dim_color(theme.accent, 0.5);
     let block = Block::default()
         .title(Line::from(Span::styled(" mtop \u{2014} keyboard shortcuts ", Style::default().fg(theme.accent).bold())))
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
-        .border_style(Style::default().fg(border_color))
+        .border_style(Style::default().fg(theme.fg))
         .style(Style::default().bg(theme.bg));
 
     let inner = block.inner(overlay_area);

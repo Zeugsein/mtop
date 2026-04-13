@@ -303,10 +303,9 @@ pub struct MetricsHistory {
     pub net_upload_max: f64,
     /// Session maximum download rate (bytes/sec)
     pub net_download_max: f64,
-    /// Current network tier index for hysteresis (0=1MB/s, 1=10MB/s, 2=100MB/s, 3=1GB/s)
     pub net_tier_idx: usize,
-    /// Consecutive samples below downgrade threshold
     pub net_tier_hold: usize,
+    pub net_tier_up_hold: usize,
     max_len: usize,
 }
 
@@ -336,6 +335,7 @@ impl MetricsHistory {
             net_download_max: 0.0,
             net_tier_idx: 0,
             net_tier_hold: 0,
+            net_tier_up_hold: 0,
             max_len: 128,
         }
     }
@@ -404,10 +404,11 @@ impl MetricsHistory {
         self.update_net_tier();
     }
 
-    /// Network tier hysteresis: upgrade immediately, downgrade after the full chart window
-    /// of consecutive samples below 10% of the current tier.
     fn update_net_tier(&mut self) {
-        const TIERS: [f64; 4] = [1_000_000.0, 10_000_000.0, 100_000_000.0, 1_000_000_000.0];
+        const TIERS: [f64; 7] = [
+            1_048_576.0, 5_242_880.0, 10_485_760.0, 52_428_800.0,
+            104_857_600.0, 524_288_000.0, 1_048_576_000.0,
+        ];
 
         let max_val = self.net_upload.iter().chain(self.net_download.iter())
             .copied()
@@ -415,18 +416,28 @@ impl MetricsHistory {
 
         let current = self.net_tier_idx;
 
-        // Upgrade: max exceeds current tier — instant
+        // Upgrade: max exceeds current tier — delayed by 10 samples
         if current < TIERS.len() - 1 && max_val >= TIERS[current] {
-            for i in (current + 1)..TIERS.len() {
-                if max_val < TIERS[i] {
-                    self.net_tier_idx = i;
-                    self.net_tier_hold = 0;
-                    return;
+            self.net_tier_up_hold += 1;
+            if self.net_tier_up_hold >= 10 {
+                for (i, &tier) in TIERS.iter().enumerate().skip(current + 1) {
+                    if max_val < tier {
+                        self.net_tier_idx = i;
+                        self.net_tier_hold = 0;
+                        self.net_tier_up_hold = 0;
+                        return;
+                    }
                 }
+                self.net_tier_idx = TIERS.len() - 1;
+                self.net_tier_hold = 0;
+                self.net_tier_up_hold = 0;
             }
-            self.net_tier_idx = TIERS.len() - 1;
-            self.net_tier_hold = 0;
             return;
+        }
+
+        // Reset upward hold when max drops back below current tier
+        if self.net_tier_up_hold > 0 {
+            self.net_tier_up_hold = 0;
         }
 
         // Downgrade: all values below 10% of current tier for full chart window (max_len samples)
@@ -435,10 +446,9 @@ impl MetricsHistory {
             if max_val < threshold {
                 self.net_tier_hold += 1;
                 if self.net_tier_hold >= self.max_len {
-                    // Find appropriate lower tier
                     let mut new_idx = 0;
-                    for i in 0..current {
-                        if max_val < TIERS[i] {
+                    for (i, &tier) in TIERS.iter().enumerate().take(current) {
+                        if max_val < tier {
                             new_idx = i;
                             break;
                         }
@@ -450,6 +460,13 @@ impl MetricsHistory {
             } else {
                 self.net_tier_hold = 0;
             }
+        }
+    }
+
+    pub fn resize_buffers(&mut self, terminal_width: u16) {
+        let new_cap = (terminal_width as usize * 2).max(128);
+        if new_cap > self.max_len {
+            self.max_len = new_cap;
         }
     }
 

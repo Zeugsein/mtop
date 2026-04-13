@@ -128,7 +128,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
 
         // Right 25%: Per-process energy ranking (white text)
         let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
-            .filter(|p| p.power_w > 0.0)
+            .filter(|p| p.power_w >= 0.05)
             .collect();
         procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
 

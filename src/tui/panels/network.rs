@@ -5,12 +5,14 @@ use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, braille, layout};
 use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact, format_bytes_compact, is_infrastructure_interface};
 
-/// Dynamic tier thresholds (bytes/sec) and their display labels.
-pub(crate) const NET_TIERS: [(f64, &str); 4] = [
-    (1_000_000.0,       "1 MB/s"),
-    (10_000_000.0,      "10 MB/s"),
-    (100_000_000.0,     "100 MB/s"),
-    (1_000_000_000.0,   "1 GB/s"),
+pub(crate) const NET_TIERS: [(f64, &str); 7] = [
+    (1_048_576.0,       "1MB/s"),
+    (5_242_880.0,       "5MB/s"),
+    (10_485_760.0,      "10MB/s"),
+    (52_428_800.0,      "50MB/s"),
+    (104_857_600.0,     "100MB/s"),
+    (524_288_000.0,     "500MB/s"),
+    (1_048_576_000.0,   "1GB/s"),
 ];
 
 
@@ -34,6 +36,11 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         title_spans.push(Span::styled(format!(" \u{25b2} {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)));
         title_spans.push(Span::styled("  ", Style::default()));
         title_spans.push(Span::styled(format!("\u{25bc} {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)));
+    }
+    {
+        let tier_idx = state.history.net_tier_idx;
+        let label = NET_TIERS[tier_idx].1;
+        title_spans.push(Span::styled(format!("(100%={})", label), Style::default().fg(theme.muted)));
     }
     title_spans.push(Span::raw(" "));
 
@@ -74,7 +81,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let (scale, tier_label) = (NET_TIERS[tier_idx].0, NET_TIERS[tier_idx].1);
 
     // Minimum baseline value: ensures at least 1 braille dot renders at zero
-    let baseline_floor = scale * 0.005;
+    let baseline_floor = scale * 0.035;
 
     // Helper to render graph growing upward (bottom-to-top) with muted baseline for near-zero values
     let render_graph_upward = |f: &mut Frame, area: Rect, data: &[f64]| {
@@ -98,7 +105,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
                 // Each braille column maps to 2 data points; out-of-bounds → muted (no data yet)
                 let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
                 let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
-                let is_baseline = orig_l < 1.0 && orig_r < 1.0;
+                let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
                 let color = if is_baseline { theme::baseline_color(theme) } else { gradient_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))
             }).collect();
@@ -124,7 +131,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, orig_color))| {
                 let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
                 let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
-                let is_baseline = orig_l < 1.0 && orig_r < 1.0;
+                let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
                 let color = if is_baseline { theme::baseline_color(theme) } else { orig_color };
                 Span::styled(ch.to_string(), Style::default().fg(color))
             }).collect();
@@ -235,6 +242,22 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         // Full-width symmetric chart
         render_symmetric_chart(f, content_area, &download_data, &upload_data);
         render_tier_label(f, content_area);
+
+        // Upload/download overlay labels (on top of chart, when tall enough)
+        if content_area.height >= 6 {
+            let ul_rate = upload_data.last().copied().unwrap_or(0.0);
+            let dl_rate = download_data.last().copied().unwrap_or(0.0);
+            let ul_label = format!("\u{2191} {}", format_bytes_rate_compact(ul_rate));
+            let dl_label = format!("\u{2193} {}", format_bytes_rate_compact(dl_rate));
+            f.render_widget(
+                Paragraph::new(Span::styled(ul_label, Style::default().fg(theme.muted))),
+                Rect::new(content_area.x, content_area.y, content_area.width, 1),
+            );
+            f.render_widget(
+                Paragraph::new(Span::styled(dl_label, Style::default().fg(theme.muted))),
+                Rect::new(content_area.x, content_area.y + content_area.height - 1, content_area.width, 1),
+            );
+        }
 
         // Fallback: primary interface name on bottom row
         if let Some(primary) = display_ifaces.first() {
