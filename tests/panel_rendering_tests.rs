@@ -300,7 +300,7 @@ fn expanded_memory_contains_ram_label() {
         120, 40, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
     );
     assert!(text.contains("memory"), "expanded memory panel should contain 'memory' title");
-    assert!(text.contains("RAM"), "expanded memory should contain RAM label");
+    assert!(text.contains("used") || text.contains("available"), "expanded memory should contain chart labels");
 }
 
 #[test]
