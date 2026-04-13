@@ -28,7 +28,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         theme.muted
     };
     let title_spans = vec![
-        Span::styled("¹ CPU  ", Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled("¹ cpu  ", Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
         if s.temperature.available {
@@ -70,7 +70,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     // E-cluster header
     if available_rows > 0 {
         f.render_widget(
-            Paragraph::new(format!("E-cluster: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz))
+            Paragraph::new(format!("e-cluster: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz))
                 .style(Style::default().fg(theme.cpu_accent)),
             Rect::new(inner.x, core_start_y, inner.width, 1),
         );
@@ -100,7 +100,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let p_header_y = core_start_y + 1 + e_count as u16;
     if p_header_y < inner.y + inner.height {
         f.render_widget(
-            Paragraph::new(format!("P-cluster: {:.0}% @ {}MHz", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz))
+            Paragraph::new(format!("p-cluster: {:.0}% @ {}MHz", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz))
                 .style(Style::default().fg(theme.cpu_accent)),
             Rect::new(inner.x, p_header_y, inner.width, 1),
         );
@@ -132,7 +132,7 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     };
     let idle_suffix = if s.power.gpu_w < 0.5 { " (idle)" } else { "" };
     let title_spans = vec![
-        Span::styled(format!("² GPU{}  ", idle_suffix), Style::default().fg(theme.gpu_accent).bold()),
+        Span::styled(format!("² gpu{}  ", idle_suffix), Style::default().fg(theme.gpu_accent).bold()),
         Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)),
         if s.temperature.available {
             Span::styled(format!("  {:.0}°C", s.temperature.gpu_avg_c), Style::default().fg(temp_col))
@@ -189,7 +189,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
     let ram_total_gb = s.memory.ram_total as f64 / gb;
 
     let title_spans = vec![
-        Span::styled("³ Memory  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled("³ memory  ", Style::default().fg(theme.mem_accent).bold()),
         Span::styled(format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
@@ -309,7 +309,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     });
 
     let title_spans = vec![
-        Span::styled("⁴ Network  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled("⁴ network  ", Style::default().fg(theme.net_upload).bold()),
         Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
         Span::styled("  ", Style::default()),
         Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
@@ -414,7 +414,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let total_w = s.power.package_w.max(s.power.cpu_w + s.power.gpu_w + s.power.ane_w + s.power.dram_w);
 
     let title_spans = vec![
-        Span::styled("⁵ Power  ", Style::default().fg(theme.power_accent).bold()),
+        Span::styled("⁵ power  ", Style::default().fg(theme.power_accent).bold()),
         Span::styled(format!("{:.1}W total", total_w), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
@@ -543,7 +543,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let sort_label = state.sort_mode.label();
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled("⁶ Processes  ", Style::default().fg(theme.fg).bold()),
+            Span::styled("⁶ processes  ", Style::default().fg(theme.fg).bold()),
             Span::styled(format!(" sort: {} ", sort_label), Style::default().fg(theme.muted)),
         ]))
         .borders(Borders::ALL)
@@ -566,9 +566,9 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         Span::styled(format!("{:>8}", "mem"), Style::default().fg(theme.mem_accent).bold()),
         Span::styled(format!("{:>7}", "power"), Style::default().fg(theme.power_accent).bold()),
         Span::styled(format!("{:>7}", "thread"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "IO R"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "IO W"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "PID"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "io r"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "io w"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:>7}", "pid"), Style::default().fg(theme.muted).bold()),
         Span::styled(format!(" {:<8}", "user"), Style::default().fg(theme.muted).bold()),
     ]);
     f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));

@@ -461,7 +461,7 @@ fn memory_hide_mode_shows_swap_and_disk() {
         ..Default::default()
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
-    assert!(text.contains("Swap:"), "hide mode with swap should show 'Swap:'");
+    assert!(text.contains("swap:"), "hide mode with swap should show 'swap:'");
     assert!(text.contains("disk:"), "hide mode should show 'disk:'");
 }
 
@@ -483,7 +483,7 @@ fn memory_hide_mode_omits_swap_when_zero() {
         ..Default::default()
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
-    assert!(!text.contains("Swap:"), "hide mode without swap should not show 'Swap:'");
+    assert!(!text.contains("swap:"), "hide mode without swap should not show 'swap:'");
     assert!(text.contains("disk:"), "hide mode should show 'disk:'");
 }
 
@@ -500,7 +500,7 @@ fn memory_show_mode_includes_swap() {
         ..Default::default()
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
-    assert!(text.contains("Swap:"), "show mode with swap should show 'Swap:'");
+    assert!(text.contains("swap:"), "show mode with swap should show 'swap:'");
 }
 
 // =========================================================================

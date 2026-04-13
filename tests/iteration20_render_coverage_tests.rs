@@ -153,8 +153,8 @@ fn dashboard_expanded_cpu() {
     );
     assert!(!text.is_empty());
     assert!(
-        text.contains("CPU"),
-        "Expected 'CPU' in expanded panel header; buffer:\n{text}"
+        text.contains("cpu"),
+        "Expected 'cpu' in expanded panel header; buffer:\n{text}"
     );
 }
 
@@ -174,8 +174,8 @@ fn dashboard_expanded_network() {
     );
     assert!(!text.is_empty());
     assert!(
-        text.contains("Network"),
-        "Expected 'Network' in expanded panel header; buffer:\n{text}"
+        text.contains("network"),
+        "Expected 'network' in expanded panel header; buffer:\n{text}"
     );
 }
 
@@ -196,8 +196,8 @@ fn dashboard_expanded_power() {
     );
     assert!(!text.is_empty());
     assert!(
-        text.contains("Power"),
-        "Expected 'Power' in expanded panel header; buffer:\n{text}"
+        text.contains("power"),
+        "Expected 'power' in expanded panel header; buffer:\n{text}"
     );
 }
 
@@ -319,7 +319,7 @@ fn expanded_panel_memdisk_no_panic() {
         SortMode::default(),
     );
     assert!(
-        text.contains("Memory") || text.contains("RAM"),
+        text.contains("memory") || text.contains("RAM"),
         "Expected memory panel content; buffer:\n{text}"
     );
 }
@@ -335,7 +335,7 @@ fn expanded_panel_network_no_panic() {
         SortMode::default(),
     );
     assert!(
-        text.contains("Network") || text.contains("Upload"),
+        text.contains("network") || text.contains("upload"),
         "Expected network panel content; buffer:\n{text}"
     );
 }
@@ -352,7 +352,7 @@ fn expanded_panel_power_no_panic() {
         SortMode::default(),
     );
     assert!(
-        text.contains("Power") || text.contains("CPU Power"),
+        text.contains("power") || text.contains("cpu power"),
         "Expected power panel content; buffer:\n{text}"
     );
 }
@@ -369,7 +369,7 @@ fn expanded_panel_process_no_panic() {
         SortMode::default(),
     );
     assert!(
-        text.contains("Processes") || text.contains("proc"),
+        text.contains("processes") || text.contains("proc"),
         "Expected process panel content; buffer:\n{text}"
     );
 }
