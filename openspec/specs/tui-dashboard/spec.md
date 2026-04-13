@@ -1131,3 +1131,70 @@ The TUI SHALL NOT write any data to disk during normal operation. No log files, 
 
 ### Longevity
 The TUI layout SHALL gracefully handle new metric categories added in future versions by reserving space or using a scrollable panel area. New metrics SHALL be addable without restructuring the entire layout. [T3-long]
+
+## Iteration 29: Network & Power Polish, Expanded Padding, Label Casing [I29]
+
+### Requirement: Network panel title cleanup [I29-W0]
+Network panel title SHALL NOT contain ↑/↓ rate text when active; format SHALL be `⁴ net (100%=XMB/s)`. When idle, title SHALL show `(idle)`.
+
+> SHALL-29-01a, SHALL-29-01b
+
+### Requirement: Remove top-right scale label from chart area [I29-W0]
+`render_tier_label` function and all call sites SHALL be removed from network.rs. Scale is shown exclusively in the frame title; no scale label SHALL render inside the chart area.
+
+> SHALL-29-02a, SHALL-29-02b
+
+### Requirement: Fix overlay label swap [I29-W0]
+Top-left overlay SHALL show download rate (`↓ XX.X MB/s`, matching chart top half). Bottom-left overlay SHALL show upload rate (`↑ XX.X MB/s`, matching chart bottom half).
+
+> SHALL-29-03a, SHALL-29-03b
+
+### Requirement: Rate suffix in compact formatter [I29-W1]
+`format_bytes_rate_compact` SHALL append `/s` to its output (e.g., `"2.4M/s"`, `"350K/s"`, `"42B/s"`). All rate displays using this function SHALL show `/s` consistently.
+
+> SHALL-29-04a, SHALL-29-04b
+
+### Requirement: Active interfaces heading in network right detail [I29-W1]
+Network show mode right detail SHALL display `■ active` heading (with `theme.fg` dot color) before the interface list. When no interface has activity (all rx=0 and tx=0), the entire interface section SHALL be hidden. Only interfaces with rx > 0 or tx > 0 SHALL appear.
+
+> SHALL-29-05a through SHALL-29-05c
+
+### Requirement: Power panel empty process list overlay [I29-W2]
+When `procs_by_power` is empty (all filtered by 0.05W threshold) in show mode right detail, render vertically and horizontally centered muted "idle" text using `theme.muted` in the right area.
+
+> SHALL-29-06a, SHALL-29-06b
+
+### Requirement: 1-character padding in all expanded panels [I29-W3]
+All 6 expanded panel renderers SHALL apply 1-character padding on all 4 sides between the panel border and content. All expanded panels SHALL render without panic at 80x24 minimum terminal size after padding is applied.
+
+> SHALL-29-07a through SHALL-29-07c
+
+### Requirement: Lowercase label audit [I29-W4]
+All display labels SHALL be lowercase. Only uppercase allowed: units (MB, GB, MHz, RPM, W) and acronyms (ANE, VRAM, DRAM, GPU, CPU). Violations in expanded.rs, network.rs, and power.rs SHALL be corrected (e.g., "Frequency:" → "frequency:", "Memory Pressure" → "memory pressure", "Component Breakdown" → "component breakdown", "Top Processes by Power" → "top processes by power").
+
+> SHALL-29-08a through SHALL-29-08d
+
+### Requirement: Scale label at top-right of network frame border [I29-UAT]
+Network panel frame SHALL display the scale label (`100%=XMB/s`) at the top-right of the border, right-aligned, using `theme.muted` color. Label SHALL NOT have parentheses.
+
+> SHALL-29-UAT-01a through SHALL-29-UAT-01c
+
+### Requirement: Active heading symbol [I29-UAT]
+Network right detail active heading SHALL use `■` (square box) prefix, not `•` (dot).
+
+> SHALL-29-UAT-02a
+
+### Requirement: Power idle text centering [I29-UAT]
+Power panel "idle" text SHALL be both vertically and horizontally centered in the right detail area using `Alignment::Center`.
+
+> SHALL-29-UAT-03a
+
+### Requirement: Casing rules for titles vs body content [I29-UAT]
+Panel titles, sub-panel titles, and table headers SHALL always use lowercase, even for acronyms (e.g., `cpu`, `gpu`, `name`, `mem`, `power`). Acronyms in body content and gauge labels SHALL use uppercase (e.g., `GPU power:`, `ANE`, `DRAM`, `VRAM`, `RAM`). All non-acronym words in body content SHALL use lowercase, never capitalizing the first letter.
+
+> SHALL-29-UAT-04a through SHALL-29-UAT-04c
+
+### Cross-cutting: Rendering-only, no data model changes [I29-CC]
+All iteration 29 changes are rendering-only. No changes to MetricsHistory, MetricsSnapshot, or AppState structs. All changes SHALL render without panic at 80x24 terminal size.
+
+> SHALL-29-CC-01, SHALL-29-CC-02, SHALL-29-UAT-CC-01
