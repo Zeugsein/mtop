@@ -4,7 +4,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
-use super::{AppState, PanelId, theme, braille, gauge, gradient};
+use super::{AppState, PanelId, theme, braille, gradient};
 use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, temp_color, sort_indices, CPU_TEMP_WARN, CPU_TEMP_CRIT, GPU_TEMP_WARN, GPU_TEMP_CRIT};
 
 
@@ -50,8 +50,8 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Top section: multi-row braille graph (~30% of height, minimum 3 rows)
-    let chart_height = (inner.height * 3 / 10).max(3).min(inner.height);
+    // Top section: multi-row braille graph (~70% of height, minimum 3 rows)
+    let chart_height = (inner.height * 7 / 10).max(3).min(inner.height);
     let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
     super::panels::render_graph(f, chart_area, &sparkline_data, 1.0, theme);
@@ -147,8 +147,8 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Multi-row braille chart (~30% height, min 3 rows)
-    let chart_height = (inner.height * 3 / 10).max(3).min(inner.height);
+    // Multi-row braille chart (~70% height, min 3 rows)
+    let chart_height = (inner.height * 7 / 10).max(3).min(inner.height);
     let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
     let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
     super::panels::render_graph(f, chart_area, &sparkline_data, 1.0, theme);
@@ -196,107 +196,159 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Top section: mem usage trend chart (~25% height, min 2 rows)
-    let chart_height = (inner.height / 4).max(2).min(inner.height);
-    let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
-    let mem_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
-    super::panels::render_graph(f, chart_area, &mem_data, 1.0, theme);
+    let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
+    let ram_avail_gb = if s.memory.ram_total > 0 { ram_avail_bytes / gb } else { 0.0 };
+    let cached_gb = s.memory.cached as f64 / gb;
+    let free_gb = s.memory.free as f64 / gb;
 
-    let gauge_y = inner.y + chart_height;
+    let sub_border_color = theme::dim_color(theme.mem_accent, 0.5);
 
-    // RAM gauge
-    let bar_width = inner.width.saturating_sub(16) as usize;
-    let ram_label = format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb);
-    let ram_gauge = gauge::render_gauge_bar(s.memory.ram_used as f64, s.memory.ram_total as f64, bar_width, &ram_label, theme);
-    if gauge_y + 1 < inner.y + inner.height {
-        f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("RAM  ", Style::default().fg(theme.mem_accent)),
-        ])), Rect::new(inner.x, gauge_y, inner.width, 1));
-        f.render_widget(Paragraph::new(Line::from(ram_gauge)), Rect::new(inner.x, gauge_y + 1, inner.width, 1));
-    }
+    // Layout: 2×2 memory charts (top ~45%), disk symmetric chart (~25%), info rows (bottom)
+    let mem_chart_h = (inner.height * 45 / 100).max(4);
+    let disk_chart_h = (inner.height * 25 / 100).max(3);
+    let row1_h = mem_chart_h / 2;
+    let row2_h = mem_chart_h - row1_h;
+    let half_w = inner.width / 2;
 
-    // Swap gauge
-    let swap_used_gb = s.memory.swap_used as f64 / gb;
-    let swap_total_gb = s.memory.swap_total as f64 / gb;
-    let swap_label = format!("{:.1}/{:.1} GB", swap_used_gb, swap_total_gb);
-    let swap_gauge = gauge::render_gauge_bar(s.memory.swap_used as f64, s.memory.swap_total as f64, bar_width, &swap_label, theme);
-    if gauge_y + 3 < inner.y + inner.height {
-        f.render_widget(Paragraph::new(Line::from(vec![
-            Span::styled("swap ", Style::default().fg(theme.muted)),
-        ])), Rect::new(inner.x, gauge_y + 3, inner.width, 1));
-        f.render_widget(Paragraph::new(Line::from(swap_gauge)), Rect::new(inner.x, gauge_y + 4, inner.width, 1));
-    }
+    // Row 1: used (left) + available (right)
+    let tl = Rect::new(inner.x, inner.y, half_w, row1_h);
+    let tr = Rect::new(inner.x + half_w, inner.y, inner.width - half_w, row1_h);
+    // Row 2: cached (left) + free (right)
+    let bl = Rect::new(inner.x, inner.y + row1_h, half_w, row2_h);
+    let br = Rect::new(inner.x + half_w, inner.y + row1_h, inner.width - half_w, row2_h);
 
-    // Memory pressure stacked gauge
-    let mut pressure_y = gauge_y + 6;
-    if gauge_y + 6 < inner.y + inner.height && (s.memory.wired > 0 || s.memory.app > 0 || s.memory.compressed > 0) {
-        let wired_gb = s.memory.wired as f64 / gb;
-        let app_gb = s.memory.app as f64 / gb;
+    // Helper to render a sub-framed chart
+    let render_sub_chart = |f: &mut Frame, area: Rect, title: &str, value: String, data: &[f64], green: bool| {
+        if area.height == 0 || area.width == 0 { return; }
+        let block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(format!(" {title} "), Style::default().fg(theme.fg).bold()),
+                Span::styled(value, Style::default().fg(theme.fg)),
+                Span::raw(" "),
+            ]))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(sub_border_color));
+        let chart_inner = block.inner(area);
+        f.render_widget(block, area);
+        if chart_inner.height > 0 && chart_inner.width > 0 {
+            if green {
+                super::panels::render_graph_green(f, chart_inner, data, 1.0, theme);
+            } else {
+                super::panels::render_graph(f, chart_inner, data, 1.0, theme);
+            }
+        }
+    };
+
+    let used_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
+    let avail_data: Vec<f64> = state.history.mem_available.iter().copied().collect();
+    let cached_data: Vec<f64> = state.history.mem_cached.iter().copied().collect();
+    let free_data: Vec<f64> = state.history.mem_free.iter().copied().collect();
+
+    render_sub_chart(f, tl, "used", format!("{ram_used_gb:.1}GB"), &used_data, false);
+    render_sub_chart(f, tr, "available", format!("{ram_avail_gb:.1}GB"), &avail_data, true);
+    render_sub_chart(f, bl, "cached", format!("{cached_gb:.1}GB"), &cached_data, false);
+    render_sub_chart(f, br, "free", format!("{free_gb:.1}GB"), &free_data, true);
+
+    // Info row: compressed + swap
+    let info_y = inner.y + mem_chart_h;
+    if info_y < inner.y + inner.height {
         let compressed_gb = s.memory.compressed as f64 / gb;
-        let total = ram_total_gb.max(0.01);
-
-        f.render_widget(
-            Paragraph::new("memory pressure").style(Style::default().fg(theme.muted)),
-            Rect::new(inner.x, pressure_y, inner.width, 1),
-        );
-        pressure_y += 1;
-
-        // Stacked gauge: [wired|app|compressed|free]
-        let gauge_width = inner.width.saturating_sub(2) as usize;
-        if pressure_y < inner.y + inner.height && gauge_width > 0 {
-            let w_frac = (wired_gb / total).clamp(0.0, 1.0);
-            let a_frac = (app_gb / total).clamp(0.0, 1.0);
-            let c_frac = (compressed_gb / total).clamp(0.0, 1.0);
-            let w_chars = (gauge_width as f64 * w_frac) as usize;
-            let a_chars = (gauge_width as f64 * a_frac) as usize;
-            let c_chars = (gauge_width as f64 * c_frac) as usize;
-            let free_chars = gauge_width.saturating_sub(w_chars + a_chars + c_chars);
-
-            let line = Line::from(vec![
-                Span::styled("▓".repeat(w_chars), Style::default().fg(theme.cpu_accent)),
-                Span::styled("▓".repeat(a_chars), Style::default().fg(theme.mem_accent)),
-                Span::styled("▓".repeat(c_chars), Style::default().fg(theme.power_accent)),
-                Span::styled("░".repeat(free_chars), Style::default().fg(theme.border)),
-            ]);
-            f.render_widget(Paragraph::new(line), Rect::new(inner.x, pressure_y, inner.width, 1));
-            pressure_y += 1;
-        }
-
-        // Legend
-        let pressure_items = [
-            ("■ wired: ", wired_gb, theme.cpu_accent),
-            ("  ■ app: ", app_gb, theme.mem_accent),
-            ("  ■ compressed: ", compressed_gb, theme.power_accent),
+        let swap_used_gb = s.memory.swap_used as f64 / gb;
+        let swap_total_gb = s.memory.swap_total as f64 / gb;
+        let mut info_spans: Vec<Span> = vec![
+            Span::styled(format!(" compressed: {compressed_gb:.1}GB"), Style::default().fg(theme.muted)),
         ];
-        if pressure_y < inner.y + inner.height {
-            let legend: Vec<Span> = pressure_items.iter().flat_map(|(label, val, color)| {
-                vec![
-                    Span::styled(*label, Style::default().fg(*color)),
-                    Span::styled(format!("{:.1}G", val), Style::default().fg(theme.fg)),
-                ]
-            }).collect();
-            f.render_widget(Paragraph::new(Line::from(legend)), Rect::new(inner.x, pressure_y, inner.width, 1));
-            pressure_y += 1;
+        if s.memory.swap_total > 0 {
+            info_spans.push(Span::styled(format!("  swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB"), Style::default().fg(theme.muted)));
         }
+        f.render_widget(Paragraph::new(Line::from(info_spans)), Rect::new(inner.x, info_y, inner.width, 1));
     }
 
-    // Disk info
-    let disk_start = pressure_y + 1;
+    // Disk section: symmetric read/write chart
+    let disk_start = info_y + 1;
     let disk_used_gb = s.disk.used_bytes as f64 / gb;
     let disk_total_gb = s.disk.total_bytes as f64 / gb;
+    let disk_pct = if s.disk.total_bytes > 0 { (s.disk.used_bytes as f64 / s.disk.total_bytes as f64 * 100.0) as u32 } else { 0 };
+
     if disk_start < inner.y + inner.height {
-        let disk_metrics = [
-            format!("disk: {:.0}/{:.0} GB", disk_used_gb, disk_total_gb),
-            format!("read:  {}", format_bytes_rate(s.disk.read_bytes_sec as f64)),
-            format!("write: {}", format_bytes_rate(s.disk.write_bytes_sec as f64)),
-        ];
-        for (i, text) in disk_metrics.iter().enumerate() {
-            let y = disk_start + i as u16;
-            if y >= inner.y + inner.height { break; }
-            f.render_widget(
-                Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
-                Rect::new(inner.x, y, inner.width, 1),
-            );
+        let disk_label = format!(
+            " disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB  r:{} w:{}",
+            format_bytes_rate_compact(s.disk.read_bytes_sec as f64),
+            format_bytes_rate_compact(s.disk.write_bytes_sec as f64),
+        );
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(disk_label, Style::default().fg(theme.muted)))),
+            Rect::new(inner.x, disk_start, inner.width, 1),
+        );
+    }
+
+    // Disk symmetric chart: read ↑ up, write ↓ down (matching net convention)
+    let disk_chart_y = disk_start + 1;
+    let remaining_h = inner.y + inner.height - disk_chart_y.min(inner.y + inner.height);
+    let actual_disk_h = disk_chart_h.min(remaining_h);
+
+    if actual_disk_h >= 2 && disk_chart_y < inner.y + inner.height {
+        let disk_half_h = actual_disk_h / 2;
+        let read_data: Vec<f64> = state.history.disk_read.iter().copied().collect();
+        let write_data: Vec<f64> = state.history.disk_write.iter().copied().collect();
+
+        // Use net tier scale for disk (auto-scale based on max observed)
+        let max_disk = read_data.iter().chain(write_data.iter()).copied().fold(0.0f64, f64::max).max(1024.0);
+        let disk_scale = max_disk * 1.2;
+        let disk_baseline = disk_scale * 0.005;
+
+        // Read ↑ top half (grows upward)
+        if disk_half_h > 0 {
+            let top_area = Rect::new(inner.x, disk_chart_y, inner.width, disk_half_h);
+            let clamped: Vec<f64> = read_data.iter().map(|&v| v.max(disk_baseline)).collect();
+            let graph = braille::render_braille_graph(&clamped, disk_scale, inner.width as usize, disk_half_h as usize, theme);
+            let needed = inner.width as usize * 2;
+            let start = read_data.len().saturating_sub(needed);
+            let visible_orig = &read_data[start..];
+            for (row_idx, row) in graph.iter().enumerate() {
+                let y = top_area.y + top_area.height.saturating_sub(1) - row_idx as u16;
+                if y < top_area.y { break; }
+                let y_frac = row_idx as f64 / (disk_half_h as f64 - 1.0).max(1.0);
+                let gradient_color = super::gradient::value_to_color(y_frac, theme);
+                let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
+                    let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                    let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
+                    let is_baseline = orig_l < disk_baseline * 2.0 && orig_r < disk_baseline * 2.0;
+                    let color = if is_baseline { theme::baseline_color(theme) } else { gradient_color };
+                    Span::styled(ch.to_string(), Style::default().fg(color))
+                }).collect();
+                if !spans.is_empty() {
+                    f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(top_area.x, y, top_area.width, 1));
+                }
+            }
+        }
+
+        // Write ↓ bottom half (grows downward)
+        let bottom_disk_h = actual_disk_h - disk_half_h;
+        if bottom_disk_h > 0 {
+            let bottom_area = Rect::new(inner.x, disk_chart_y + disk_half_h, inner.width, bottom_disk_h);
+            let clamped: Vec<f64> = write_data.iter().map(|&v| v.max(disk_baseline)).collect();
+            let graph = braille::render_braille_graph_down(&clamped, disk_scale, inner.width as usize, bottom_disk_h as usize, theme);
+            let needed = inner.width as usize * 2;
+            let start = write_data.len().saturating_sub(needed);
+            let visible_orig = &write_data[start..];
+            for (row_idx, row) in graph.iter().enumerate() {
+                let y = bottom_area.y + row_idx as u16;
+                if y >= bottom_area.y + bottom_area.height { break; }
+                let y_frac = row_idx as f64 / (bottom_disk_h as f64 - 1.0).max(1.0);
+                let gradient_color = super::gradient::value_to_color(y_frac, theme);
+                let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
+                    let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
+                    let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
+                    let is_baseline = orig_l < disk_baseline * 2.0 && orig_r < disk_baseline * 2.0;
+                    let color = if is_baseline { theme::baseline_color(theme) } else { gradient_color };
+                    Span::styled(ch.to_string(), Style::default().fg(color))
+                }).collect();
+                if !spans.is_empty() {
+                    f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(bottom_area.x, y, bottom_area.width, 1));
+                }
+            }
         }
     }
 }
@@ -329,8 +381,8 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let scale = super::panels::NET_TIERS[state.history.net_tier_idx].0;
     let baseline_floor = scale * 0.005;
 
-    // Symmetric center-baseline chart (~50% of panel height)
-    let chart_height = (inner.height / 2).max(4).min(inner.height);
+    // Symmetric center-baseline chart (~60% of panel height)
+    let chart_height = (inner.height * 6 / 10).max(4).min(inner.height);
     let half_h = chart_height / 2;
 
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
@@ -460,8 +512,8 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // CPU power multi-row chart (~20% height, min 2 rows)
-    let cpu_chart_h = (inner.height / 5).max(2).min(inner.height);
+    // CPU power multi-row chart (~30% height, min 2 rows)
+    let cpu_chart_h = (inner.height * 3 / 10).max(2).min(inner.height);
     let cpu_tdp = s.soc.cpu_tdp_w() as f64;
     let cpu_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
     f.render_widget(
@@ -471,9 +523,9 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let cpu_chart_area = Rect::new(inner.x, inner.y + 1, inner.width, cpu_chart_h);
     super::panels::render_graph(f, cpu_chart_area, &cpu_data, cpu_tdp, theme);
 
-    // GPU power multi-row chart (~20% height, min 2 rows)
+    // GPU power multi-row chart (~30% height, min 2 rows)
     let gpu_chart_start = inner.y + 1 + cpu_chart_h;
-    let gpu_chart_h = (inner.height / 5).max(2).min(inner.height.saturating_sub(1 + cpu_chart_h));
+    let gpu_chart_h = (inner.height * 3 / 10).max(2).min(inner.height.saturating_sub(1 + cpu_chart_h));
     let gpu_tdp = s.soc.gpu_tdp_w() as f64;
     let gpu_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
     if gpu_chart_start < inner.y + inner.height {

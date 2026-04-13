@@ -56,7 +56,7 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
     // SAFETY: VmStatistics64 is repr(C) with compile-time offset assertions.
     // host_statistics64 writes into vm_stat; count is set to the struct size in i32 units.
     // sysconf(_SC_PAGESIZE) returns the system page size (always positive on macOS).
-    let (ram_used, swap_total, swap_used, wired, app, compressed) = unsafe {
+    let (ram_used, swap_total, swap_used, wired, app, compressed, cached, free) = unsafe {
         let mut vm_stat: VmStatistics64 = std::mem::zeroed();
         let mut count = (std::mem::size_of::<VmStatistics64>() / std::mem::size_of::<i32>()) as u32;
 
@@ -70,7 +70,7 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         let raw = libc::sysconf(libc::_SC_PAGESIZE);
         let page_size = if raw <= 0 { 16384u64 } else { raw as u64 };
 
-        let (ram_used, wired, app, compressed) = if ret == 0 {
+        let (ram_used, wired, app, compressed, cached, free) = if ret == 0 {
             // btop formula: used = (active + wired) × page_size
             // Excludes compressed, inactive, speculative, and file-cache pages
             // that macOS reclaims on demand — matching what btop reports.
@@ -83,15 +83,17 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
                 .saturating_sub(vm_stat.purgeable_count as u64)
                 * page_size;
             let compressed = vm_stat.compressor_page_count as u64 * page_size;
-            (used, wired, app, compressed)
+            let cached = (vm_stat.inactive_count as u64 + vm_stat.purgeable_count as u64) * page_size;
+            let free = vm_stat.free_count as u64 * page_size;
+            (used, wired, app, compressed, cached, free)
         } else {
-            (0, 0, 0, 0)
+            (0, 0, 0, 0, 0, 0)
         };
 
         // Swap via sysctl
         let swap = get_swap_usage();
 
-        (ram_used, swap.0, swap.1, wired, app, compressed)
+        (ram_used, swap.0, swap.1, wired, app, compressed, cached, free)
     };
 
     MemoryMetrics {
@@ -102,6 +104,8 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         wired,
         app,
         compressed,
+        cached,
+        free,
         swap_in_bytes_sec: 0.0,
         swap_out_bytes_sec: 0.0,
         pressure_level: 1,

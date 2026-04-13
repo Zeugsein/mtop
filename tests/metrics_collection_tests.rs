@@ -397,6 +397,8 @@ fn pressure_level_field_exists() {
         wired: 0,
         app: 0,
         compressed: 0,
+        cached: 0,
+        free: 0,
         swap_in_bytes_sec: 0.0,
         swap_out_bytes_sec: 0.0,
         pressure_level: 2,

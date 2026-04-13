@@ -178,6 +178,8 @@ pub struct MemoryMetrics {
     pub wired: u64,
     pub app: u64,
     pub compressed: u64,
+    pub cached: u64,
+    pub free: u64,
     pub swap_in_bytes_sec: f64,
     pub swap_out_bytes_sec: f64,
     /// Memory pressure level: 1=normal, 2=warning, 4=critical
@@ -295,6 +297,10 @@ pub struct MetricsHistory {
     pub system_power: HistoryBuffer,
     pub mem_usage: HistoryBuffer,
     pub mem_available: HistoryBuffer,
+    pub mem_cached: HistoryBuffer,
+    pub mem_free: HistoryBuffer,
+    pub disk_read: HistoryBuffer,
+    pub disk_write: HistoryBuffer,
     pub net_upload: HistoryBuffer,
     pub net_download: HistoryBuffer,
     /// Per-interface rx/tx history for per-interface sparklines
@@ -327,6 +333,10 @@ impl MetricsHistory {
             system_power: HistoryBuffer::new(),
             mem_usage: HistoryBuffer::new(),
             mem_available: HistoryBuffer::new(),
+            mem_cached: HistoryBuffer::new(),
+            mem_free: HistoryBuffer::new(),
+            disk_read: HistoryBuffer::new(),
+            disk_write: HistoryBuffer::new(),
             net_upload: HistoryBuffer::new(),
             net_download: HistoryBuffer::new(),
             per_iface: std::collections::HashMap::new(),
@@ -365,7 +375,20 @@ impl MetricsHistory {
                 available / total,
                 self.max_len,
             );
+            Self::push_val(
+                &mut self.mem_cached,
+                (snapshot.memory.cached as f64 / total).min(1.0),
+                self.max_len,
+            );
+            Self::push_val(
+                &mut self.mem_free,
+                (snapshot.memory.free as f64 / total).min(1.0),
+                self.max_len,
+            );
         }
+        // Disk I/O rates
+        Self::push_val(&mut self.disk_read, snapshot.disk.read_bytes_sec as f64, self.max_len);
+        Self::push_val(&mut self.disk_write, snapshot.disk.write_bytes_sec as f64, self.max_len);
         // Network aggregate rates (sum across all interfaces)
         let total_upload: f64 = snapshot.network.interfaces.iter()
             .map(|i| i.tx_bytes_sec)

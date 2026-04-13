@@ -1292,3 +1292,23 @@ The codebase SHALL produce zero clippy warnings.
 The expanded network symmetric chart SHALL use the same `gradient::value_to_color` coloring strategy for both download (top half) and upload (bottom half), ensuring visual symmetry.
 
 > SHALL-35-02a
+
+### Requirement: Memory expanded 2×2 chart grid [I36-F1]
+The expanded memory panel SHALL render a 2×2 grid of braille sparkline charts: used (top-left), available (top-right), cached (bottom-left), free (bottom-right). Each sub-chart SHALL have its own titled border and current value label. Compressed memory and swap SHALL appear as text metrics below the chart grid.
+
+> SHALL-36-F1
+
+### Requirement: Expanded panel chart height parity [I36-F2]
+All expanded panels SHALL allocate chart height proportional to the non-expanded (hide-mode) layout (~70% for CPU/GPU, ~45% for memory 2×2 grid, ~60% for network symmetric chart) so expanded charts are not significantly shorter than their non-expanded counterparts.
+
+> SHALL-36-F2
+
+### Requirement: Memory metrics cached and free fields [I36-F3]
+MemoryMetrics SHALL include `cached` (inactive + purgeable pages × page_size) and `free` (free_count × page_size) fields populated from macOS vm_statistics64, with corresponding history buffers for sparkline rendering.
+
+> SHALL-36-F3
+
+### Requirement: Disk I/O history buffers [I36-F4]
+MetricsHistory SHALL include `disk_read` and `disk_write` history buffers tracking per-sample disk read/write bytes-per-second for use in disk sparkline charts.
+
+> SHALL-36-F4
