@@ -125,7 +125,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         };
 
         let detail_lines: Vec<Line> = vec![
-            Line::from(Span::styled("Disk", Style::default().fg(theme.fg).bold())),
+            Line::from(Span::styled("disk", Style::default().fg(theme.fg).bold())),
             Line::from(gauge::render_compact_gauge(disk_fraction, right.width as usize, theme)),
             Line::from(Span::styled(
                 format!("{disk_used_gb:.0}/{disk_total_gb:.0} GB"),
@@ -205,7 +205,7 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         if s.memory.swap_total > 0 {
             let swap_used_gb = s.memory.swap_used as f64 / gb;
             let swap_total_gb = s.memory.swap_total as f64 / gb;
-            let swap_text = format!(" Swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
+            let swap_text = format!(" swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
             f.render_widget(
                 Paragraph::new(Line::from(Span::styled(swap_text, Style::default().fg(theme.muted)))),
                 Rect::new(inner.x, bottom_y, inner.width / 2, 1),
@@ -230,10 +230,10 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     let swap_out = s.memory.swap_out_bytes_sec;
 
     let swap_text = if swap_in == 0.0 && swap_out == 0.0 {
-        format!(" Swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB")
+        format!(" swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB")
     } else {
         format!(
-            " Swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB  in {}/out {}",
+            " swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB  in {}/out {}",
             format_bytes_rate_compact(swap_in),
             format_bytes_rate_compact(swap_out),
         )

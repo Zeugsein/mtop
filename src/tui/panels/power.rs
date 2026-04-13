@@ -207,7 +207,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     let max_w = state.history.package_power.iter().copied().fold(0.0_f64, f64::max);
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            format!(" Total {total_w:.1}W  Avg {avg_w:.1}W  Max {max_w:.1}W"),
+            format!(" total {total_w:.1}W  avg {avg_w:.1}W  max {max_w:.1}W"),
             Style::default().fg(theme.muted),
         ))),
         Rect::new(inner.x, bottom_y, inner.width, 1),

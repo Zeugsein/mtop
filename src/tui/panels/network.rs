@@ -263,7 +263,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let bottom_text = if let Some(primary) = display_ifaces.first() {
         format!(" {} ({}) ", primary.name, primary.iface_type)
     } else {
-        " No active interfaces ".to_string()
+        " no active interfaces ".to_string()
     };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(bottom_text, Style::default().fg(theme.muted)))),

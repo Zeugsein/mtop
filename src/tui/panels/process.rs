@@ -73,7 +73,7 @@ pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         let y = inner.y + 1;
         if y < inner.y + inner.height {
             f.render_widget(
-                Paragraph::new("No processes").style(Style::default().fg(theme.muted)),
+                Paragraph::new("no processes").style(Style::default().fg(theme.muted)),
                 Rect::new(inner.x, y, inner.width, 1),
             );
         }
