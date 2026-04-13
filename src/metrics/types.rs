@@ -305,7 +305,6 @@ pub struct MetricsHistory {
     pub net_download_max: f64,
     pub net_tier_idx: usize,
     pub net_tier_hold: usize,
-    pub net_tier_up_hold: usize,
     max_len: usize,
 }
 
@@ -335,7 +334,6 @@ impl MetricsHistory {
             net_download_max: 0.0,
             net_tier_idx: 0,
             net_tier_hold: 0,
-            net_tier_up_hold: 0,
             max_len: 128,
         }
     }
@@ -416,28 +414,18 @@ impl MetricsHistory {
 
         let current = self.net_tier_idx;
 
-        // Upgrade: max exceeds current tier — delayed by 10 samples
+        // Upgrade: max exceeds current tier — immediate jump to appropriate tier
         if current < TIERS.len() - 1 && max_val >= TIERS[current] {
-            self.net_tier_up_hold += 1;
-            if self.net_tier_up_hold >= 10 {
-                for (i, &tier) in TIERS.iter().enumerate().skip(current + 1) {
-                    if max_val < tier {
-                        self.net_tier_idx = i;
-                        self.net_tier_hold = 0;
-                        self.net_tier_up_hold = 0;
-                        return;
-                    }
+            for (i, &tier) in TIERS.iter().enumerate().skip(current + 1) {
+                if max_val < tier {
+                    self.net_tier_idx = i;
+                    self.net_tier_hold = 0;
+                    return;
                 }
-                self.net_tier_idx = TIERS.len() - 1;
-                self.net_tier_hold = 0;
-                self.net_tier_up_hold = 0;
             }
+            self.net_tier_idx = TIERS.len() - 1;
+            self.net_tier_hold = 0;
             return;
-        }
-
-        // Reset upward hold when max drops back below current tier
-        if self.net_tier_up_hold > 0 {
-            self.net_tier_up_hold = 0;
         }
 
         // Downgrade: all values below 10% of current tier for full chart window (max_len samples)

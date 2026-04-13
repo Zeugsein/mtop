@@ -108,13 +108,27 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
     if state.show_detail {
         let (left, mid, right) = layout::split_type_b(content_area);
 
-        // Sub-frame borders for CPU and GPU areas
+        // Sub-frame borders for CPU and GPU areas — titles on frame, not colored (consistent with hide mode)
         let sub_border_color = theme::dim_color(border_color, 0.8);
         let cpu_block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(" cpu ", Style::default().fg(theme.fg).bold()),
+                Span::styled(format!("{:.1}W", s.power.cpu_w), Style::default().fg(theme.fg)),
+                Span::raw(" "),
+            ]))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(sub_border_color));
+        let mut gpu_title_spans = vec![
+            Span::styled(" gpu ", Style::default().fg(theme.fg).bold()),
+            Span::styled(format!("{:.1}W", s.power.gpu_w), Style::default().fg(theme.fg)),
+        ];
+        if gpu_idle {
+            gpu_title_spans.push(Span::styled(" (idle)", Style::default().fg(theme.muted)));
+        }
+        gpu_title_spans.push(Span::raw(" "));
         let gpu_block = Block::default()
+            .title(Line::from(gpu_title_spans))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(sub_border_color));
@@ -123,8 +137,8 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
         f.render_widget(cpu_block, left);
         f.render_widget(gpu_block, mid);
 
-        render_labeled_sparkline(f, cpu_inner, "cpu", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
-        render_labeled_sparkline(f, gpu_inner, "gpu", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, gpu_idle);
+        render_labeled_sparkline(f, cpu_inner, "", s.power.cpu_w, &cpu_power_data, cpu_tdp, theme.cpu_accent, false);
+        render_labeled_sparkline(f, gpu_inner, "", s.power.gpu_w, &gpu_power_data, gpu_tdp, theme.gpu_accent, false);
 
         // Right 25%: Per-process energy ranking (white text)
         let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()

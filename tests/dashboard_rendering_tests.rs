@@ -206,20 +206,16 @@ fn push_net_sample(history: &mut mtop::metrics::types::MetricsHistory, bytes_sec
     history.push(&snapshot);
 }
 
-/// Network tier upgrades after 10 consecutive samples above threshold. (ref: SHALL-28-05b)
+/// Network tier upgrades immediately on spike (ref: SHALL-31-07a)
 #[test]
 fn net_tier_upgrade_after_hold() {
     use mtop::metrics::types::MetricsHistory;
     let mut history = MetricsHistory::new();
     assert_eq!(history.net_tier_idx, 0, "should start at tier 0");
 
-    for _ in 0..9 {
-        push_net_sample(&mut history, 1_500_000.0);
-    }
-    assert_eq!(history.net_tier_idx, 0, "should still be tier 0 after 9 samples");
-
+    // Immediate upgrade on first sample exceeding current tier
     push_net_sample(&mut history, 1_500_000.0);
-    assert_eq!(history.net_tier_idx, 1, "should upgrade to tier 1 after 10 samples");
+    assert_eq!(history.net_tier_idx, 1, "should upgrade to tier 1 immediately on spike");
 }
 
 /// Network tier downgrades after a full buffer window of below-threshold samples.
@@ -231,13 +227,11 @@ fn net_tier_downgrade_after_full_buffer_window() {
     use mtop::metrics::types::MetricsHistory;
     let mut history = MetricsHistory::new();
 
-    // Upgrade to tier 1 (need 10 consecutive samples above 1MB/s)
-    for _ in 0..10 {
-        push_net_sample(&mut history, 2_000_000.0);
-    }
+    // Upgrade to tier 1 (immediate on spike)
+    push_net_sample(&mut history, 2_000_000.0);
     assert_eq!(history.net_tier_idx, 1);
 
-    // Need: 127 zeros to flush high values from buffer + 128 zeros to accumulate hold = 255 total
+    // Need: 127 zeros to flush the 1 high value from 128-entry buffer + 128 zeros to accumulate hold = 255 total
     for _ in 0..254 {
         push_net_sample(&mut history, 0.0);
     }
@@ -254,10 +248,8 @@ fn net_tier_downgrade_interrupted_by_spike() {
     use mtop::metrics::types::MetricsHistory;
     let mut history = MetricsHistory::new();
 
-    // Upgrade to tier 1
-    for _ in 0..10 {
-        push_net_sample(&mut history, 2_000_000.0);
-    }
+    // Upgrade to tier 1 (immediate on spike)
+    push_net_sample(&mut history, 2_000_000.0);
     assert_eq!(history.net_tier_idx, 1);
 
     // Push zeros to start downgrade hold (need to flush buffer first)
@@ -288,14 +280,12 @@ fn net_tier_downgrade_threshold_is_10_percent() {
     use mtop::metrics::types::MetricsHistory;
     let mut history = MetricsHistory::new();
 
-    // Upgrade to tier 1
-    for _ in 0..10 {
-        push_net_sample(&mut history, 2_000_000.0);
-    }
+    // Upgrade to tier 1 (immediate on spike)
+    push_net_sample(&mut history, 2_000_000.0);
     assert_eq!(history.net_tier_idx, 1);
 
     // 400K is below 10% of 5MB/s (524K) — should eventually trigger downgrade
-    // Need 127 to flush high values + 128 to accumulate hold = 255 total
+    // Need 127 to flush high value from buffer + 128 to accumulate hold = 255 total
     for _ in 0..254 {
         push_net_sample(&mut history, 400_000.0);
     }
@@ -305,9 +295,7 @@ fn net_tier_downgrade_threshold_is_10_percent() {
 
     // Values above 10% must NOT trigger downgrade
     let mut history2 = MetricsHistory::new();
-    for _ in 0..10 {
-        push_net_sample(&mut history2, 2_000_000.0);
-    }
+    push_net_sample(&mut history2, 2_000_000.0);
     assert_eq!(history2.net_tier_idx, 1);
 
     for _ in 0..256 {
