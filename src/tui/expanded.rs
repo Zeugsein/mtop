@@ -168,9 +168,9 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let metrics = [
         format!("frequency:    {} MHz", s.gpu.freq_mhz),
         format!("usage:        {:.1}%", s.gpu.usage * 100.0),
-        format!("GPU Power:    {:.2} W", s.power.gpu_w),
-        format!("ANE Power:    {:.2} W", s.power.ane_w),
-        format!("DRAM Power:   {:.2} W", s.power.dram_w),
+        format!("GPU power:    {:.2} W", s.power.gpu_w),
+        format!("ANE power:    {:.2} W", s.power.ane_w),
+        format!("DRAM power:   {:.2} W", s.power.dram_w),
     ];
 
     for (i, text) in metrics.iter().enumerate() {
@@ -266,9 +266,9 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
 
         // Legend
         let pressure_items = [
-            ("■ Wired: ", wired_gb, theme.cpu_accent),
-            ("  ■ App: ", app_gb, theme.mem_accent),
-            ("  ■ Compressed: ", compressed_gb, theme.power_accent),
+            ("■ wired: ", wired_gb, theme.cpu_accent),
+            ("  ■ app: ", app_gb, theme.mem_accent),
+            ("  ■ compressed: ", compressed_gb, theme.power_accent),
         ];
         if pressure_y < inner.y + inner.height {
             let legend: Vec<Span> = pressure_items.iter().flat_map(|(label, val, color)| {
@@ -439,7 +439,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         .map(|&(ch, color)| Span::styled(ch.to_string(), Style::default().fg(color)))
         .collect();
     f.render_widget(
-        Paragraph::new("CPU Power").style(Style::default().fg(theme.cpu_accent)),
+        Paragraph::new("cpu power").style(Style::default().fg(theme.cpu_accent)),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
     if !spans.is_empty() && inner.height > 1 {
@@ -455,7 +455,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         .collect();
     if inner.height > 3 {
         f.render_widget(
-            Paragraph::new("GPU Power").style(Style::default().fg(theme.gpu_accent)),
+            Paragraph::new("gpu power").style(Style::default().fg(theme.gpu_accent)),
             Rect::new(inner.x, inner.y + 3, inner.width, 1),
         );
         if !spans.is_empty() {
