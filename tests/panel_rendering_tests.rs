@@ -225,6 +225,85 @@ fn render_expanded_network_80x24_no_panic() {
 }
 
 #[test]
+fn render_expanded_gpu_80x24_no_panic() {
+    let text = mtop::tui::render_dashboard_with_state(
+        80, 24, empty_snapshot(), false, Some(PanelId::Gpu), SortMode::default(),
+    );
+    assert!(!text.is_empty());
+}
+
+#[test]
+fn render_expanded_power_80x24_no_panic() {
+    let text = mtop::tui::render_dashboard_with_state(
+        80, 24, empty_snapshot(), false, Some(PanelId::Power), SortMode::default(),
+    );
+    assert!(!text.is_empty());
+}
+
+#[test]
+fn render_expanded_process_80x24_no_panic() {
+    let text = mtop::tui::render_dashboard_with_state(
+        80, 24, empty_snapshot(), false, Some(PanelId::Process), SortMode::default(),
+    );
+    assert!(!text.is_empty());
+}
+
+// Content verification tests for expanded panels at 120x40
+#[test]
+fn expanded_cpu_contains_cluster_labels() {
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, empty_snapshot(), false, Some(PanelId::Cpu), SortMode::default(),
+    );
+    assert!(text.contains("cpu"), "expanded CPU panel should contain 'cpu' title");
+    assert!(text.contains("e-cluster") || text.contains("p-cluster"), "expanded CPU should contain cluster labels");
+}
+
+#[test]
+fn expanded_gpu_contains_metrics() {
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, empty_snapshot(), false, Some(PanelId::Gpu), SortMode::default(),
+    );
+    assert!(text.contains("gpu"), "expanded GPU panel should contain 'gpu' title");
+    assert!(text.contains("frequency"), "expanded GPU should contain frequency metric");
+}
+
+#[test]
+fn expanded_power_contains_component_breakdown() {
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, empty_snapshot(), false, Some(PanelId::Power), SortMode::default(),
+    );
+    assert!(text.contains("power"), "expanded power panel should contain 'power' title");
+    assert!(text.contains("component breakdown"), "expanded power should contain component breakdown");
+}
+
+#[test]
+fn expanded_network_contains_interface_header() {
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, empty_snapshot(), false, Some(PanelId::Network), SortMode::default(),
+    );
+    assert!(text.contains("network"), "expanded network panel should contain 'network' title");
+    assert!(text.contains("interface"), "expanded network should contain interface table header");
+}
+
+#[test]
+fn expanded_process_contains_sort_label() {
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, empty_snapshot(), false, Some(PanelId::Process), SortMode::default(),
+    );
+    assert!(text.contains("processes"), "expanded process panel should contain 'processes' title");
+    assert!(text.contains("sort:"), "expanded process should contain sort label");
+}
+
+#[test]
+fn expanded_memory_contains_ram_label() {
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
+    );
+    assert!(text.contains("memory"), "expanded memory panel should contain 'memory' title");
+    assert!(text.contains("RAM"), "expanded memory should contain RAM label");
+}
+
+#[test]
 fn render_sort_mode_cpu() {
     let text = mtop::tui::render_dashboard_with_state(
         120, 40, empty_snapshot(), false, None, SortMode::Cpu,
