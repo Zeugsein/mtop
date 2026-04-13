@@ -168,9 +168,9 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let metrics = [
         format!("frequency:    {} MHz", s.gpu.freq_mhz),
         format!("usage:        {:.1}%", s.gpu.usage * 100.0),
-        format!("gpu power:    {:.2} W", s.power.gpu_w),
-        format!("ane power:    {:.2} W", s.power.ane_w),
-        format!("dram power:   {:.2} W", s.power.dram_w),
+        format!("GPU power:    {:.2} W", s.power.gpu_w),
+        format!("ANE power:    {:.2} W", s.power.ane_w),
+        format!("DRAM power:   {:.2} W", s.power.dram_w),
     ];
 
     for (i, text) in metrics.iter().enumerate() {
@@ -465,10 +465,10 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 
     // Component breakdown
     let components = [
-        ("cpu", s.power.cpu_w, theme.cpu_accent),
-        ("gpu", s.power.gpu_w, theme.gpu_accent),
-        ("ane", s.power.ane_w, theme.power_accent),
-        ("dram", s.power.dram_w, theme.mem_accent),
+        ("CPU", s.power.cpu_w, theme.cpu_accent),
+        ("GPU", s.power.gpu_w, theme.gpu_accent),
+        ("ANE", s.power.ane_w, theme.power_accent),
+        ("DRAM", s.power.dram_w, theme.mem_accent),
         ("system", s.power.system_w, theme.muted),
         ("package", s.power.package_w, theme.fg),
     ];
