@@ -199,7 +199,11 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         } else {
             0
         };
-        let disk_text = format!("disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB ");
+        let disk_text = format!(
+            "disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB  r:{} w:{} ",
+            format_bytes_rate_compact(s.disk.read_bytes_sec as f64),
+            format_bytes_rate_compact(s.disk.write_bytes_sec as f64),
+        );
 
         // Swap on the left (if configured)
         if s.memory.swap_total > 0 {

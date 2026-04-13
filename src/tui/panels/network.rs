@@ -247,7 +247,16 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             );
         }
 
-        // Fallback: primary interface name on bottom row
+        // Bottom row: max rates left, primary interface right
+        let max_text = format!(
+            " max ↓{} ↑{}",
+            format_bytes_rate_compact(state.history.net_download_max),
+            format_bytes_rate_compact(state.history.net_upload_max),
+        );
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(max_text, Style::default().fg(theme.muted)))),
+            Rect::new(inner.x, bottom_y, inner.width / 2, 1),
+        );
         if let Some(primary) = display_ifaces.first() {
             let fallback = format!("{} ", primary.name);
             f.render_widget(
@@ -255,18 +264,6 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
                     .alignment(ratatui::layout::Alignment::Right)),
                 Rect::new(inner.x, bottom_y, inner.width, 1),
             );
-            return; // skip default bottom info
         }
     }
-
-    // Bottom info inside panel
-    let bottom_text = if let Some(primary) = display_ifaces.first() {
-        format!(" {} ({}) ", primary.name, primary.iface_type)
-    } else {
-        " no active interfaces ".to_string()
-    };
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(bottom_text, Style::default().fg(theme.muted)))),
-        Rect::new(inner.x, bottom_y, inner.width, 1),
-    );
 }

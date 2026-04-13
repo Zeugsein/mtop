@@ -103,7 +103,7 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
         Style::default().fg(theme.muted),
     );
     let bottom_right = Span::styled(
-        format!("ANE {:.1}W ", s.power.ane_w),
+        format!("ANE {:.1}W  DRAM {:.1}W ", s.power.ane_w, s.power.dram_w),
         Style::default().fg(theme.muted),
     );
     f.render_widget(

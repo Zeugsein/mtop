@@ -47,7 +47,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -150,7 +150,7 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -202,7 +202,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, _state
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -324,11 +324,11 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    let scale = speed_tier_from_baudrate(s.network.primary_baudrate) as f64;
+    let scale = super::panels::NET_TIERS[state.history.net_tier_idx].0;
 
     // Upload sparkline (gradient colors from braille renderer)
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
@@ -427,7 +427,7 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.height == 0 || inner.width == 0 { return; }
 
@@ -552,7 +552,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y + 1, raw_inner.width.saturating_sub(2), raw_inner.height.saturating_sub(2));
+    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
     if inner.width == 0 || inner.height == 0 { return; }
 
