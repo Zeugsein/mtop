@@ -3,7 +3,7 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use crate::tui::{AppState, theme, braille, layout};
-use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact, format_bytes_compact, is_infrastructure_interface};
+use crate::tui::helpers::{format_bytes_rate_compact, format_bytes_compact, is_infrastructure_interface};
 
 pub(crate) const NET_TIERS: [(f64, &str); 7] = [
     (1_048_576.0,       "1MB/s"),
@@ -32,10 +32,6 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     ];
     if net_idle {
         title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
-    } else {
-        title_spans.push(Span::styled(format!(" \u{25b2} {}", format_bytes_rate(total_tx)), Style::default().fg(theme.fg)));
-        title_spans.push(Span::styled("  ", Style::default()));
-        title_spans.push(Span::styled(format!("\u{25bc} {}", format_bytes_rate(total_rx)), Style::default().fg(theme.fg)));
     }
     {
         let tier_idx = state.history.net_tier_idx;
@@ -78,7 +74,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let upload_data: Vec<f64> = state.history.net_upload.iter().copied().collect();
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
     let tier_idx = state.history.net_tier_idx;
-    let (scale, tier_label) = (NET_TIERS[tier_idx].0, NET_TIERS[tier_idx].1);
+    let scale = NET_TIERS[tier_idx].0;
 
     // Minimum baseline value: ensures at least 1 braille dot renders at zero
     let baseline_floor = scale * 0.035;
@@ -154,23 +150,10 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         render_graph_downward(f, bottom_area, ul_data);
     };
 
-    // Render tier label at top-right of a chart area
-    let render_tier_label = |f: &mut Frame, chart_area: Rect| {
-        let label_len = tier_label.len() as u16;
-        if chart_area.width > label_len + 1 {
-            let lx = chart_area.x + chart_area.width - label_len;
-            f.render_widget(
-                Paragraph::new(Span::styled(tier_label, Style::default().fg(theme.muted))),
-                Rect::new(lx, chart_area.y, label_len, 1),
-            );
-        }
-    };
-
     if state.show_detail {
         let (chart_area, right) = layout::split_type_a(content_area);
 
         render_symmetric_chart(f, chart_area, &download_data, &upload_data);
-        render_tier_label(f, chart_area);
 
         // Right 25%: download on top, upload on bottom (matching chart order)
         let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
@@ -178,7 +161,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
         let mut lines: Vec<Line> = Vec::new();
 
-        lines.push(Line::from(Span::styled("\u{25bc} Download", Style::default().fg(theme.net_download))));
+        lines.push(Line::from(Span::styled("\u{25bc} download", Style::default().fg(theme.net_download))));
         lines.push(Line::from(Span::styled(
             format_bytes_rate_compact(total_rx),
             Style::default().fg(theme.fg),
@@ -194,7 +177,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
 
         lines.push(Line::from(""));
 
-        lines.push(Line::from(Span::styled("\u{25b2} Upload", Style::default().fg(theme.net_upload))));
+        lines.push(Line::from(Span::styled("\u{25b2} upload", Style::default().fg(theme.net_upload))));
         lines.push(Line::from(Span::styled(
             format_bytes_rate_compact(total_tx),
             Style::default().fg(theme.fg),
@@ -208,19 +191,23 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             Style::default().fg(theme.fg),
         )));
 
-        // Stable interface list: show top 3 interfaces in fixed positions
-        lines.push(Line::from(""));
-        let iface_count = display_ifaces.len().min(3);
-        for iface in display_ifaces.iter().take(3) {
-            let active = iface.rx_bytes_sec > 0.0 || iface.tx_bytes_sec > 0.0;
-            let color = if active { theme.fg } else { theme.muted };
-            lines.push(Line::from(Span::styled(
-                format!("{} ({})", iface.name, iface.iface_type),
-                Style::default().fg(color),
-            )));
+        // Active interface list with heading
+        let active_ifaces: Vec<&&crate::metrics::NetInterface> = display_ifaces.iter()
+            .filter(|i| i.rx_bytes_sec > 0.0 || i.tx_bytes_sec > 0.0)
+            .collect();
+        if !active_ifaces.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled("• active", Style::default().fg(theme.fg))));
+            for iface in active_ifaces.iter().take(3) {
+                lines.push(Line::from(Span::styled(
+                    format!("{} ({})", iface.name, iface.iface_type),
+                    Style::default().fg(theme.fg),
+                )));
+            }
         }
-        // Pad remaining slots to stabilize layout
-        for _ in iface_count..3 {
+        // Pad to stabilize layout
+        let shown = if active_ifaces.is_empty() { 0 } else { 2 + active_ifaces.len().min(3) };
+        for _ in shown..5 {
             lines.push(Line::from(""));
         }
 
@@ -241,7 +228,6 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     } else {
         // Full-width symmetric chart
         render_symmetric_chart(f, content_area, &download_data, &upload_data);
-        render_tier_label(f, content_area);
 
         // Upload/download overlay labels (on top of chart, when tall enough)
         if content_area.height >= 6 {
@@ -250,11 +236,11 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             let ul_label = format!("\u{2191} {}", format_bytes_rate_compact(ul_rate));
             let dl_label = format!("\u{2193} {}", format_bytes_rate_compact(dl_rate));
             f.render_widget(
-                Paragraph::new(Span::styled(ul_label, Style::default().fg(theme.muted))),
+                Paragraph::new(Span::styled(dl_label, Style::default().fg(theme.muted))),
                 Rect::new(content_area.x, content_area.y, content_area.width, 1),
             );
             f.render_widget(
-                Paragraph::new(Span::styled(dl_label, Style::default().fg(theme.muted))),
+                Paragraph::new(Span::styled(ul_label, Style::default().fg(theme.muted))),
                 Rect::new(content_area.x, content_area.y + content_area.height - 1, content_area.width, 1),
             );
         }

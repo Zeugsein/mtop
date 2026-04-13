@@ -22,7 +22,7 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
         f.render_widget(block, area);
         let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
         f.render_widget(
-            Paragraph::new("Power sensors: N/A").style(Style::default().fg(theme.muted)),
+            Paragraph::new("power sensors: N/A").style(Style::default().fg(theme.muted)),
             inner,
         );
         return;
@@ -134,21 +134,32 @@ pub(crate) fn draw_power_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot
 
         let max_rows = right.height as usize;
 
-        for (i, proc) in procs_by_power.iter().take(max_rows).enumerate() {
-            let y = right.y + i as u16;
-            if y >= right.y + right.height {
-                break;
+        if procs_by_power.is_empty() {
+            // Vertically centered muted "idle" when no significant consumers
+            let idle_y = right.y + right.height / 2;
+            if idle_y < right.y + right.height {
+                f.render_widget(
+                    Paragraph::new("idle").style(Style::default().fg(theme.muted)),
+                    Rect::new(right.x, idle_y, right.width, 1),
+                );
             }
+        } else {
+            for (i, proc) in procs_by_power.iter().take(max_rows).enumerate() {
+                let y = right.y + i as u16;
+                if y >= right.y + right.height {
+                    break;
+                }
 
-            let name_width = right.width.saturating_sub(6) as usize;
-            let name = truncate_by_display_width(&proc.name, name_width);
+                let name_width = right.width.saturating_sub(6) as usize;
+                let name = truncate_by_display_width(&proc.name, name_width);
 
-            let line = Line::from(vec![
-                Span::styled(pad_to_display_width(&name, name_width), Style::default().fg(theme.fg)),
-                Span::raw("  "),
-                Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.fg)),
-            ]);
-            f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
+                let line = Line::from(vec![
+                    Span::styled(pad_to_display_width(&name, name_width), Style::default().fg(theme.fg)),
+                    Span::raw("  "),
+                    Span::styled(format!("{:.1}W", proc.power_w), Style::default().fg(theme.fg)),
+                ]);
+                f.render_widget(Paragraph::new(line), Rect::new(right.x, y, right.width, 1));
+            }
         }
     } else {
         // 50/50 split: bordered cpu + gpu sub-panels (no detail text)
