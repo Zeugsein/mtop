@@ -1198,3 +1198,42 @@ Panel titles, sub-panel titles, and table headers SHALL always use lowercase, ev
 All iteration 29 changes are rendering-only. No changes to MetricsHistory, MetricsSnapshot, or AppState structs. All changes SHALL render without panic at 80x24 terminal size.
 
 > SHALL-29-CC-01, SHALL-29-CC-02, SHALL-29-UAT-CC-01
+
+---
+
+## Iteration 31: Panel Polish & Hide-Mode Completeness [I31]
+
+### Requirement: Power panel show-mode title consistency [I31-F1]
+In show_detail mode, the power panel's cpu and gpu sub-frames SHALL display their labels in the sub-frame `.title()` using `theme.fg`, not as colored body text. This matches hide-mode convention.
+
+> SHALL-31-01a, SHALL-31-01b
+
+### Requirement: GPU hide-mode DRAM wattage [I31-F2]
+The GPU panel's hide-mode bottom row SHALL display DRAM wattage alongside ANE wattage.
+
+> SHALL-31-02a
+
+### Requirement: Memory hide-mode disk I/O rates [I31-F3]
+The memory panel's hide-mode bottom row SHALL display disk read and write I/O rates using compact format.
+
+> SHALL-31-03a
+
+### Requirement: Network hide-mode session max rates [I31-F4]
+The network panel's hide-mode bottom row SHALL display session max download and upload rates using compact format.
+
+> SHALL-31-04a
+
+### Requirement: Expanded panel padding fix [I31-F5]
+All 6 expanded panels SHALL use `raw_inner.y` (no extra top padding) and `raw_inner.height` (no height reduction), matching hide-mode convention. Left/right 1-char padding SHALL be preserved.
+
+> SHALL-31-05a, SHALL-31-05b
+
+### Requirement: Expanded network dynamic tier [I31-F6]
+The expanded network panel SHALL use `state.history.net_tier_idx` for all sparkline scales, not `speed_tier_from_baudrate`.
+
+> SHALL-31-06a
+
+### Requirement: Network tier immediate upgrade [I31-F7]
+When max network value exceeds the current tier, the tier SHALL immediately jump to the appropriate tier (no 10-sample delay). Downgrade delay SHALL be preserved unchanged.
+
+> SHALL-31-07a, SHALL-31-07b
