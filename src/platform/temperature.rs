@@ -287,10 +287,9 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
 /// may not expose temperature keys. Iterates all HID services and reads
 /// kIOHIDEventTypeTemperature (type 15) events.
 ///
-/// Known limitation: all HID temperature sensors are pooled without CPU/GPU
-/// distinction. Both `cpu_avg_c` and `gpu_avg_c` report the same average.
-/// Sensor classification would require IOHIDServiceClient property inspection
-/// which is not available via the public API.
+/// I46-F1: classifies sensors by name via IOHIDServiceClientCopyProperty:
+/// - pACC/eACC MTR Temp Sensor* → CPU (sanity: 0 < val < 130)
+/// - GPU MTR Temp Sensor* → GPU (sanity: 0 < val <= 150)
 fn hid_read_temperatures() -> Option<ThermalMetrics> {
     // SAFETY: IOHIDEventSystem and CoreFoundation calls with opaque pointer types.
     // All returned objects are checked for null and released via CFRelease.
@@ -306,8 +305,21 @@ fn hid_read_temperatures() -> Option<ThermalMetrics> {
             return None;
         }
 
+        // I46-F1a: create "Product" CFString key for property lookup
+        let product_key = CFStringCreateWithCString(
+            kCFAllocatorDefault,
+            c"Product".as_ptr(),
+            K_CF_STRING_ENCODING_UTF8,
+        );
+        if product_key.is_null() {
+            CFRelease(services);
+            CFRelease(client);
+            return None;
+        }
+
         let count = CFArrayGetCount(services);
-        let mut temps: Vec<f32> = Vec::new();
+        let mut cpu_temps: Vec<f32> = Vec::new();
+        let mut gpu_temps: Vec<f32> = Vec::new();
 
         for i in 0..count {
             let service = CFArrayGetValueAtIndex(services, i);
@@ -325,28 +337,84 @@ fn hid_read_temperatures() -> Option<ThermalMetrics> {
             let temp = IOHIDEventGetFloatValue(event, 15 << 16); // kIOHIDEventFieldTemperatureLevel
             CFRelease(event);
 
-            if temp > 0.0 && (temp as f32) < 130.0 {
-                temps.push(temp as f32);
+            // I46-F1a: get sensor name via IOHIDServiceClientCopyProperty
+            let name_cf = IOHIDServiceClientCopyProperty(service, product_key);
+            if name_cf.is_null() { continue; }
+
+            let name = cfstring_to_string(name_cf);
+            CFRelease(name_cf);
+
+            let Some(name) = name else { continue };
+
+            // I46-F1b: classify by sensor name prefix
+            if name.starts_with("pACC MTR Temp Sensor")
+                || name.starts_with("eACC MTR Temp Sensor")
+            {
+                // I46-F1e: CPU sanity filter (0, 130) matching SMC path
+                if temp > 0.0 && (temp as f32) < 130.0 {
+                    cpu_temps.push(temp as f32);
+                }
+            } else if name.starts_with("GPU MTR Temp Sensor") {
+                // I46-F1e: GPU wider sanity filter (0, 150] per macmon reference
+                if temp > 0.0 && (temp as f32) <= 150.0 {
+                    gpu_temps.push(temp as f32);
+                }
             }
+            // All other sensors discarded (I46-F1b)
         }
 
+        CFRelease(product_key);
         CFRelease(services);
         CFRelease(client);
 
-        if temps.is_empty() {
+        // I46-F1c: return None if no CPU sensors found
+        if cpu_temps.is_empty() {
             return None;
         }
 
-        let avg = temps.iter().sum::<f32>() / temps.len() as f32;
+        let cpu_avg = cpu_temps.iter().sum::<f32>() / cpu_temps.len() as f32;
+        // I46-F1c: fallback gpu → cpu if no GPU sensors
+        let gpu_avg = if gpu_temps.is_empty() {
+            cpu_avg
+        } else {
+            gpu_temps.iter().sum::<f32>() / gpu_temps.len() as f32
+        };
 
         Some(ThermalMetrics {
-            cpu_avg_c: avg,
-            gpu_avg_c: avg,
+            cpu_avg_c: cpu_avg,
+            gpu_avg_c: gpu_avg,
             ssd_avg_c: 0.0,
             battery_avg_c: 0.0,
             fan_speeds: Vec::new(),
             available: true,
         })
+    }
+}
+
+/// Convert a CFString to a Rust String.
+/// Tries CFStringGetCStringPtr first (zero-copy), falls back to CFStringGetCString with buffer.
+/// Returns None if conversion fails.
+unsafe fn cfstring_to_string(cf: *const libc::c_void) -> Option<String> {
+    // SAFETY: cf is a non-null CFString obtained from IOHIDServiceClientCopyProperty.
+    // CFStringGetCStringPtr may return null for non-ASCII or internally stored strings;
+    // in that case we fall back to CFStringGetCString with a stack-allocated buffer.
+    unsafe {
+        // Fast path: direct pointer
+        let ptr = CFStringGetCStringPtr(cf, K_CF_STRING_ENCODING_UTF8);
+        if !ptr.is_null() {
+            return Some(std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned());
+        }
+        // Slow path: copy into buffer
+        let len = CFStringGetLength(cf);
+        // UTF-8 can be up to 4 bytes per UTF-16 code unit; +1 for null terminator
+        let buf_size = (len * 4 + 1) as usize;
+        if buf_size > 512 { return None; } // sanity limit for sensor names
+        let mut buf = vec![0i8; buf_size];
+        if CFStringGetCString(cf, buf.as_mut_ptr(), buf_size as i64, K_CF_STRING_ENCODING_UTF8) {
+            Some(std::ffi::CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+        } else {
+            None
+        }
     }
 }
 
@@ -591,13 +659,38 @@ unsafe extern "C" {
         options: i32,
     ) -> *const libc::c_void;
     fn IOHIDEventGetFloatValue(event: *const libc::c_void, field: i32) -> f64;
+    // I46-F1d: property lookup for sensor name classification
+    fn IOHIDServiceClientCopyProperty(
+        service: *const libc::c_void,
+        key: *const libc::c_void,
+    ) -> *const libc::c_void;
 }
 
 // --- CoreFoundation FFI (minimal subset for HID temperature fallback) ---
+// I46-F1d: kCFStringEncodingUTF8 = 0x08000100
+const K_CF_STRING_ENCODING_UTF8: u32 = 0x0800_0100;
+
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     static kCFAllocatorDefault: *const libc::c_void;
     fn CFRelease(cf: *const libc::c_void);
     fn CFArrayGetCount(array: *const libc::c_void) -> i64;
     fn CFArrayGetValueAtIndex(array: *const libc::c_void, idx: i64) -> *const libc::c_void;
+    // I46-F1d: CFString functions for sensor name classification
+    fn CFStringCreateWithCString(
+        alloc: *const libc::c_void,
+        c_str: *const i8,
+        encoding: u32,
+    ) -> *const libc::c_void;
+    fn CFStringGetCStringPtr(
+        the_string: *const libc::c_void,
+        encoding: u32,
+    ) -> *const i8;
+    fn CFStringGetCString(
+        the_string: *const libc::c_void,
+        buffer: *mut i8,
+        buffer_size: i64,
+        encoding: u32,
+    ) -> bool;
+    fn CFStringGetLength(the_string: *const libc::c_void) -> i64;
 }
