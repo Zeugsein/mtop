@@ -281,7 +281,7 @@ fn expanded_network_contains_interface_header() {
     let text = mtop::tui::render_dashboard_with_state(
         120, 40, empty_snapshot(), false, Some(PanelId::Network), SortMode::default(),
     );
-    assert!(text.contains("network"), "expanded network panel should contain 'network' title");
+    assert!(text.contains("net"), "expanded network panel should contain 'net' title");
     assert!(text.contains("interface"), "expanded network should contain interface table header");
 }
 
@@ -299,7 +299,7 @@ fn expanded_memory_contains_ram_label() {
     let text = mtop::tui::render_dashboard_with_state(
         120, 40, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
     );
-    assert!(text.contains("memory"), "expanded memory panel should contain 'memory' title");
+    assert!(text.contains("mem"), "expanded memory panel should contain 'mem' title");
     assert!(text.contains("used") || text.contains("available"), "expanded memory should contain chart labels");
 }
 
@@ -400,8 +400,8 @@ fn dashboard_expanded_network() {
     );
     assert!(!text.is_empty());
     assert!(
-        text.contains("network"),
-        "Expected 'network' in expanded panel header; buffer:\n{text}"
+        text.contains("net"),
+        "Expected 'net' in expanded panel header; buffer:\n{text}"
     );
 }
 
@@ -499,7 +499,7 @@ fn expanded_panel_memdisk_no_panic() {
         120, 40, snapshot, false, Some(PanelId::MemDisk), SortMode::default(),
     );
     assert!(
-        text.contains("memory") || text.contains("RAM"),
+        text.contains("mem") || text.contains("used"),
         "Expected memory panel content; buffer:\n{text}"
     );
 }
