@@ -1471,3 +1471,45 @@ The expanded network panel SHALL display max download and upload rates, matching
 The expanded network panel symmetric chart height SHALL be capped at 20 rows maximum, matching the CPU/GPU cap for very tall terminals.
 
 > SHALL-39-F7
+
+## Iteration 40 — Power expanded panel parity
+
+### Requirement: Power expanded available guard [I40-F1]
+The expanded power panel SHALL display `"power sensors: N/A"` when `!s.power.available`, matching non-expanded.
+
+> SHALL-40-F1
+
+### Requirement: Power expanded baseline graph [I40-F2]
+The expanded power panel charts SHALL use `render_graph_with_baseline` (not plain `render_graph`), matching non-expanded baseline dot behavior.
+
+> SHALL-40-F2
+
+### Requirement: Power expanded border dimming [I40-F3]
+The expanded power panel border SHALL use `dim_color(theme.power_accent, adaptive_border_dim(theme))`, matching non-expanded.
+
+> SHALL-40-F3
+
+### Requirement: Power expanded precision [I40-F4]
+The expanded power panel component breakdown SHALL use `{:.1}W` precision, matching non-expanded (not `{:.2}W`).
+
+> SHALL-40-F4
+
+### Requirement: Power expanded process width [I40-F5]
+The expanded power panel process list name width SHALL be dynamically computed from available width, matching non-expanded pattern.
+
+> SHALL-40-F5
+
+### Requirement: Power expanded section padding [I40-F6]
+The expanded power panel SHALL include 1-row padding between chart sections and between breakdown and process list.
+
+> SHALL-40-F6
+
+### Requirement: Power expanded avg/max [I40-F7]
+The expanded power panel SHALL display avg and max power alongside total, matching non-expanded bottom bar pattern.
+
+> SHALL-40-F7
+
+### Requirement: Power expanded chart height cap [I40-F8]
+The expanded power panel CPU and GPU chart heights SHALL each be capped at 10 rows maximum.
+
+> SHALL-40-F8
