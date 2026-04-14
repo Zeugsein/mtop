@@ -269,11 +269,22 @@ fn expanded_gpu_contains_metrics() {
 
 #[test]
 fn expanded_power_contains_component_breakdown() {
+    let mut snap = empty_snapshot();
+    snap.power.available = true;
+    let text = mtop::tui::render_dashboard_with_state(
+        120, 40, snap, false, Some(PanelId::Power), SortMode::default(),
+    );
+    assert!(text.contains("power"), "expanded power panel should contain 'power' title");
+    assert!(text.contains("component breakdown"), "expanded power should contain component breakdown");
+}
+
+#[test]
+fn expanded_power_shows_na_when_unavailable() {
     let text = mtop::tui::render_dashboard_with_state(
         120, 40, empty_snapshot(), false, Some(PanelId::Power), SortMode::default(),
     );
     assert!(text.contains("power"), "expanded power panel should contain 'power' title");
-    assert!(text.contains("component breakdown"), "expanded power should contain component breakdown");
+    assert!(text.contains("N/A"), "expanded power should show N/A when sensors unavailable");
 }
 
 #[test]

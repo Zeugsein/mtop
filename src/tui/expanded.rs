@@ -646,19 +646,50 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 }
 
 fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+    // F3: dim border matching non-expanded
+    let border_color = theme::dim_color(theme.power_accent, theme::adaptive_border_dim(theme));
+
+    // F1: available guard matching non-expanded
+    if !s.power.available {
+        let block = Block::default()
+            .title(Line::from(vec![
+                Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.muted)),
+                Span::styled("power ", Style::default().fg(theme.fg).bold()),
+            ]))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color))
+            .border_type(BorderType::Rounded);
+        let raw_inner = block.inner(area);
+        f.render_widget(block, area);
+        let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+        f.render_widget(
+            Paragraph::new("power sensors: N/A").style(Style::default().fg(theme.muted)),
+            inner,
+        );
+        return;
+    }
+
     let total_w = s.power.package_w.max(s.power.cpu_w + s.power.gpu_w + s.power.ane_w + s.power.dram_w);
+    // F7: avg/max matching non-expanded bottom bar
+    let avg_w = if !state.history.package_power.is_empty() {
+        let sum: f64 = state.history.package_power.iter().sum();
+        sum / state.history.package_power.len() as f64
+    } else {
+        total_w as f64
+    };
+    let max_w = state.history.package_power.iter().copied().fold(0.0_f64, f64::max);
 
     let title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.muted)),
         Span::styled("power  ", Style::default().fg(theme.power_accent).bold()),
-        Span::styled(format!("{:.1}W total", total_w), Style::default().fg(theme.fg)),
+        Span::styled(format!("{:.1}W total  avg {:.1}W  max {:.1}W", total_w, avg_w, max_w), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
 
     let block = Block::default()
         .title(Line::from(title_spans))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.power_accent))
+        .border_style(Style::default().fg(border_color))
         .border_type(BorderType::Rounded);
 
     let raw_inner = block.inner(area);
@@ -667,8 +698,8 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // CPU power multi-row chart (~30% height, min 2 rows)
-    let cpu_chart_h = (inner.height * 3 / 10).max(2).min(inner.height);
+    // F8: CPU power multi-row chart (~30% height, capped at 10 rows)
+    let cpu_chart_h = (inner.height * 3 / 10).clamp(2, 10);
     let cpu_tdp = s.soc.cpu_tdp_w() as f64;
     let cpu_data: Vec<f64> = state.history.cpu_power.iter().copied().collect();
     f.render_widget(
@@ -676,11 +707,13 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
     let cpu_chart_area = Rect::new(inner.x, inner.y + 1, inner.width, cpu_chart_h);
-    super::panels::render_graph(f, cpu_chart_area, &cpu_data, cpu_tdp, theme);
+    // F2: use render_graph_with_baseline matching non-expanded
+    render_graph_with_baseline(f, cpu_chart_area, &cpu_data, cpu_tdp, theme);
 
-    // GPU power multi-row chart (~30% height, min 2 rows)
-    let gpu_chart_start = inner.y + 1 + cpu_chart_h;
-    let gpu_chart_h = (inner.height * 3 / 10).max(2).min(inner.height.saturating_sub(1 + cpu_chart_h));
+    // F6: 1-row padding between CPU and GPU charts
+    let gpu_chart_start = inner.y + 1 + cpu_chart_h + 1;
+    // F8: GPU chart capped at 10 rows
+    let gpu_chart_h = (inner.height * 3 / 10).clamp(2, 10).min(inner.height.saturating_sub(2 + cpu_chart_h + 1));
     let gpu_tdp = s.soc.gpu_tdp_w() as f64;
     let gpu_data: Vec<f64> = state.history.gpu_power.iter().copied().collect();
     if gpu_chart_start < inner.y + inner.height {
@@ -690,12 +723,12 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         );
         if gpu_chart_h > 0 && gpu_chart_start + 1 < inner.y + inner.height {
             let gpu_chart_area = Rect::new(inner.x, gpu_chart_start + 1, inner.width, gpu_chart_h);
-            super::panels::render_graph(f, gpu_chart_area, &gpu_data, gpu_tdp, theme);
+            render_graph_with_baseline(f, gpu_chart_area, &gpu_data, gpu_tdp, theme);
         }
     }
 
-    // Component breakdown
-    let breakdown_y = gpu_chart_start + 1 + gpu_chart_h;
+    // F6: 1-row padding before breakdown
+    let breakdown_y = gpu_chart_start + 1 + gpu_chart_h + 1;
     let components = [
         ("CPU", s.power.cpu_w, theme.cpu_accent),
         ("GPU", s.power.gpu_w, theme.gpu_accent),
@@ -723,16 +756,18 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         let filled = (bar_width as f32 * norm) as usize;
         let empty = bar_width.saturating_sub(filled);
 
+        // F4: use {:.1}W precision matching non-expanded
         let line = Line::from(vec![
             Span::styled(format!("{:<7}", name), Style::default().fg(*color)),
             Span::styled("▓".repeat(filled), Style::default().fg(*color)),
             Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
-            Span::styled(format!(" {:.2}W", watts), Style::default().fg(theme.fg)),
+            Span::styled(format!(" {:.1}W", watts), Style::default().fg(theme.fg)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 
     // Fan speeds
+    // F6: 1-row padding before fans
     let mut fan_y = breakdown_y + 1 + components.len() as u16 + 1;
     if !s.temperature.fan_speeds.is_empty() && fan_y < inner.y.saturating_add(inner.height) {
         let fan_text: String = s.temperature.fan_speeds.iter().enumerate()
@@ -748,10 +783,11 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 
     // Per-process energy ranking
     let mut procs_by_power: Vec<&crate::metrics::ProcessInfo> = s.processes.iter()
-        .filter(|p| p.power_w > 0.0)
+        .filter(|p| p.power_w >= 0.05)
         .collect();
     procs_by_power.sort_by(|a, b| b.power_w.partial_cmp(&a.power_w).unwrap_or(std::cmp::Ordering::Equal));
 
+    // F6: 1-row padding before process list
     let proc_start_y = fan_y.saturating_add(1);
     if proc_start_y < inner.y.saturating_add(inner.height) {
         f.render_widget(
@@ -760,12 +796,16 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
         );
     }
 
+    // F5: dynamic name width from available space
+    let name_width = inner.width.saturating_sub(8) as usize;
+
     for (i, proc) in procs_by_power.iter().take(10).enumerate() {
         let y = proc_start_y.saturating_add(1).saturating_add(i as u16);
         if y >= inner.y.saturating_add(inner.height) { break; }
+        // F4: use {:.1}W precision
         let line = Line::from(vec![
-            Span::styled(format!("{:<20}", truncate_with_ellipsis(&proc.name, 20)), Style::default().fg(theme.fg)),
-            Span::styled(format!(" {:.2}W", proc.power_w), Style::default().fg(theme.power_accent)),
+            Span::styled(format!("{:<w$}", truncate_with_ellipsis(&proc.name, name_width), w = name_width), Style::default().fg(theme.fg)),
+            Span::styled(format!("  {:.1}W", proc.power_w), Style::default().fg(theme.power_accent)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
