@@ -109,7 +109,7 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
         spans.push(Span::styled(format!("{:.0}% ", bat.charge_pct), Style::default().fg(base_color)));
         spans
     };
-    let bat_width: u16 = bat_spans.iter().map(|s| s.content.len() as u16).sum();
+    let bat_width: u16 = bat_spans.iter().map(|s| unicode_width::UnicodeWidthStr::width(&*s.content) as u16).sum();
     if page.header.width > bat_width {
         let bat_x = page.header.x + page.header.width - bat_width;
         f.render_widget(

@@ -57,10 +57,11 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Count how many rows the core bars need
+    // Count how many rows the core bars need (including margins)
     let e_count = s.soc.e_cores as usize;
     let p_count = s.cpu.core_usages.len().saturating_sub(e_count);
-    let core_rows_needed = 1 + e_count + 1 + p_count; // e-header + e-cores + p-header + p-cores
+    // e-header + e-cores + margin + p-header + p-cores + margin(chart→e)
+    let core_rows_needed = 1 + e_count + 1 + 1 + p_count + 1;
 
     // F2: cap chart height at 20 rows; F3: distribute space vertically
     let chart_height = (inner.height.saturating_sub(core_rows_needed as u16)).clamp(3, 20);
@@ -74,8 +75,15 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
     render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
-    // Per-core usage bars
-    let core_start_y = chart_y + chart_height;
+    // I42-F1a: percentage overlay at chart top-left
+    let pct_label = format!("{:.0}% ", cpu_pct);
+    f.render_widget(
+        Paragraph::new(Span::styled(&pct_label, Style::default().fg(theme.muted))),
+        Rect::new(chart_area.x + 1, chart_area.y, pct_label.len() as u16, 1),
+    );
+
+    // Per-core usage bars — I42-F1b: 1-row margin between chart and e-cluster
+    let core_start_y = chart_y + chart_height + 1;
 
     // E-cluster header
     if core_start_y < inner.y + inner.height {
@@ -105,8 +113,8 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 
-    // P-cluster header and cores
-    let p_header_y = core_start_y + 1 + e_count as u16;
+    // I42-F1b: 1-row margin between e-cores and p-cluster
+    let p_header_y = core_start_y + 1 + e_count as u16 + 1;
     if p_header_y < inner.y + inner.height {
         f.render_widget(
             Paragraph::new(format!("p-cluster: {:.0}% @ {}MHz", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz))
@@ -179,14 +187,22 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     // F11: use render_graph_with_baseline matching non-expanded
     render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
+    // I42-F2: percentage overlay at chart top-left (suppress when idle)
+    if !gpu_idle {
+        let gpu_pct_label = format!("{:.0}% ", s.gpu.usage * 100.0);
+        f.render_widget(
+            Paragraph::new(Span::styled(&gpu_pct_label, Style::default().fg(theme.muted))),
+            Rect::new(chart_area.x + 1, chart_area.y, gpu_pct_label.len() as u16, 1),
+        );
+    }
+
     // F9: 1-row margin between chart and metrics
     let metrics_y = inner.y + chart_height + 1;
 
     let gb = 1024.0 * 1024.0 * 1024.0;
-    // F10: add VRAM; F12: use {:.1}W precision
+    // F10: add VRAM; F12: use {:.1}W precision (usage removed — shown in overlay)
     let metrics = [
         format!("frequency:    {} MHz", s.gpu.freq_mhz),
-        format!("usage:        {:.1}%", s.gpu.usage * 100.0),
         format!("GPU power:    {:.1}W", s.power.gpu_w),
         format!("ANE power:    {:.1}W", s.power.ane_w),
         format!("DRAM power:   {:.1}W", s.power.dram_w),
@@ -371,6 +387,11 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
         y_cursor += 1;
     }
 
+    // I42-F3d: 1-row margin between disk gauge section and chart
+    if y_cursor < inner.y + inner.height {
+        y_cursor += 1;
+    }
+
     // Disk symmetric chart — write ↓ top half (grows UPWARD from center),
     // read ↑ bottom half (grows DOWNWARD from center) — symmetric like network panel
     let remaining_h = (inner.y + inner.height).saturating_sub(y_cursor);
@@ -383,7 +404,8 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
 
         let max_disk = read_data.iter().chain(write_data.iter()).copied().fold(0.0f64, f64::max).max(1024.0);
         let disk_scale = max_disk * 1.2;
-        let disk_baseline = disk_scale * 0.005;
+        // I42-F3a: baseline floor matching network (0.035 not 0.005)
+        let disk_baseline = disk_scale * 0.035;
 
         // Write ↓ top half (grows UPWARD from center baseline — like download in net)
         if disk_half_h > 0 {
@@ -410,13 +432,13 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
                 }
             }
 
-            // ↓write label with rate (top-left)
+            // I42-F3b: space between arrow and word; I42-F3c: positional color (write=top=download)
             let write_rate = format_bytes_rate_compact(s.disk.write_bytes_sec as f64);
-            let write_label = format!(" ↓write {write_rate} ");
+            let write_label = format!(" ↓ write {write_rate} ");
             let label_w = write_label.len().min(inner.width as usize);
             if label_w > 0 && top_area.height > 0 {
                 f.render_widget(
-                    Paragraph::new(Line::from(Span::styled(write_label, Style::default().fg(theme.muted)))),
+                    Paragraph::new(Line::from(Span::styled(write_label, Style::default().fg(theme.net_download)))),
                     Rect::new(top_area.x, top_area.y, label_w as u16, 1),
                 );
             }
@@ -458,14 +480,14 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
                 }
             }
 
-            // ↑read label with rate at BOTTOM of chart
+            // I42-F3b: space between arrow and word; I42-F3c: positional color (read=bottom=upload)
             let read_rate = format_bytes_rate_compact(s.disk.read_bytes_sec as f64);
-            let read_label = format!(" ↑read {read_rate} ");
+            let read_label = format!(" ↑ read {read_rate} ");
             let label_w = read_label.len().min(inner.width as usize);
             let label_y = bottom_area.y + bottom_area.height.saturating_sub(1);
             if label_w > 0 && bottom_area.height > 0 {
                 f.render_widget(
-                    Paragraph::new(Line::from(Span::styled(read_label, Style::default().fg(theme.muted)))),
+                    Paragraph::new(Line::from(Span::styled(read_label, Style::default().fg(theme.net_upload)))),
                     Rect::new(bottom_area.x, label_y, label_w as u16, 1),
                 );
             }
