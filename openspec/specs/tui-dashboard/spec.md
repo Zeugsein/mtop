@@ -1617,3 +1617,48 @@ The expanded CPU panel title SHALL NOT include the usage percentage. The percent
 The expanded network panel max-rates row SHALL render download speed (`↓{rate}`) in `theme.net_download` and upload speed (`↑{rate}`) in `theme.net_upload`. The "max" prefix text SHALL remain `theme.muted`. Supersedes SHALL-42-F4.
 
 > SHALL-43-F2
+
+### Requirement: CPU chart overlay color and precision [I44-F1]
+The expanded CPU panel chart overlay label SHALL use `theme.fg` color and `{:.1}%` precision (one decimal place). The overlay position remains at chart top-left.
+
+> SHALL-44-F1
+
+### Requirement: GPU chart overlay color and precision [I44-F2]
+The expanded GPU panel chart overlay label SHALL use `theme.fg` color and `{:.1}%` precision. Idle suppression SHALL remain (`gpu_idle = true` hides overlay).
+
+> SHALL-44-F2
+
+### Requirement: Disk chart baseline divider removal [I44-F3]
+The expanded memory panel disk chart SHALL NOT render a solid `─` horizontal line at the chart midpoint. The muted braille baseline dots within the chart SHALL remain. The `bottom_start` for the read half SHALL be `baseline_y` (not `baseline_y + 1`). The mem↔disk group separator row SHALL remain.
+
+> SHALL-44-F3
+
+### Requirement: Network chart speed label colors [I44-F4a]
+In both hide mode and expand mode, network chart speed overlay labels SHALL use directional theme colors: download `↓ {rate}` in `theme.net_download` (top-left), upload `↑ {rate}` in `theme.net_upload` (bottom-left). Supersedes SHALL-43-F2 for the chart overlay scope.
+
+> SHALL-44-F4a
+
+### Requirement: Network chart max/total per-half right-aligned [I44-F4b]
+In both hide mode and expand mode, max and total stats SHALL render per-half on the right side of the chart: top-right for download (max + total, muted), bottom-right for upload (max + total, muted). The previous unified max-rates row SHALL be removed.
+
+> SHALL-44-F4b
+
+### Requirement: Network expanded title rate removal [I44-F4c]
+The expanded network panel title SHALL NOT include `↑ {tx_rate}` and `↓ {rx_rate}` spans. Rates are shown as chart overlays instead (per SHALL-44-F4a).
+
+> SHALL-44-F4c
+
+### Requirement: Process expanded navigation [I44-F5a]
+The expanded process panel SHALL support row selection via `↑`/`↓` keys. `process_selected: Option<usize>` SHALL be added to AppState. The selected row SHALL render with reverse video highlight. The visible window SHALL scroll to keep the selection in view. Selection SHALL reset to `None` when the panel is closed.
+
+> SHALL-44-F5a
+
+### Requirement: Process expanded signal sending [I44-F5b]
+The expanded process panel SHALL support sending SIGTERM (`t` key) and SIGKILL (`k` key) to the selected process. A confirmation prompt SHALL be shown before sending. A `pending_signal` field SHALL be added to AppState for the confirmation state. The `k` key SHALL only trigger SIGKILL when the process panel is expanded; otherwise it SHALL continue to function as scroll-up.
+
+> SHALL-44-F5b
+
+### Requirement: Process expanded hint bar [I44-F5c]
+The expanded process panel SHALL render a hint bar at the bottom showing available keys: `[↑↓] navigate  [t] term  [k] kill` (left-aligned, muted). This replaces or supplements the sort indicator.
+
+> SHALL-44-F5c
