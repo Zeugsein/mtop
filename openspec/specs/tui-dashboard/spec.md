@@ -1564,7 +1564,7 @@ The expanded process panel dots SHALL use `\u{2022}` consistently, matching non-
 ## Iteration 42 — UAT feedback round 2
 
 ### Requirement: CPU chart percentage overlay [I42-F1a]
-The expanded CPU panel SHALL render a percentage overlay label at the top-left of the chart area showing the current CPU usage (e.g. `"45% "`). The title bar SHALL retain the percentage as well (no removal).
+The expanded CPU panel SHALL render a percentage overlay label at the top-left of the chart area showing the current CPU usage (e.g. `"45% "`). ~~The title bar SHALL retain the percentage as well (no removal).~~ SUPERSEDED by SHALL-43-F1.
 
 > SHALL-42-F1a
 
@@ -1599,7 +1599,7 @@ The expanded memory panel SHALL include 1-row margin between the disk gauge and 
 > SHALL-42-F3d
 
 ### Requirement: Network expanded label colors [I42-F4]
-The expanded network panel chart overlay labels SHALL remain `theme.muted`, matching non-expanded behavior. No color change or additional margin needed (max-rates row already provides separation).
+~~The expanded network panel chart overlay labels SHALL remain `theme.muted`, matching non-expanded behavior. No color change or additional margin needed.~~ SUPERSEDED by SHALL-43-F2.
 
 > SHALL-42-F4
 
@@ -1607,3 +1607,13 @@ The expanded network panel chart overlay labels SHALL remain `theme.muted`, matc
 The dashboard header battery gauge width calculation SHALL use `UnicodeWidthStr::width()` instead of `.len()` to correctly measure display width of Unicode characters.
 
 > SHALL-42-F6
+
+### Requirement: CPU title percentage deduplication [I43-F1]
+The expanded CPU panel title SHALL NOT include the usage percentage. The percentage SHALL only appear as the chart top-left overlay (per SHALL-42-F1a). This corrects SHALL-42-F1a which incorrectly retained the title percentage. Supersedes the "title bar SHALL retain" clause in SHALL-42-F1a.
+
+> SHALL-43-F1
+
+### Requirement: Network max-rates per-direction colors [I43-F2]
+The expanded network panel max-rates row SHALL render download speed (`↓{rate}`) in `theme.net_download` and upload speed (`↑{rate}`) in `theme.net_upload`. The "max" prefix text SHALL remain `theme.muted`. Supersedes SHALL-42-F4.
+
+> SHALL-43-F2
