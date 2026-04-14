@@ -1731,3 +1731,22 @@ The IOKit FFI block SHALL declare `IOHIDServiceClientCopyProperty(service: *cons
 CPU-classified sensor values SHALL be filtered with the existing range `0.0 < value < 130.0` (matching the SMC path). The GPU range of `0.0 < value <= 150.0` is intentionally wider per macmon reference implementation.
 
 > SHALL-46-F1e
+
+---
+
+## Iteration 47 — temperature N/A regression (iter46 hotfix)
+
+### Requirement: HID service matching filter [I47-F1a]
+`hid_read_temperatures()` SHALL call `IOHIDEventSystemClientSetMatching(client, dict)` with a CFDictionary containing `{PrimaryUsagePage: 0xff00, PrimaryUsage: 0x0005}` BEFORE calling `IOHIDEventSystemClientCopyServices`. This limits the service list to Apple Vendor temperature sensors only. The matching dictionary and its key/value CF objects SHALL be released after the SetMatching call.
+
+> SHALL-47-F1a
+
+### Requirement: FFI declarations for matching filter [I47-F1b]
+The IOKit FFI block SHALL declare `IOHIDEventSystemClientSetMatching(client: *const c_void, matching: *const c_void)`. The CoreFoundation FFI block SHALL declare `CFDictionaryCreate`, `CFNumberCreate`, and the statics `kCFTypeDictionaryKeyCallBacks` and `kCFTypeDictionaryValueCallBacks`. Constants `kCFNumberSInt32Type` (value 3), `K_HID_PAGE_APPLE_VENDOR` (value 0xff00), and `K_HID_USAGE_APPLE_VENDOR_TEMP_SENSOR` (value 0x0005) SHALL be defined.
+
+> SHALL-47-F1b
+
+### Requirement: Matching filter memory management [I47-F1c]
+All CF objects created for the matching dictionary (CFStrings for keys, CFNumbers for values, the CFDictionary itself) SHALL be released via CFRelease after `IOHIDEventSystemClientSetMatching` returns. The matching dictionary creation failing SHALL cause `hid_read_temperatures()` to return None.
+
+> SHALL-47-F1c
