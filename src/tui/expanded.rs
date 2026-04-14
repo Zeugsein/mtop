@@ -178,9 +178,18 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
     let ram_used_gb = s.memory.ram_used as f64 / gb;
     let ram_total_gb = s.memory.ram_total as f64 / gb;
 
+    let ram_pct = if s.memory.ram_total > 0 {
+        (s.memory.ram_used as f64 / s.memory.ram_total as f64 * 100.0) as u32
+    } else { 0 };
+    let pressure_dot_color = match s.memory.pressure_level {
+        2 => theme.pressure_warn,
+        4 => theme.pressure_critical,
+        _ => theme.pressure_normal,
+    };
     let title_spans = vec![
-        Span::styled("³ memory  ", Style::default().fg(theme.mem_accent).bold()),
-        Span::styled(format!("{:.1}/{:.0} GB", ram_used_gb, ram_total_gb), Style::default().fg(theme.fg)),
+        Span::styled("³ mem  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!("{:.1}/{:.0}GB {ram_pct}%", ram_used_gb, ram_total_gb), Style::default().fg(theme.fg)),
+        Span::styled(" \u{25cf}", Style::default().fg(pressure_dot_color)),
         Span::raw(" "),
     ];
 
@@ -216,11 +225,6 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
     let row2_h = mem_chart_h - row1_h;
     let half_w = inner.width / 2;
 
-    let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
-    let ram_avail_gb = if s.memory.ram_total > 0 { ram_avail_bytes / gb } else { 0.0 };
-    let cached_gb = s.memory.cached as f64 / gb;
-    let free_gb = s.memory.free as f64 / gb;
-
     let sub_border_color = theme::dim_color(theme.mem_accent, 0.5);
 
     let tl = Rect::new(inner.x, y_cursor, half_w, row1_h);
@@ -255,13 +259,19 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
     let cached_data: Vec<f64> = state.history.mem_cached.iter().copied().collect();
     let free_data: Vec<f64> = state.history.mem_free.iter().copied().collect();
 
-    render_sub_chart(f, tl, "used", format!("{ram_used_gb:.1}GB"), &used_data, false);
-    render_sub_chart(f, tr, "available", format!("{ram_avail_gb:.1}GB"), &avail_data, true);
-    render_sub_chart(f, bl, "cached", format!("{cached_gb:.1}GB"), &cached_data, false);
-    render_sub_chart(f, br, "free", format!("{free_gb:.1}GB"), &free_data, true);
+    let fmt_mem = |bytes: u64| -> String {
+        let gb_val = bytes as f64 / gb;
+        if gb_val >= 1.0 { format!("{gb_val:.1}GB") }
+        else { format!("{:.0}MB", bytes as f64 / (1024.0 * 1024.0)) }
+    };
+
+    render_sub_chart(f, tl, "used", fmt_mem(s.memory.ram_used), &used_data, false);
+    render_sub_chart(f, tr, "available", fmt_mem(s.memory.ram_total.saturating_sub(s.memory.ram_used)), &avail_data, true);
+    render_sub_chart(f, bl, "cached", fmt_mem(s.memory.cached), &cached_data, false);
+    render_sub_chart(f, br, "free", fmt_mem(s.memory.free), &free_data, true);
     y_cursor += mem_chart_h;
 
-    // F1c: compressed + swap text
+    // F1c: compressed + swap text (with I/O rates)
     if y_cursor < inner.y + inner.height {
         let compressed_gb = s.memory.compressed as f64 / gb;
         let swap_used_gb = s.memory.swap_used as f64 / gb;
@@ -270,7 +280,15 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
             Span::styled(format!(" compressed: {compressed_gb:.1}GB"), Style::default().fg(theme.muted)),
         ];
         if s.memory.swap_total > 0 {
-            info_spans.push(Span::styled(format!("  swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB"), Style::default().fg(theme.muted)));
+            let mut swap_text = format!("  swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
+            if s.memory.swap_in_bytes_sec > 0.0 || s.memory.swap_out_bytes_sec > 0.0 {
+                swap_text.push_str(&format!(
+                    "  in:{} out:{}",
+                    format_bytes_rate_compact(s.memory.swap_in_bytes_sec),
+                    format_bytes_rate_compact(s.memory.swap_out_bytes_sec),
+                ));
+            }
+            info_spans.push(Span::styled(swap_text, Style::default().fg(theme.muted)));
         }
         f.render_widget(Paragraph::new(Line::from(info_spans)), Rect::new(inner.x, y_cursor, inner.width, 1));
         y_cursor += 1;
@@ -322,10 +340,10 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
         y_cursor += 1;
     }
 
-    // F1f + F1g: Disk symmetric chart — write ↓ top half, read ↑ bottom half
-    // Both halves grow DOWNWARD (write from top edge, read from midline)
+    // Disk symmetric chart — write ↓ top half (grows UPWARD from center),
+    // read ↑ bottom half (grows DOWNWARD from center) — symmetric like network panel
     let remaining_h = (inner.y + inner.height).saturating_sub(y_cursor);
-    if remaining_h >= 2 {
+    if remaining_h >= 3 {
         let disk_chart_h = remaining_h;
         let disk_half_h = disk_chart_h / 2;
 
@@ -336,17 +354,17 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
         let disk_scale = max_disk * 1.2;
         let disk_baseline = disk_scale * 0.005;
 
-        // Write ↓ top half (grows DOWNWARD from top edge)
+        // Write ↓ top half (grows UPWARD from center baseline — like download in net)
         if disk_half_h > 0 {
             let top_area = Rect::new(inner.x, y_cursor, inner.width, disk_half_h);
             let clamped: Vec<f64> = write_data.iter().map(|&v| v.max(disk_baseline)).collect();
-            let graph = braille::render_braille_graph_down(&clamped, disk_scale, inner.width as usize, disk_half_h as usize, theme);
+            let graph = braille::render_braille_graph(&clamped, disk_scale, inner.width as usize, disk_half_h as usize, theme);
             let needed = inner.width as usize * 2;
             let start = write_data.len().saturating_sub(needed);
             let visible_orig = &write_data[start..];
             for (row_idx, row) in graph.iter().enumerate() {
-                let y = top_area.y + row_idx as u16;
-                if y >= top_area.y + top_area.height { break; }
+                let y = top_area.y + top_area.height.saturating_sub(1) - row_idx as u16;
+                if y < top_area.y { break; }
                 let y_frac = row_idx as f64 / (disk_half_h as f64 - 1.0).max(1.0);
                 let gradient_color = super::gradient::value_to_color(y_frac, theme);
                 let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
@@ -361,17 +379,32 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
                 }
             }
 
-            // ↓ write label overlay (top-left)
-            if top_area.width > 8 && top_area.height > 0 {
-                let label = Span::styled(" ↓write ", Style::default().fg(theme.muted));
-                f.render_widget(Paragraph::new(Line::from(label)), Rect::new(top_area.x, top_area.y, 8, 1));
+            // ↓write label with rate (top-left)
+            let write_rate = format_bytes_rate_compact(s.disk.write_bytes_sec as f64);
+            let write_label = format!(" ↓write {write_rate} ");
+            let label_w = write_label.len().min(inner.width as usize);
+            if label_w > 0 && top_area.height > 0 {
+                f.render_widget(
+                    Paragraph::new(Line::from(Span::styled(write_label, Style::default().fg(theme.muted)))),
+                    Rect::new(top_area.x, top_area.y, label_w as u16, 1),
+                );
             }
         }
 
-        // Read ↑ bottom half (grows DOWNWARD from midline)
-        let bottom_disk_h = disk_chart_h - disk_half_h;
-        if bottom_disk_h > 0 {
-            let bottom_area = Rect::new(inner.x, y_cursor + disk_half_h, inner.width, bottom_disk_h);
+        // Muted baseline at center
+        let baseline_y = y_cursor + disk_half_h;
+        if baseline_y < inner.y + inner.height {
+            let baseline_chars: Vec<Span> = (0..inner.width).map(|_| {
+                Span::styled("─", Style::default().fg(theme::baseline_color(theme)))
+            }).collect();
+            f.render_widget(Paragraph::new(Line::from(baseline_chars)), Rect::new(inner.x, baseline_y, inner.width, 1));
+        }
+
+        // Read ↑ bottom half (grows DOWNWARD from center baseline — like upload in net)
+        let bottom_start = baseline_y + 1;
+        let bottom_disk_h = (inner.y + inner.height).saturating_sub(bottom_start);
+        if bottom_disk_h > 0 && bottom_start < inner.y + inner.height {
+            let bottom_area = Rect::new(inner.x, bottom_start, inner.width, bottom_disk_h);
             let clamped: Vec<f64> = read_data.iter().map(|&v| v.max(disk_baseline)).collect();
             let graph = braille::render_braille_graph_down(&clamped, disk_scale, inner.width as usize, bottom_disk_h as usize, theme);
             let needed = inner.width as usize * 2;
@@ -394,10 +427,16 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
                 }
             }
 
-            // ↑ read label overlay (bottom-left)
-            if bottom_area.width > 7 && bottom_area.height > 0 {
-                let label = Span::styled(" ↑read ", Style::default().fg(theme.muted));
-                f.render_widget(Paragraph::new(Line::from(label)), Rect::new(bottom_area.x, bottom_area.y, 7, 1));
+            // ↑read label with rate at BOTTOM of chart
+            let read_rate = format_bytes_rate_compact(s.disk.read_bytes_sec as f64);
+            let read_label = format!(" ↑read {read_rate} ");
+            let label_w = read_label.len().min(inner.width as usize);
+            let label_y = bottom_area.y + bottom_area.height.saturating_sub(1);
+            if label_w > 0 && bottom_area.height > 0 {
+                f.render_widget(
+                    Paragraph::new(Line::from(Span::styled(read_label, Style::default().fg(theme.muted)))),
+                    Rect::new(bottom_area.x, label_y, label_w as u16, 1),
+                );
             }
         }
     }
@@ -409,7 +448,7 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     });
 
     let title_spans = vec![
-        Span::styled("⁴ network  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled("⁴ net  ", Style::default().fg(theme.net_upload).bold()),
         Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
         Span::styled("  ", Style::default()),
         Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
@@ -670,7 +709,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let sort_label = state.sort_mode.label();
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled("⁶ processes  ", Style::default().fg(theme.fg).bold()),
+            Span::styled("⁶ proc  ", Style::default().fg(theme.fg).bold()),
             Span::styled(format!(" sort: {} ", sort_label), Style::default().fg(theme.muted)),
         ]))
         .borders(Borders::ALL)

@@ -1318,10 +1318,10 @@ The disk group SHALL begin with a `disk` title, a full-width disk usage gauge (`
 
 > SHALL-36-F1e
 
-### Requirement: Disk expanded layout — symmetric chart direction [I36-F1f]
-The disk symmetric chart SHALL place write on the top half and read on the bottom half. Both halves SHALL grow downward: write bars grow downward from the top edge, read bars grow downward from the center baseline (midline). This differs from the network symmetric chart where the bottom half grows upward.
+### Requirement: Disk expanded layout — symmetric chart direction [I37-F1]
+The disk symmetric chart SHALL be symmetric around a center baseline, matching the network panel pattern: write ↓ on the top half grows UPWARD from the center baseline (`render_braille_graph`), read ↑ on the bottom half grows DOWNWARD from the center baseline (`render_braille_graph_down`). A muted baseline SHALL be rendered at the midpoint between halves.
 
-> SHALL-36-F1f
+> SHALL-37-F1
 
 ### Requirement: Disk expanded layout — arrow label convention [I36-F1g]
 The disk symmetric chart SHALL label write with ↓ and read with ↑, consistent with the network panel convention where download=↓ and upload=↑. Write ↓ (data to disk, like download) occupies the top half; read ↑ (data from disk, like upload) occupies the bottom half.
@@ -1342,3 +1342,28 @@ MemoryMetrics SHALL include `cached` (inactive + purgeable pages × page_size) a
 MetricsHistory SHALL include `disk_read` and `disk_write` history buffers tracking per-sample disk read/write bytes-per-second for use in disk sparkline charts.
 
 > SHALL-36-F4
+
+### Requirement: Disk chart labels with rate values [I37-F3]
+The disk symmetric chart write label SHALL include the current write rate (e.g. `↓write 1.2M/s`) and the read label SHALL include the current read rate (e.g. `↑read 500K/s`). The read label SHALL be positioned at the BOTTOM of the chart, not at the midline.
+
+> SHALL-37-F3
+
+### Requirement: Expanded panel naming consistency [I37-F5]
+All expanded panel titles SHALL use the same short names as non-expanded panels: `mem` (not `memory`), `net` (not `network`), `proc` (not `processes`).
+
+> SHALL-37-F5
+
+### Requirement: Memory expanded title parity [I37-F4]
+The expanded memory panel title SHALL include usage percentage and pressure dot, matching the non-expanded title format.
+
+> SHALL-37-F4
+
+### Requirement: Memory sub-chart adaptive units [I37-F6a]
+Memory sub-chart value labels SHALL adapt to MB when the value is less than 1GB, matching non-expanded behavior.
+
+> SHALL-37-F6a
+
+### Requirement: Swap I/O rates in expanded [I37-F6b]
+The expanded memory panel swap text SHALL include swap I/O rates (in/out bytes/sec) when available, matching non-expanded detail mode.
+
+> SHALL-37-F6b
