@@ -1367,3 +1367,70 @@ Memory sub-chart value labels SHALL adapt to MB when the value is less than 1GB,
 The expanded memory panel swap text SHALL include swap I/O rates (in/out bytes/sec) when available, matching non-expanded detail mode.
 
 > SHALL-37-F6b
+
+## Iteration 38 — CPU + GPU expanded panel parity
+
+### Requirement: CPU expanded title frequency [I38-F1]
+The expanded CPU panel title SHALL include `@ {MHz}MHz` showing the max cluster frequency (`p_cluster.freq_mhz.max(e_cluster.freq_mhz)`), matching non-expanded.
+
+> SHALL-38-F1
+
+### Requirement: CPU expanded chart height cap [I38-F2]
+The expanded CPU panel chart height SHALL be capped at a maximum of 20 rows to prevent excessive vertical stretch in full-screen mode.
+
+> SHALL-38-F2
+
+### Requirement: CPU expanded vertical centering [I38-F3]
+The expanded CPU panel SHALL vertically distribute content so chart and core bars do not cluster at the top with empty space below.
+
+> SHALL-38-F3
+
+### Requirement: CPU expanded temp N/A [I38-F4]
+The expanded CPU panel SHALL display `"N/A"` in muted color when temperature is unavailable, matching non-expanded behavior.
+
+> SHALL-38-F4
+
+### Requirement: CPU expanded temp color function [I38-F5]
+The expanded CPU panel SHALL use `gradient::temp_to_color()` for temperature coloring, matching non-expanded (not `helpers::temp_color()`).
+
+> SHALL-38-F5
+
+### Requirement: Expanded superscript styling [I38-F6]
+All expanded panel superscripts SHALL be rendered as a separate muted-colored span using `PANEL_SUPERSCRIPTS[n]`, matching non-expanded pattern (not hardcoded inside the accent title string).
+
+> SHALL-38-F6
+
+### Requirement: GPU expanded title frequency and power [I38-F7]
+The expanded GPU panel title SHALL include `@ {MHz}MHz  {:.1}W` when active, matching non-expanded.
+
+> SHALL-38-F7
+
+### Requirement: GPU expanded idle no percentage [I38-F8]
+The expanded GPU panel SHALL display `"(idle)"` without percentage when GPU power < 0.5W, matching non-expanded.
+
+> SHALL-38-F8
+
+### Requirement: GPU expanded chart-metrics margin [I38-F9]
+The expanded GPU panel SHALL include a 1-row margin between the braille chart and the metrics table.
+
+> SHALL-38-F9
+
+### Requirement: GPU expanded VRAM metric [I38-F10]
+The expanded GPU panel metrics table SHALL include a VRAM line showing `"VRAM {used}/{total}GB"`, matching non-expanded.
+
+> SHALL-38-F10
+
+### Requirement: GPU expanded baseline graph renderer [I38-F11]
+The expanded GPU panel SHALL use `render_graph_with_baseline` (not plain `render_graph`), matching non-expanded baseline dot behavior.
+
+> SHALL-38-F11
+
+### Requirement: GPU expanded power precision [I38-F12]
+The expanded GPU panel power display SHALL use `{:.1}W` precision, matching non-expanded (not `{:.2} W`).
+
+> SHALL-38-F12
+
+### Requirement: GPU expanded temp N/A [I38-F13]
+The expanded GPU panel SHALL display `"N/A"` in muted color when temperature is unavailable, matching non-expanded.
+
+> SHALL-38-F13

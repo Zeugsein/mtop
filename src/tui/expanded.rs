@@ -5,7 +5,8 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use super::{AppState, PanelId, theme, braille, gauge, gradient};
-use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, temp_color, sort_indices, CPU_TEMP_WARN, CPU_TEMP_CRIT, GPU_TEMP_WARN, GPU_TEMP_CRIT};
+use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, sort_indices};
+use super::panels::render_graph_with_baseline;
 
 
 pub(crate) fn draw_expanded_panel(f: &mut Frame, area: Rect, panel: PanelId, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -21,20 +22,25 @@ pub(crate) fn draw_expanded_panel(f: &mut Frame, area: Rect, panel: PanelId, s: 
 
 fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
     let cpu_pct = s.cpu.total_usage * 100.0;
-    let temp_col = if s.temperature.available {
-        temp_color(s.temperature.cpu_avg_c, CPU_TEMP_WARN, CPU_TEMP_CRIT)
+    // F5: use gradient::temp_to_color matching non-expanded
+    let temp_col = gradient::temp_to_color(s.temperature.cpu_avg_c, theme);
+    // F4: show "N/A" when temp unavailable, matching non-expanded
+    let temp_str = if s.temperature.available {
+        format!("{:.0}°C", s.temperature.cpu_avg_c)
     } else {
-        theme.muted
+        "N/A".to_string()
     };
+    let temp_display_color = if s.temperature.available { temp_col } else { theme.muted };
+
+    // F1: add frequency; F6: superscript as separate muted span
+    let max_freq = s.cpu.p_cluster.freq_mhz.max(s.cpu.e_cluster.freq_mhz);
     let title_spans = vec![
-        Span::styled("¹ cpu  ", Style::default().fg(theme.cpu_accent).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[0]), Style::default().fg(theme.muted)),
+        Span::styled("cpu  ", Style::default().fg(theme.cpu_accent).bold()),
         Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
+        Span::styled(format!(" @ {}MHz", max_freq), Style::default().fg(theme.muted)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
-        if s.temperature.available {
-            Span::styled(format!("  {:.0}°C", s.temperature.cpu_avg_c), Style::default().fg(temp_col))
-        } else {
-            Span::raw("")
-        },
+        Span::styled(format!("  {}", temp_str), Style::default().fg(temp_display_color)),
         Span::raw(" "),
     ];
 
@@ -50,18 +56,28 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Top section: multi-row braille graph (~70% of height, minimum 3 rows)
-    let chart_height = (inner.height * 7 / 10).max(3).min(inner.height);
-    let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
+    // Count how many rows the core bars need
+    let e_count = s.soc.e_cores as usize;
+    let p_count = s.cpu.core_usages.len().saturating_sub(e_count);
+    let core_rows_needed = 1 + e_count + 1 + p_count; // e-header + e-cores + p-header + p-cores
+
+    // F2: cap chart height at 20 rows; F3: distribute space vertically
+    let chart_height = (inner.height.saturating_sub(core_rows_needed as u16)).clamp(3, 20);
+
+    // F3: vertically center the content block (chart + cores)
+    let total_content = chart_height + core_rows_needed as u16;
+    let top_pad = (inner.height.saturating_sub(total_content)) / 2;
+
+    let chart_y = inner.y + top_pad;
+    let chart_area = Rect::new(inner.x, chart_y, inner.width, chart_height);
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
-    super::panels::render_graph(f, chart_area, &sparkline_data, 1.0, theme);
+    render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
     // Per-core usage bars
-    let core_start_y = inner.y + chart_height;
-    let available_rows = inner.height.saturating_sub(chart_height) as usize;
+    let core_start_y = chart_y + chart_height;
 
     // E-cluster header
-    if available_rows > 0 {
+    if core_start_y < inner.y + inner.height {
         f.render_widget(
             Paragraph::new(format!("e-cluster: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz))
                 .style(Style::default().fg(theme.cpu_accent)),
@@ -70,7 +86,6 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     }
 
     let bar_width = inner.width.saturating_sub(12) as usize;
-    let e_count = s.soc.e_cores as usize;
     for (i, &usage) in s.cpu.core_usages.iter().take(e_count).enumerate() {
         let y = core_start_y + 1 + i as u16;
         if y >= inner.y + inner.height { break; }
@@ -118,22 +133,31 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 }
 
 fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
-    let temp_col = if s.temperature.available {
-        temp_color(s.temperature.gpu_avg_c, GPU_TEMP_WARN, GPU_TEMP_CRIT)
+    // F5/F13: use gradient::temp_to_color matching non-expanded
+    let temp_col = gradient::temp_to_color(s.temperature.gpu_avg_c, theme);
+    let temp_str = if s.temperature.available {
+        format!("{}°C", s.temperature.gpu_avg_c as u32)
     } else {
-        theme.muted
+        "N/A".to_string()
     };
-    let idle_suffix = if s.power.gpu_w < 0.5 { " (idle)" } else { "" };
-    let title_spans = vec![
-        Span::styled(format!("² gpu{}  ", idle_suffix), Style::default().fg(theme.gpu_accent).bold()),
-        Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)),
-        if s.temperature.available {
-            Span::styled(format!("  {:.0}°C", s.temperature.gpu_avg_c), Style::default().fg(temp_col))
-        } else {
-            Span::raw("")
-        },
-        Span::raw(" "),
+    let temp_display_color = if s.temperature.available { temp_col } else { theme.muted };
+
+    let gpu_idle = s.power.gpu_w < 0.5;
+
+    // F6: superscript as separate muted span; F7: add freq+power; F8: no % when idle
+    let mut title_spans = vec![
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[1]), Style::default().fg(theme.muted)),
+        Span::styled("gpu ", Style::default().fg(theme.gpu_accent).bold()),
     ];
+    if gpu_idle {
+        title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
+    } else {
+        title_spans.push(Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)));
+        title_spans.push(Span::styled(format!(" @ {}MHz", s.gpu.freq_mhz), Style::default().fg(theme.muted)));
+        title_spans.push(Span::styled(format!("  {:.1}W", s.power.gpu_w), Style::default().fg(theme.muted)));
+    }
+    title_spans.push(Span::styled(format!("  {}", temp_str), Style::default().fg(temp_display_color)));
+    title_spans.push(Span::raw(" "));
 
     let block = Block::default()
         .title(Line::from(title_spans))
@@ -147,25 +171,30 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    // Multi-row braille chart (~70% height, min 3 rows)
-    let chart_height = (inner.height * 7 / 10).max(3).min(inner.height);
+    // F2-equivalent: cap chart height at 20 rows
+    let chart_height = (inner.height * 7 / 10).clamp(3, 20);
     let chart_area = Rect::new(inner.x, inner.y, inner.width, chart_height);
     let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
-    super::panels::render_graph(f, chart_area, &sparkline_data, 1.0, theme);
+    // F11: use render_graph_with_baseline matching non-expanded
+    render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
-    // Detailed metrics table
-    let metrics_y = inner.y + chart_height;
+    // F9: 1-row margin between chart and metrics
+    let metrics_y = inner.y + chart_height + 1;
+
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    // F10: add VRAM; F12: use {:.1}W precision
     let metrics = [
         format!("frequency:    {} MHz", s.gpu.freq_mhz),
         format!("usage:        {:.1}%", s.gpu.usage * 100.0),
-        format!("GPU power:    {:.2} W", s.power.gpu_w),
-        format!("ANE power:    {:.2} W", s.power.ane_w),
-        format!("DRAM power:   {:.2} W", s.power.dram_w),
+        format!("GPU power:    {:.1}W", s.power.gpu_w),
+        format!("ANE power:    {:.1}W", s.power.ane_w),
+        format!("DRAM power:   {:.1}W", s.power.dram_w),
+        format!("VRAM:         {:.1}/{:.0}GB", s.memory.ram_used as f64 / gb, s.memory.ram_total as f64 / gb),
     ];
 
     for (i, text) in metrics.iter().enumerate() {
         let y = metrics_y + i as u16;
-        if y >= inner.y + inner.height || text.is_empty() { continue; }
+        if y >= inner.y + inner.height { break; }
         f.render_widget(
             Paragraph::new(text.as_str()).style(Style::default().fg(theme.fg)),
             Rect::new(inner.x, y, inner.width, 1),
@@ -187,7 +216,8 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
         _ => theme.pressure_normal,
     };
     let title_spans = vec![
-        Span::styled("³ mem  ", Style::default().fg(theme.mem_accent).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[2]), Style::default().fg(theme.muted)),
+        Span::styled("mem  ", Style::default().fg(theme.mem_accent).bold()),
         Span::styled(format!("{:.1}/{:.0}GB {ram_pct}%", ram_used_gb, ram_total_gb), Style::default().fg(theme.fg)),
         Span::styled(" \u{25cf}", Style::default().fg(pressure_dot_color)),
         Span::raw(" "),
@@ -448,7 +478,8 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     });
 
     let title_spans = vec![
-        Span::styled("⁴ net  ", Style::default().fg(theme.net_upload).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.muted)),
+        Span::styled("net  ", Style::default().fg(theme.net_upload).bold()),
         Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
         Span::styled("  ", Style::default()),
         Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
@@ -584,7 +615,8 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let total_w = s.power.package_w.max(s.power.cpu_w + s.power.gpu_w + s.power.ane_w + s.power.dram_w);
 
     let title_spans = vec![
-        Span::styled("⁵ power  ", Style::default().fg(theme.power_accent).bold()),
+        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[4]), Style::default().fg(theme.muted)),
+        Span::styled("power  ", Style::default().fg(theme.power_accent).bold()),
         Span::styled(format!("{:.1}W total", total_w), Style::default().fg(theme.fg)),
         Span::raw(" "),
     ];
@@ -709,7 +741,8 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let sort_label = state.sort_mode.label();
     let block = Block::default()
         .title(Line::from(vec![
-            Span::styled("⁶ proc  ", Style::default().fg(theme.fg).bold()),
+            Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[5]), Style::default().fg(theme.muted)),
+            Span::styled("proc  ", Style::default().fg(theme.fg).bold()),
             Span::styled(format!(" sort: {} ", sort_label), Style::default().fg(theme.muted)),
         ]))
         .borders(Borders::ALL)
