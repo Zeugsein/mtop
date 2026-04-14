@@ -1662,3 +1662,43 @@ The expanded process panel SHALL support sending SIGTERM (`t` key) and SIGKILL (
 The expanded process panel SHALL render a hint bar at the bottom showing available keys: `[↑↓] navigate  [t] term  [k] kill` (left-aligned, muted). This replaces or supplements the sort indicator.
 
 > SHALL-44-F5c
+
+### Requirement: GPU idle suppression removal [I45-F1]
+All GPU panels SHALL remove `gpu_idle` checks and `"(idle)"` label text. The GPU % overlay SHALL always render (`{:.1}%`, `theme.fg`). Baseline braille dots SHALL appear via `render_graph_with_baseline`. The dead `show_idle` parameter in `render_labeled_sparkline` SHALL be removed. Applies to: `draw_gpu_expanded`, `draw_gpu_panel_v2`, power panel GPU sparkline.
+
+> SHALL-45-F1
+
+### Requirement: Per-interface max/total in network expanded [I45-F2a]
+`MetricsHistory` SHALL add `per_iface_max: HashMap<String, (f64, f64)>` (max rx/tx rates) and `per_iface_total: HashMap<String, (u64, u64)>` (cumulative rx/tx bytes). Both SHALL be updated in `push()` and pruned with the existing `per_iface.retain()` call.
+
+> SHALL-45-F2a
+
+### Requirement: Per-interface max/total display [I45-F2b]
+The expanded network panel interface list SHALL show per-interface max and total as muted annotation (right-aligned or second row per interface). Format: `max ↓{rx_max} ↑{tx_max}  total ↓{rx_total} ↑{tx_total}`.
+
+> SHALL-45-F2b
+
+### Requirement: Remove j/k from global key bindings [I45-F3]
+The global key handler SHALL NOT bind `j`/`k` for process scrolling. Only `↑`/`↓` arrow keys SHALL scroll. The help overlay SHALL update to show `↑/↓` instead of `↑/k  ↓/j`. The process-expand handler retains `j` for navigate-down and `k` for SIGKILL.
+
+> SHALL-45-F3
+
+### Requirement: Event drain for rapid key input [I45-F4]
+The event loop SHALL drain all pending key events before rendering. After the first `event::poll(timeout)` + `event::read()`, the loop SHALL continue reading with `event::poll(Duration::ZERO)` until no events remain. Each drained event SHALL be processed through `handle_key_event` (including quit checks).
+
+> SHALL-45-F4
+
+### Requirement: Process filter state [I45-F5a]
+`AppState` SHALL add `process_filter: Option<String>` (None = no filter). `f` key in process-expand mode SHALL enter filter mode. `Esc` SHALL clear filter before closing the panel. `toggle_expand` SHALL reset `process_filter = None` on close.
+
+> SHALL-45-F5a
+
+### Requirement: Process filter input handling [I45-F5b]
+While `process_filter` is `Some`, printable characters SHALL append to the filter string. `Backspace` SHALL remove the last character. `Esc` SHALL clear the filter and exit filter mode (not close the panel). All other non-filter keys SHALL fall through to normal handling.
+
+> SHALL-45-F5b
+
+### Requirement: Process filter rendering [I45-F5c]
+The expanded process panel SHALL render a filter bar at the top (below header) when filter is active, showing the current query. Rows SHALL be filtered by case-insensitive substring match on process name. Selection indices and `resolve_selected_process` SHALL operate on the filtered list, not the unfiltered list. Scroll SHALL clamp against filtered list length. The hint bar SHALL include `[f] filter`.
+
+> SHALL-45-F5c
