@@ -11,10 +11,13 @@ fn toggle_expand(state: &mut AppState, panel: PanelId) {
         // I44-F5f: reset selection on panel close
         state.process_selected = None;
         state.pending_signal = None;
+        // I45-F5a: reset filter on close
+        state.process_filter = None;
     } else {
         state.expanded_panel = Some(panel);
         state.process_selected = None;
         state.pending_signal = None;
+        state.process_filter = None;
     }
 }
 
@@ -33,8 +36,44 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         return false;
     }
 
-    // I44-F5a: process expanded mode intercepts ↑/↓/j/k/t
+    // I44-F5a: process expanded mode intercepts ↑/↓/j/k/t/f
     if state.expanded_panel == Some(PanelId::Process) {
+        // I45-F5b: filter input mode — intercepts all printable chars when active
+        if let Some(ref mut filter) = state.process_filter {
+            match key.code {
+                KeyCode::Esc => {
+                    // Clear filter and exit filter mode (don't close panel)
+                    state.process_filter = None;
+                    state.process_selected = Some(0);
+                    return false;
+                }
+                KeyCode::Backspace => {
+                    filter.pop();
+                    if filter.is_empty() {
+                        state.process_filter = None;
+                    }
+                    state.process_selected = Some(0);
+                    return false;
+                }
+                KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    filter.push(c);
+                    state.process_selected = Some(0);
+                    return false;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    let sel = state.process_selected.unwrap_or(0);
+                    state.process_selected = Some(sel.saturating_add(1));
+                    return false;
+                }
+                KeyCode::Up => {
+                    let sel = state.process_selected.unwrap_or(0);
+                    state.process_selected = Some(sel.saturating_sub(1));
+                    return false;
+                }
+                _ => {} // Fall through to global handlers
+            }
+        }
+
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
                 let sel = state.process_selected.unwrap_or(0);
@@ -59,6 +98,12 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                 }
                 return false;
             }
+            // I45-F5a: 'f' enters filter mode
+            KeyCode::Char('f') => {
+                state.process_filter = Some(String::new());
+                state.process_selected = Some(0);
+                return false;
+            }
             _ => {} // Fall through to global handlers
         }
     }
@@ -72,6 +117,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
             } else if state.expanded_panel.is_some() {
                 state.process_selected = None;
                 state.pending_signal = None;
+                state.process_filter = None;
                 state.expanded_panel = None;
             } else {
                 return true;
@@ -107,10 +153,11 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                 .find(|&v| v < state.interval_ms)
                 .unwrap_or(100);
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        // I45-F3: j/k removed from global scroll (reserved for process-expand nav)
+        KeyCode::Down => {
             state.process_scroll = state.process_scroll.saturating_add(1);
         }
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::Up => {
             state.process_scroll = state.process_scroll.saturating_sub(1);
         }
         KeyCode::Char('.') => {
@@ -146,6 +193,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
 }
 
 /// Resolve the currently selected process (by display-order index) to (pid, name).
+/// I45-F5c: operates on filtered list when process_filter is active.
 fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
     let sel = state.process_selected?;
     let procs = &state.snapshot.processes;
@@ -157,6 +205,14 @@ fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
 
     let mut indices: Vec<usize> = (0..procs.len()).collect();
     sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
+
+    // I45-F5c: apply filter to sorted indices
+    if let Some(ref filter) = state.process_filter
+        && !filter.is_empty()
+    {
+        let filter_lower = filter.to_lowercase();
+        indices.retain(|&idx| procs[idx].name.to_lowercase().contains(&filter_lower));
+    }
 
     let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
     let display_idx = scroll + sel;

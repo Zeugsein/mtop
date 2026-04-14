@@ -309,6 +309,10 @@ pub struct MetricsHistory {
     pub net_upload_max: f64,
     /// Session maximum download rate (bytes/sec)
     pub net_download_max: f64,
+    /// Per-interface session max rates (rx, tx) in bytes/sec
+    pub per_iface_max: std::collections::HashMap<String, (f64, f64)>,
+    /// Per-interface cumulative total bytes (rx, tx) from OS counters
+    pub per_iface_total: std::collections::HashMap<String, (u64, u64)>,
     pub net_tier_idx: usize,
     pub net_tier_hold: usize,
     max_len: usize,
@@ -342,6 +346,8 @@ impl MetricsHistory {
             per_iface: std::collections::HashMap::new(),
             net_upload_max: 0.0,
             net_download_max: 0.0,
+            per_iface_max: std::collections::HashMap::new(),
+            per_iface_total: std::collections::HashMap::new(),
             net_tier_idx: 0,
             net_tier_hold: 0,
             max_len: 128,
@@ -415,11 +421,20 @@ impl MetricsHistory {
                 .or_insert_with(|| (HistoryBuffer::new(), HistoryBuffer::new()));
             Self::push_val(rx_buf, iface.rx_bytes_sec, self.max_len);
             Self::push_val(tx_buf, iface.tx_bytes_sec, self.max_len);
+
+            // I45-F2: track per-interface session max rates
+            let max_entry = self.per_iface_max.entry(iface.name.clone()).or_insert((0.0, 0.0));
+            if iface.rx_bytes_sec > max_entry.0 { max_entry.0 = iface.rx_bytes_sec; }
+            if iface.tx_bytes_sec > max_entry.1 { max_entry.1 = iface.tx_bytes_sec; }
+
+            // I45-F2: track per-interface cumulative totals from OS counters
+            self.per_iface_total.insert(iface.name.clone(), (iface.rx_bytes_total, iface.tx_bytes_total));
         }
         // Prune interfaces not seen in this snapshot to bound memory
-        self.per_iface.retain(|name, _| {
-            snapshot.network.interfaces.iter().any(|i| i.name == *name)
-        });
+        let seen: Vec<String> = snapshot.network.interfaces.iter().map(|i| i.name.clone()).collect();
+        self.per_iface.retain(|name, _| seen.contains(name));
+        self.per_iface_max.retain(|name, _| seen.contains(name));
+        self.per_iface_total.retain(|name, _| seen.contains(name));
 
         // Update network tier with hysteresis
         self.update_net_tier();
