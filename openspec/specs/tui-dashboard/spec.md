@@ -1513,3 +1513,50 @@ The expanded power panel SHALL display avg and max power alongside total, matchi
 The expanded power panel CPU and GPU chart heights SHALL each be capped at 10 rows maximum.
 
 > SHALL-40-F8
+
+## Iteration 41 — Process expanded panel parity
+
+### Requirement: Process expanded column order [I41-F1]
+The expanded process panel column order SHALL be: pid, name, •cpu, •mem, •pow, thread, io r, io w, user — with pid first matching non-expanded.
+
+> SHALL-41-F1
+
+### Requirement: Process expanded header colors [I41-F2]
+The expanded process panel header labels SHALL all use `theme.muted` color, matching non-expanded.
+
+> SHALL-41-F2
+
+### Requirement: Process expanded CJK handling [I41-F3]
+The expanded process panel SHALL use `truncate_by_display_width` and `pad_to_display_width` for CJK-safe name column alignment.
+
+> SHALL-41-F3
+
+### Requirement: Process expanded dynamic name width [I41-F4]
+The expanded process panel name column width SHALL be dynamically computed from available panel width minus fixed column total.
+
+> SHALL-41-F4
+
+### Requirement: Process expanded dot thresholds [I41-F5]
+The expanded process panel dots SHALL use muted color when below thresholds (cpu < 0.1, mem < 1MB, pow < 0.1), matching non-expanded.
+
+> SHALL-41-F5
+
+### Requirement: Process expanded border dimming [I41-F6]
+The expanded process panel border SHALL use `dim_color(theme.process_accent, adaptive_border_dim(theme))`.
+
+> SHALL-41-F6
+
+### Requirement: Process expanded sort indicator [I41-F7]
+The expanded process panel sort indicator SHALL be at bottom-right (not in title), matching non-expanded.
+
+> SHALL-41-F7
+
+### Requirement: Process expanded fixed columns [I41-F8]
+The expanded process panel SHALL use the same fixed column width constants as non-expanded for consistent alignment.
+
+> SHALL-41-F8
+
+### Requirement: Process expanded dot character [I41-F9]
+The expanded process panel dots SHALL use `\u{2022}` consistently, matching non-expanded.
+
+> SHALL-41-F9

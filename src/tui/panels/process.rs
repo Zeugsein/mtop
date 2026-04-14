@@ -6,13 +6,13 @@ use crate::tui::{AppState, theme, gradient};
 use crate::tui::helpers::{truncate_by_display_width, pad_to_display_width, sort_indices};
 
 // Fixed column widths for numeric columns
-const COL_PID: usize = 6;
-const COL_CPU: usize = 5;
-const COL_MEM: usize = 5;
-const COL_POW: usize = 5;
-const COL_THR: usize = 7;
+pub(crate) const COL_PID: usize = 6;
+pub(crate) const COL_CPU: usize = 5;
+pub(crate) const COL_MEM: usize = 5;
+pub(crate) const COL_POW: usize = 5;
+pub(crate) const COL_THR: usize = 7;
 // +5 for spaces, +3 for colored dots before cpu/mem/pow columns
-const COL_FIXED_TOTAL: usize = COL_PID + COL_CPU + COL_MEM + COL_POW + COL_THR + 5 + 3;
+pub(crate) const COL_FIXED_TOTAL: usize = COL_PID + COL_CPU + COL_MEM + COL_POW + COL_THR + 5 + 3;
 
 /// Process panel: sorted process table with fixed-position columns
 pub(crate) fn draw_process_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {

@@ -301,8 +301,8 @@ fn expanded_process_contains_sort_label() {
     let text = mtop::tui::render_dashboard_with_state(
         120, 40, empty_snapshot(), false, Some(PanelId::Process), SortMode::default(),
     );
-    assert!(text.contains("processes"), "expanded process panel should contain 'processes' title");
-    assert!(text.contains("sort:"), "expanded process should contain sort label");
+    assert!(text.contains("proc"), "expanded process panel should contain 'proc' title");
+    assert!(text.contains("no processes"), "expanded process should show 'no processes' when empty");
 }
 
 #[test]

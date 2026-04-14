@@ -15,3 +15,4 @@ pub(crate) use network::draw_network_panel_v2;
 pub(crate) use network::NET_TIERS;
 pub(crate) use power::draw_power_panel_v2;
 pub(crate) use process::draw_process_panel_v2;
+pub(crate) use process::{COL_PID, COL_CPU, COL_MEM, COL_POW, COL_THR, COL_FIXED_TOTAL};
