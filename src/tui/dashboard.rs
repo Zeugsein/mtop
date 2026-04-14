@@ -196,7 +196,7 @@ fn draw_help_overlay(f: &mut Frame, area: Rect, theme: &theme::Theme) {
         ("c", "cycle theme"),
         ("s", "cycle sort column"),
         ("1\u{2013}6", "expand/collapse panel"),
-        ("\u{2191}/k  \u{2193}/j", "scroll process list"),
+        ("\u{2191}\u{2193}", "scroll process list"),
         ("+/-", "adjust interval"),
         ("w", "save config"),
     ];

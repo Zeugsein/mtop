@@ -114,6 +114,8 @@ pub(crate) struct AppState {
     // I44-F5: process selection and signal confirmation
     pub(crate) process_selected: Option<usize>,
     pub(crate) pending_signal: Option<(i32, String, i32)>, // (pid, process_name, signal)
+    // I45-F5: process name filter in expanded mode
+    pub(crate) process_filter: Option<String>,
 }
 
 impl Default for AppState {
@@ -131,6 +133,7 @@ impl Default for AppState {
             snapshot: MetricsSnapshot::default(),
             process_selected: None,
             pending_signal: None,
+            process_filter: None,
         }
     }
 }
@@ -159,6 +162,7 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
         snapshot: MetricsSnapshot::default(),
         process_selected: None,
         pending_signal: None,
+        process_filter: None,
     };
 
     // Initial sample
@@ -187,11 +191,19 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
         terminal.draw(|f| draw_dashboard(f, &state))?;
 
         // Poll for input (non-blocking, with timeout = interval)
-        if event::poll(Duration::from_millis(state.interval_ms as u64))?
-            && let Event::Key(key) = event::read()?
-                && input::handle_key_event(key, &mut state) {
-                    break;
+        let mut should_quit = false;
+        if event::poll(Duration::from_millis(state.interval_ms as u64))? {
+            if let Event::Key(key) = event::read()? {
+                should_quit = input::handle_key_event(key, &mut state);
+            }
+            // I45-F4: drain queued events to coalesce rapid input (debounce)
+            while !should_quit && event::poll(Duration::ZERO)? {
+                if let Event::Key(key) = event::read()? {
+                    should_quit = input::handle_key_event(key, &mut state);
                 }
+            }
+        }
+        if should_quit { break; }
 
         // Sample
         match sampler.sample(0) {

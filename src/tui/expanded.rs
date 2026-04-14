@@ -151,20 +151,14 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     };
     let temp_display_color = if s.temperature.available { temp_col } else { theme.muted };
 
-    let gpu_idle = s.power.gpu_w < 0.5;
-
-    // F6: superscript as separate muted span; F7: add freq+power; F8: no % when idle
+    // I45-F1: removed gpu_idle suppression — always show info
     let mut title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[1]), Style::default().fg(theme.muted)),
         Span::styled("gpu ", Style::default().fg(theme.gpu_accent).bold()),
+        Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)),
+        Span::styled(format!(" @ {}MHz", s.gpu.freq_mhz), Style::default().fg(theme.muted)),
+        Span::styled(format!("  {:.1}W", s.power.gpu_w), Style::default().fg(theme.muted)),
     ];
-    if gpu_idle {
-        title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
-    } else {
-        title_spans.push(Span::styled(format!("{:.1}%", s.gpu.usage * 100.0), Style::default().fg(theme.fg)));
-        title_spans.push(Span::styled(format!(" @ {}MHz", s.gpu.freq_mhz), Style::default().fg(theme.muted)));
-        title_spans.push(Span::styled(format!("  {:.1}W", s.power.gpu_w), Style::default().fg(theme.muted)));
-    }
     title_spans.push(Span::styled(format!("  {}", temp_str), Style::default().fg(temp_display_color)));
     title_spans.push(Span::raw(" "));
 
@@ -187,14 +181,12 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     // F11: use render_graph_with_baseline matching non-expanded
     render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
-    // I44-F2: percentage overlay at chart top-left — fg colored, {:.1}% (suppress when idle)
-    if !gpu_idle {
-        let gpu_pct_label = format!("{:.1}% ", s.gpu.usage * 100.0);
-        f.render_widget(
-            Paragraph::new(Span::styled(&gpu_pct_label, Style::default().fg(theme.fg))),
-            Rect::new(chart_area.x + 1, chart_area.y, gpu_pct_label.len() as u16, 1),
-        );
-    }
+    // I45-F1: percentage overlay always shown (no idle suppression)
+    let gpu_pct_label = format!("{:.1}% ", s.gpu.usage * 100.0);
+    f.render_widget(
+        Paragraph::new(Span::styled(&gpu_pct_label, Style::default().fg(theme.fg))),
+        Rect::new(chart_area.x + 1, chart_area.y, gpu_pct_label.len() as u16, 1),
+    );
 
     // F9: 1-row margin between chart and metrics
     let metrics_y = inner.y + chart_height + 1;
@@ -647,8 +639,9 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     let header_y = max_y.saturating_add(1);
     if header_y < inner.y.saturating_add(inner.height) {
+        // I45-F2: added max and total columns to interface table
         let hdr = Line::from(vec![
-            Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>8}", "interface", "type", "baudrate", "upload", "download", "pkt in"), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>10} {:>10}", "interface", "type", "baudrate", "upload", "download", "max ↓", "total"), Style::default().fg(theme.muted)),
         ]);
         f.render_widget(Paragraph::new(hdr), Rect::new(inner.x, header_y, inner.width, 1));
     }
@@ -656,13 +649,18 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let mut cur_y = header_y.saturating_add(1);
     for iface in &sorted_ifaces {
         if cur_y >= inner.y.saturating_add(inner.height) { break; }
+        // I45-F2: per-iface max rx rate and total bytes from history
+        let (max_rx, _max_tx) = state.history.per_iface_max.get(&iface.name).copied().unwrap_or((0.0, 0.0));
+        let (total_rx, total_tx) = state.history.per_iface_total.get(&iface.name).copied().unwrap_or((0, 0));
+        let iface_total = total_rx + total_tx;
         let line = Line::from(vec![
             Span::styled(format!("{:<10}", iface.name), Style::default().fg(theme.fg)),
             Span::styled(format!(" {:>14}", iface.iface_type), Style::default().fg(theme.muted)),
             Span::styled(format!(" {:>10}", format_baudrate(iface.baudrate)), Style::default().fg(theme.muted)),
             Span::styled(format!("  ↑{:>8}", format_bytes_rate_compact(iface.tx_bytes_sec)), Style::default().fg(theme.net_upload)),
             Span::styled(format!("  ↓{:>8}", format_bytes_rate_compact(iface.rx_bytes_sec)), Style::default().fg(theme.net_download)),
-            Span::styled(format!(" {:>7.0}", iface.packets_in_sec), Style::default().fg(theme.muted)),
+            Span::styled(format!(" {:>10}", format_bytes_rate_compact(max_rx)), Style::default().fg(theme.muted)),
+            Span::styled(format!(" {:>10}", format_bytes_compact(iface_total as f64)), Style::default().fg(theme.muted)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, cur_y, inner.width, 1));
         cur_y += 1;
@@ -905,18 +903,39 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     let mut indices: Vec<usize> = (0..procs.len()).collect();
     sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
 
+    // I45-F5c: apply process name filter
+    if let Some(ref filter) = state.process_filter
+        && !filter.is_empty()
+    {
+        let filter_lower = filter.to_lowercase();
+        indices.retain(|&idx| procs[idx].name.to_lowercase().contains(&filter_lower));
+    }
+
+    // I45-F5c: filter bar below header when filter is active
+    let filter_rows: u16 = if state.process_filter.is_some() { 1 } else { 0 };
+    if let Some(ref filter) = state.process_filter {
+        let filter_y = inner.y + 1;
+        let filter_text = format!("filter: {}_", filter);
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(filter_text, Style::default().fg(theme.accent)))),
+            Rect::new(inner.x, filter_y, inner.width, 1),
+        );
+    }
+
     if indices.is_empty() {
-        if inner.height > 1 {
+        let msg_y = inner.y + 1 + filter_rows;
+        if msg_y < inner.y + inner.height {
+            let msg = if state.process_filter.is_some() { "no matches" } else { "no processes" };
             f.render_widget(
-                Paragraph::new("no processes").style(Style::default().fg(theme.muted)),
-                Rect::new(inner.x, inner.y + 1, inner.width, 1),
+                Paragraph::new(msg).style(Style::default().fg(theme.muted)),
+                Rect::new(inner.x, msg_y, inner.width, 1),
             );
         }
         return;
     }
 
-    // Reserve header + bottom bar rows
-    let max_visible = inner.height.saturating_sub(2) as usize;
+    // Reserve header + filter bar + bottom bar rows
+    let max_visible = inner.height.saturating_sub(2 + filter_rows) as usize;
 
     // I44-F5a: clamp selection and scroll-follows-selection
     let sel = state.process_selected.unwrap_or(0).min(indices.len().saturating_sub(1));
@@ -930,7 +949,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     scroll = scroll.min(indices.len().saturating_sub(1));
 
     for (i, &idx) in indices.iter().skip(scroll).take(max_visible).enumerate() {
-        let y = inner.y + 1 + i as u16;
+        let y = inner.y + 1 + filter_rows + i as u16;
         if y >= inner.y + inner.height.saturating_sub(1) { break; }
 
         let proc = &procs[idx];
@@ -994,7 +1013,7 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         );
     } else {
         // Hint bar left
-        let hint = "[↑↓] navigate  [t] term  [k] kill";
+        let hint = "[↑↓] navigate  [t] term  [k] kill  [f] filter";
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(hint, Style::default().fg(theme.muted)))),
             Rect::new(inner.x, sort_y, inner.width, 1),

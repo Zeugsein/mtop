@@ -17,19 +17,14 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
 
     let border_color = theme::dim_color(theme.gpu_accent, theme::adaptive_border_dim(theme));
 
-    let gpu_idle = s.power.gpu_w < 0.5;
-
+    // I45-F1: removed gpu_idle suppression — always show info
     let mut title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[1]), Style::default().fg(theme.muted)),
         Span::styled("gpu ", Style::default().fg(theme.fg).bold()),
+        Span::styled(format!("{:.1}%", gpu_pct), Style::default().fg(theme.fg)),
+        Span::styled(format!(" @ {}MHz", s.gpu.freq_mhz), Style::default().fg(theme.muted)),
+        Span::styled(format!("  {:.1}W", s.power.gpu_w), Style::default().fg(theme.muted)),
     ];
-    if gpu_idle {
-        title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
-    } else {
-        title_spans.push(Span::styled(format!("{:.1}%", gpu_pct), Style::default().fg(theme.fg)));
-        title_spans.push(Span::styled(format!(" @ {}MHz", s.gpu.freq_mhz), Style::default().fg(theme.muted)));
-        title_spans.push(Span::styled(format!("  {:.1}W", s.power.gpu_w), Style::default().fg(theme.muted)));
-    }
     title_spans.push(Span::styled(format!("  {}", temp_str), Style::default().fg(temp_color)));
     title_spans.push(Span::raw(" "));
 
