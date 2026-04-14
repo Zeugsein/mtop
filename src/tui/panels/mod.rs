@@ -8,6 +8,7 @@ mod process;
 pub(crate) use cpu::draw_cpu_panel_v2;
 pub(crate) use cpu::render_graph;
 pub(crate) use cpu::render_graph_green;
+pub(crate) use cpu::render_graph_with_baseline;
 pub(crate) use gpu::draw_gpu_panel_v2;
 pub(crate) use memory::draw_mem_disk_panel_v2;
 pub(crate) use network::draw_network_panel_v2;
