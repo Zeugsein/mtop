@@ -5,7 +5,7 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use super::{AppState, PanelId, theme, braille, gauge, gradient};
-use super::helpers::{format_bytes_rate_compact, truncate_with_ellipsis, truncate_by_display_width, pad_to_display_width, is_infrastructure_interface, format_baudrate, sort_indices};
+use super::helpers::{format_bytes_rate_compact, format_bytes_compact, truncate_with_ellipsis, truncate_by_display_width, pad_to_display_width, is_infrastructure_interface, format_baudrate, sort_indices};
 use super::panels::render_graph_with_baseline;
 use super::panels::{COL_PID, COL_CPU, COL_MEM, COL_POW, COL_THR, COL_FIXED_TOTAL};
 
@@ -75,10 +75,10 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let sparkline_data: Vec<f64> = state.history.cpu_usage.iter().copied().collect();
     render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
-    // I42-F1a: percentage overlay at chart top-left
-    let pct_label = format!("{:.0}% ", cpu_pct);
+    // I44-F1: percentage overlay at chart top-left — fg colored, {:.1}%
+    let pct_label = format!("{:.1}% ", cpu_pct);
     f.render_widget(
-        Paragraph::new(Span::styled(&pct_label, Style::default().fg(theme.muted))),
+        Paragraph::new(Span::styled(&pct_label, Style::default().fg(theme.fg))),
         Rect::new(chart_area.x + 1, chart_area.y, pct_label.len() as u16, 1),
     );
 
@@ -187,11 +187,11 @@ fn draw_gpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     // F11: use render_graph_with_baseline matching non-expanded
     render_graph_with_baseline(f, chart_area, &sparkline_data, 1.0, theme);
 
-    // I42-F2: percentage overlay at chart top-left (suppress when idle)
+    // I44-F2: percentage overlay at chart top-left — fg colored, {:.1}% (suppress when idle)
     if !gpu_idle {
-        let gpu_pct_label = format!("{:.0}% ", s.gpu.usage * 100.0);
+        let gpu_pct_label = format!("{:.1}% ", s.gpu.usage * 100.0);
         f.render_widget(
-            Paragraph::new(Span::styled(&gpu_pct_label, Style::default().fg(theme.muted))),
+            Paragraph::new(Span::styled(&gpu_pct_label, Style::default().fg(theme.fg))),
             Rect::new(chart_area.x + 1, chart_area.y, gpu_pct_label.len() as u16, 1),
         );
     }
@@ -444,17 +444,11 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
             }
         }
 
-        // Muted baseline at center
+        // I44-F3: removed solid ─ divider (muted braille baseline dots remain in chart)
         let baseline_y = y_cursor + disk_half_h;
-        if baseline_y < inner.y + inner.height {
-            let baseline_chars: Vec<Span> = (0..inner.width).map(|_| {
-                Span::styled("─", Style::default().fg(theme::baseline_color(theme)))
-            }).collect();
-            f.render_widget(Paragraph::new(Line::from(baseline_chars)), Rect::new(inner.x, baseline_y, inner.width, 1));
-        }
 
         // Read ↑ bottom half (grows DOWNWARD from center baseline — like upload in net)
-        let bottom_start = baseline_y + 1;
+        let bottom_start = baseline_y;
         let bottom_disk_h = (inner.y + inner.height).saturating_sub(bottom_start);
         if bottom_disk_h > 0 && bottom_start < inner.y + inner.height {
             let bottom_area = Rect::new(inner.x, bottom_start, inner.width, bottom_disk_h);
@@ -510,13 +504,9 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.muted)),
         Span::styled("net ", Style::default().fg(theme.net_upload).bold()),
     ];
+    // I44-F4c: rates removed from title (shown as chart overlays instead)
     if net_idle {
         title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
-    } else {
-        // F5: use format_bytes_rate_compact matching UI style
-        title_spans.push(Span::styled(format!("↑ {}", format_bytes_rate_compact(total_tx)), Style::default().fg(theme.net_upload)));
-        title_spans.push(Span::styled("  ", Style::default()));
-        title_spans.push(Span::styled(format!("↓ {}", format_bytes_rate_compact(total_rx)), Style::default().fg(theme.net_download)));
     }
     title_spans.push(Span::raw(" "));
 
@@ -604,6 +594,26 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         }
     }
 
+    // I44-F4a: colored speed overlay labels on chart
+    {
+        let dl_rate = download_data.last().copied().unwrap_or(0.0);
+        let ul_rate = upload_data.last().copied().unwrap_or(0.0);
+        // Top-left: download rate colored
+        let dl_label = format!("↓ {}", format_bytes_rate_compact(dl_rate));
+        f.render_widget(
+            Paragraph::new(Span::styled(&dl_label, Style::default().fg(theme.net_download))),
+            Rect::new(inner.x, inner.y, dl_label.len().min(inner.width as usize) as u16, 1),
+        );
+        // Bottom-left: upload rate colored
+        let ul_label = format!("↑ {}", format_bytes_rate_compact(ul_rate));
+        let ul_y = inner.y + half_h + bottom_h.saturating_sub(1);
+        f.render_widget(
+            Paragraph::new(Span::styled(&ul_label, Style::default().fg(theme.net_upload))),
+            Rect::new(inner.x, ul_y, ul_label.len().min(inner.width as usize) as u16, 1),
+        );
+    }
+
+    // I44-F4b: per-half max/total on right side of chart
     // Per-interface detailed stats (filter infrastructure interfaces consistently)
     let mut sorted_ifaces: Vec<&crate::metrics::NetInterface> = s.network.interfaces.iter()
         .filter(|i| !is_infrastructure_interface(&i.name))
@@ -614,21 +624,26 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         b_total.partial_cmp(&a_total).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    // F6: max rates display matching non-expanded bottom bar
-    // I43-F2: per-direction theme colors on max-rates row
+    let total_rx_bytes: u64 = sorted_ifaces.iter().map(|i| i.rx_bytes_total).sum();
+    let total_tx_bytes: u64 = sorted_ifaces.iter().map(|i| i.tx_bytes_total).sum();
+
+    // Top-right: download max + total (muted)
+    let dl_right = format!("max {} total {} ", format_bytes_rate_compact(state.history.net_download_max), format_bytes_compact(total_rx_bytes as f64));
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(&dl_right, Style::default().fg(theme.muted)))
+            .alignment(ratatui::layout::Alignment::Right)),
+        Rect::new(inner.x, inner.y, inner.width, 1),
+    );
+    // Bottom-right: upload max + total (muted)
+    let ul_right = format!("max {} total {} ", format_bytes_rate_compact(state.history.net_upload_max), format_bytes_compact(total_tx_bytes as f64));
+    let ul_right_y = inner.y + half_h + bottom_h.saturating_sub(1);
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(&ul_right, Style::default().fg(theme.muted)))
+            .alignment(ratatui::layout::Alignment::Right)),
+        Rect::new(inner.x, ul_right_y, inner.width, 1),
+    );
+
     let max_y = inner.y.saturating_add(chart_height);
-    if max_y < inner.y.saturating_add(inner.height) {
-        let max_line = Line::from(vec![
-            Span::styled(" max ", Style::default().fg(theme.muted)),
-            Span::styled(format!("↓{}", format_bytes_rate_compact(state.history.net_download_max)), Style::default().fg(theme.net_download)),
-            Span::styled("  ", Style::default()),
-            Span::styled(format!("↑{}", format_bytes_rate_compact(state.history.net_upload_max)), Style::default().fg(theme.net_upload)),
-        ]);
-        f.render_widget(
-            Paragraph::new(max_line),
-            Rect::new(inner.x, max_y, inner.width, 1),
-        );
-    }
 
     let header_y = max_y.saturating_add(1);
     if header_y < inner.y.saturating_add(inner.height) {
@@ -900,15 +915,26 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         return;
     }
 
-    // Reserve header + sort indicator rows
-    let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
+    // Reserve header + bottom bar rows
     let max_visible = inner.height.saturating_sub(2) as usize;
+
+    // I44-F5a: clamp selection and scroll-follows-selection
+    let sel = state.process_selected.unwrap_or(0).min(indices.len().saturating_sub(1));
+    // Auto-adjust scroll so selection stays visible
+    let mut scroll = state.process_scroll;
+    if sel < scroll {
+        scroll = sel;
+    } else if sel >= scroll + max_visible && max_visible > 0 {
+        scroll = sel - max_visible + 1;
+    }
+    scroll = scroll.min(indices.len().saturating_sub(1));
 
     for (i, &idx) in indices.iter().skip(scroll).take(max_visible).enumerate() {
         let y = inner.y + 1 + i as u16;
         if y >= inner.y + inner.height.saturating_sub(1) { break; }
 
         let proc = &procs[idx];
+        let is_selected = state.process_selected.is_some() && (scroll + i) == sel;
 
         // F3: CJK-aware name truncation and padding
         let name_trunc = truncate_by_display_width(&proc.name, name_width);
@@ -929,31 +955,56 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         let mem_dot_color = if proc.mem_bytes < 1_048_576 { theme.muted } else { gradient::value_to_color(mem_norm, theme) };
         let pow_dot_color = if proc.power_w < 0.1 { theme.muted } else { gradient::value_to_color(pwr_norm, theme) };
 
+        // I44-F5a: reverse video for selected row
+        let (fg_style, muted_style) = if is_selected {
+            (Style::default().fg(theme.bg).bg(theme.fg), Style::default().fg(theme.bg).bg(theme.fg))
+        } else {
+            (Style::default().fg(theme.fg), Style::default().fg(theme.muted))
+        };
+
         // F1: pid first; F9: use \u{2022} consistently
         let line = Line::from(vec![
-            Span::styled(format!("{:<w$}", proc.pid, w = COL_PID), Style::default().fg(theme.muted)),
-            Span::styled(" ", Style::default()),
-            Span::styled(name_padded, Style::default().fg(theme.fg)),
-            Span::styled(" \u{2022}", Style::default().fg(cpu_dot_color)),
-            Span::styled(format!("{:>w$.1}", proc.cpu_pct, w = COL_CPU), Style::default().fg(theme.fg)),
-            Span::styled(" \u{2022}", Style::default().fg(mem_dot_color)),
-            Span::styled(format!("{:>w$}", mem_display, w = COL_MEM), Style::default().fg(theme.fg)),
-            Span::styled(" \u{2022}", Style::default().fg(pow_dot_color)),
-            Span::styled(format!("{:>w$.1}", proc.power_w, w = COL_POW), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>w$}", proc.thread_count, w = COL_THR), Style::default().fg(theme.fg)),
-            Span::styled(format!("{:>w$}", format_bytes_rate_compact(proc.io_read_bytes_sec), w = col_io), Style::default().fg(theme.muted)),
-            Span::styled(format!("{:>w$}", format_bytes_rate_compact(proc.io_write_bytes_sec), w = col_io), Style::default().fg(theme.muted)),
-            Span::styled(format!(" {:<8}", truncate_with_ellipsis(&proc.user, 8)), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:<w$}", proc.pid, w = COL_PID), muted_style),
+            Span::styled(" ", if is_selected { muted_style } else { Style::default() }),
+            Span::styled(name_padded, fg_style),
+            Span::styled(" \u{2022}", if is_selected { muted_style } else { Style::default().fg(cpu_dot_color) }),
+            Span::styled(format!("{:>w$.1}", proc.cpu_pct, w = COL_CPU), fg_style),
+            Span::styled(" \u{2022}", if is_selected { muted_style } else { Style::default().fg(mem_dot_color) }),
+            Span::styled(format!("{:>w$}", mem_display, w = COL_MEM), fg_style),
+            Span::styled(" \u{2022}", if is_selected { muted_style } else { Style::default().fg(pow_dot_color) }),
+            Span::styled(format!("{:>w$.1}", proc.power_w, w = COL_POW), fg_style),
+            Span::styled(format!("{:>w$}", proc.thread_count, w = COL_THR), fg_style),
+            Span::styled(format!("{:>w$}", format_bytes_rate_compact(proc.io_read_bytes_sec), w = col_io), muted_style),
+            Span::styled(format!("{:>w$}", format_bytes_rate_compact(proc.io_write_bytes_sec), w = col_io), muted_style),
+            Span::styled(format!(" {:<8}", truncate_with_ellipsis(&proc.user, 8)), muted_style),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 
-    // F7: sort indicator at bottom-right matching non-expanded
+    // I44-F5c: bottom bar — hint left, sort right
     let sort_y = inner.y + inner.height.saturating_sub(1);
-    let sort_text = format!("sort: {} \u{2193}", state.sort_mode.label());
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(sort_text, Style::default().fg(theme.muted)))
-            .alignment(ratatui::layout::Alignment::Right)),
-        Rect::new(inner.x, sort_y, inner.width, 1),
-    );
+
+    // I44-F5d: confirmation prompt overrides hint bar
+    if let Some((pid, ref name, signal)) = state.pending_signal {
+        let sig_name = if signal == libc::SIGTERM { "SIGTERM" } else { "SIGKILL" };
+        let prompt = format!("send {} to {} ({})? [y/n]", sig_name, name, pid);
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(prompt, Style::default().fg(theme.fg).bold()))),
+            Rect::new(inner.x, sort_y, inner.width, 1),
+        );
+    } else {
+        // Hint bar left
+        let hint = "[↑↓] navigate  [t] term  [k] kill";
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(hint, Style::default().fg(theme.muted)))),
+            Rect::new(inner.x, sort_y, inner.width, 1),
+        );
+        // Sort indicator right (overlaps right side)
+        let sort_text = format!("sort: {} \u{2193}", state.sort_mode.label());
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(sort_text, Style::default().fg(theme.muted)))
+                .alignment(ratatui::layout::Alignment::Right)),
+            Rect::new(inner.x, sort_y, inner.width, 1),
+        );
+    }
 }

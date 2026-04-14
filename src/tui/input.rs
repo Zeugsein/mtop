@@ -3,18 +3,66 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::{PanelId, AppState, theme};
 use crate::config;
+use crate::tui::helpers::sort_indices;
 
 fn toggle_expand(state: &mut AppState, panel: PanelId) {
     if state.expanded_panel == Some(panel) {
         state.expanded_panel = None;
+        // I44-F5f: reset selection on panel close
+        state.process_selected = None;
+        state.pending_signal = None;
     } else {
         state.expanded_panel = Some(panel);
+        state.process_selected = None;
+        state.pending_signal = None;
     }
 }
 
 /// Process a key event and mutate AppState accordingly.
 /// Returns `true` if the application should quit.
 pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
+    // I44-F5d: confirmation dialog intercepts all keys when active
+    if let Some((pid, _, signal)) = state.pending_signal.take() {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                // Send the signal
+                unsafe { libc::kill(pid, signal); }
+            }
+            _ => {} // Any other key cancels
+        }
+        return false;
+    }
+
+    // I44-F5a: process expanded mode intercepts ↑/↓/j/k/t
+    if state.expanded_panel == Some(PanelId::Process) {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                let sel = state.process_selected.unwrap_or(0);
+                state.process_selected = Some(sel.saturating_add(1));
+                // Clamping happens in draw_process_expanded against actual list length
+                return false;
+            }
+            KeyCode::Up => {
+                let sel = state.process_selected.unwrap_or(0);
+                state.process_selected = Some(sel.saturating_sub(1));
+                return false;
+            }
+            KeyCode::Char('t') => {
+                if let Some((pid, name)) = resolve_selected_process(state) {
+                    state.pending_signal = Some((pid, name, libc::SIGTERM));
+                }
+                return false;
+            }
+            KeyCode::Char('k') => {
+                if let Some((pid, name)) = resolve_selected_process(state) {
+                    state.pending_signal = Some((pid, name, libc::SIGKILL));
+                }
+                return false;
+            }
+            _ => {} // Fall through to global handlers
+        }
+    }
+
     match key.code {
         KeyCode::Char('q') => return true,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return true,
@@ -22,6 +70,8 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
             if state.show_help {
                 state.show_help = false;
             } else if state.expanded_panel.is_some() {
+                state.process_selected = None;
+                state.pending_signal = None;
                 state.expanded_panel = None;
             } else {
                 return true;
@@ -41,6 +91,8 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Char('5') => toggle_expand(state, PanelId::Power),
         KeyCode::Char('6') => toggle_expand(state, PanelId::Process),
         KeyCode::Char('e') | KeyCode::Enter => {
+            state.process_selected = None;
+            state.pending_signal = None;
             state.expanded_panel = None;
         }
         KeyCode::Char('+') | KeyCode::Char('=') => {
@@ -91,4 +143,22 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         _ => {}
     }
     false
+}
+
+/// Resolve the currently selected process (by display-order index) to (pid, name).
+fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
+    let sel = state.process_selected?;
+    let procs = &state.snapshot.processes;
+    if procs.is_empty() { return None; }
+
+    let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
+    let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
+    let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
+
+    let mut indices: Vec<usize> = (0..procs.len()).collect();
+    sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
+
+    let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
+    let display_idx = scroll + sel;
+    indices.get(display_idx).map(|&idx| (procs[idx].pid, procs[idx].name.clone()))
 }

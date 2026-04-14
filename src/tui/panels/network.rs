@@ -230,32 +230,45 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
         // Full-width symmetric chart
         render_symmetric_chart(f, content_area, &download_data, &upload_data);
 
-        // Upload/download overlay labels (on top of chart, when tall enough)
+        // I44-F4: colored speed labels + per-half max/total on right
         if content_area.height >= 6 {
             let ul_rate = upload_data.last().copied().unwrap_or(0.0);
             let dl_rate = download_data.last().copied().unwrap_or(0.0);
-            let ul_label = format!("\u{2191} {}", format_bytes_rate_compact(ul_rate));
-            let dl_label = format!("\u{2193} {}", format_bytes_rate_compact(dl_rate));
+            let dl_label = format!("↓ {}", format_bytes_rate_compact(dl_rate));
+            let ul_label = format!("↑ {}", format_bytes_rate_compact(ul_rate));
+
+            // Top-left: download rate colored
             f.render_widget(
-                Paragraph::new(Span::styled(dl_label, Style::default().fg(theme.muted))),
+                Paragraph::new(Span::styled(dl_label, Style::default().fg(theme.net_download))),
                 Rect::new(content_area.x, content_area.y, content_area.width, 1),
             );
+            // Bottom-left: upload rate colored
             f.render_widget(
-                Paragraph::new(Span::styled(ul_label, Style::default().fg(theme.muted))),
+                Paragraph::new(Span::styled(ul_label, Style::default().fg(theme.net_upload))),
+                Rect::new(content_area.x, content_area.y + content_area.height - 1, content_area.width, 1),
+            );
+
+            // Total bytes from filtered interfaces
+            let total_rx_bytes: u64 = display_ifaces.iter().map(|i| i.rx_bytes_total).sum();
+            let total_tx_bytes: u64 = display_ifaces.iter().map(|i| i.tx_bytes_total).sum();
+
+            // Top-right: download max + total (muted)
+            let dl_right = format!("max {} total {} ", format_bytes_rate_compact(state.history.net_download_max), format_bytes_compact(total_rx_bytes as f64));
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(&dl_right, Style::default().fg(theme.muted)))
+                    .alignment(ratatui::layout::Alignment::Right)),
+                Rect::new(content_area.x, content_area.y, content_area.width, 1),
+            );
+            // Bottom-right: upload max + total (muted)
+            let ul_right = format!("max {} total {} ", format_bytes_rate_compact(state.history.net_upload_max), format_bytes_compact(total_tx_bytes as f64));
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(&ul_right, Style::default().fg(theme.muted)))
+                    .alignment(ratatui::layout::Alignment::Right)),
                 Rect::new(content_area.x, content_area.y + content_area.height - 1, content_area.width, 1),
             );
         }
 
-        // Bottom row: max rates left, primary interface right
-        let max_text = format!(
-            " max ↓{} ↑{}",
-            format_bytes_rate_compact(state.history.net_download_max),
-            format_bytes_rate_compact(state.history.net_upload_max),
-        );
-        f.render_widget(
-            Paragraph::new(Line::from(Span::styled(max_text, Style::default().fg(theme.muted)))),
-            Rect::new(inner.x, bottom_y, inner.width / 2, 1),
-        );
+        // Bottom row: primary interface name
         if let Some(primary) = display_ifaces.first() {
             let fallback = format!("{} ", primary.name);
             f.render_widget(
