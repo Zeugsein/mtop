@@ -435,7 +435,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
             // I42-F3b: space between arrow and word; I42-F3c: positional color (write=top=download)
             let write_rate = format_bytes_rate_compact(s.disk.write_bytes_sec as f64);
             let write_label = format!(" ↓ write {write_rate} ");
-            let label_w = write_label.len().min(inner.width as usize);
+            let label_w = unicode_width::UnicodeWidthStr::width(write_label.as_str()).min(inner.width as usize);
             if label_w > 0 && top_area.height > 0 {
                 f.render_widget(
                     Paragraph::new(Line::from(Span::styled(write_label, Style::default().fg(theme.net_download)))),
@@ -483,7 +483,7 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
             // I42-F3b: space between arrow and word; I42-F3c: positional color (read=bottom=upload)
             let read_rate = format_bytes_rate_compact(s.disk.read_bytes_sec as f64);
             let read_label = format!(" ↑ read {read_rate} ");
-            let label_w = read_label.len().min(inner.width as usize);
+            let label_w = unicode_width::UnicodeWidthStr::width(read_label.as_str()).min(inner.width as usize);
             let label_y = bottom_area.y + bottom_area.height.saturating_sub(1);
             if label_w > 0 && bottom_area.height > 0 {
                 f.render_widget(
