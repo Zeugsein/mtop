@@ -4,7 +4,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
-use super::{AppState, PanelId, theme, braille, gradient};
+use super::{AppState, PanelId, theme, braille, gauge, gradient};
 use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, temp_color, sort_indices, CPU_TEMP_WARN, CPU_TEMP_CRIT, GPU_TEMP_WARN, GPU_TEMP_CRIT};
 
 
@@ -196,6 +196,26 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
 
     if inner.height == 0 || inner.width == 0 { return; }
 
+    // === MEMORY GROUP ===
+    let mut y_cursor = inner.y;
+
+    // F1a: Memory usage gauge at top
+    let ram_fraction = if s.memory.ram_total > 0 {
+        s.memory.ram_used as f64 / s.memory.ram_total as f64
+    } else {
+        0.0
+    };
+    let gauge_spans = gauge::render_compact_gauge(ram_fraction, inner.width as usize, theme);
+    f.render_widget(Paragraph::new(Line::from(gauge_spans)), Rect::new(inner.x, y_cursor, inner.width, 1));
+    y_cursor += 1;
+
+    // F1b: 2×2 chart grid (used, available, cached, free)
+    let remaining = inner.y + inner.height - y_cursor;
+    let mem_chart_h = (remaining * 40 / 100).max(4);
+    let row1_h = mem_chart_h / 2;
+    let row2_h = mem_chart_h - row1_h;
+    let half_w = inner.width / 2;
+
     let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
     let ram_avail_gb = if s.memory.ram_total > 0 { ram_avail_bytes / gb } else { 0.0 };
     let cached_gb = s.memory.cached as f64 / gb;
@@ -203,21 +223,11 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
 
     let sub_border_color = theme::dim_color(theme.mem_accent, 0.5);
 
-    // Layout: 2×2 memory charts (top ~45%), disk symmetric chart (~25%), info rows (bottom)
-    let mem_chart_h = (inner.height * 45 / 100).max(4);
-    let disk_chart_h = (inner.height * 25 / 100).max(3);
-    let row1_h = mem_chart_h / 2;
-    let row2_h = mem_chart_h - row1_h;
-    let half_w = inner.width / 2;
+    let tl = Rect::new(inner.x, y_cursor, half_w, row1_h);
+    let tr = Rect::new(inner.x + half_w, y_cursor, inner.width - half_w, row1_h);
+    let bl = Rect::new(inner.x, y_cursor + row1_h, half_w, row2_h);
+    let br = Rect::new(inner.x + half_w, y_cursor + row1_h, inner.width - half_w, row2_h);
 
-    // Row 1: used (left) + available (right)
-    let tl = Rect::new(inner.x, inner.y, half_w, row1_h);
-    let tr = Rect::new(inner.x + half_w, inner.y, inner.width - half_w, row1_h);
-    // Row 2: cached (left) + free (right)
-    let bl = Rect::new(inner.x, inner.y + row1_h, half_w, row2_h);
-    let br = Rect::new(inner.x + half_w, inner.y + row1_h, inner.width - half_w, row2_h);
-
-    // Helper to render a sub-framed chart
     let render_sub_chart = |f: &mut Frame, area: Rect, title: &str, value: String, data: &[f64], green: bool| {
         if area.height == 0 || area.width == 0 { return; }
         let block = Block::default()
@@ -249,10 +259,10 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
     render_sub_chart(f, tr, "available", format!("{ram_avail_gb:.1}GB"), &avail_data, true);
     render_sub_chart(f, bl, "cached", format!("{cached_gb:.1}GB"), &cached_data, false);
     render_sub_chart(f, br, "free", format!("{free_gb:.1}GB"), &free_data, true);
+    y_cursor += mem_chart_h;
 
-    // Info row: compressed + swap
-    let info_y = inner.y + mem_chart_h;
-    if info_y < inner.y + inner.height {
+    // F1c: compressed + swap text
+    if y_cursor < inner.y + inner.height {
         let compressed_gb = s.memory.compressed as f64 / gb;
         let swap_used_gb = s.memory.swap_used as f64 / gb;
         let swap_total_gb = s.memory.swap_total as f64 / gb;
@@ -262,53 +272,81 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
         if s.memory.swap_total > 0 {
             info_spans.push(Span::styled(format!("  swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB"), Style::default().fg(theme.muted)));
         }
-        f.render_widget(Paragraph::new(Line::from(info_spans)), Rect::new(inner.x, info_y, inner.width, 1));
+        f.render_widget(Paragraph::new(Line::from(info_spans)), Rect::new(inner.x, y_cursor, inner.width, 1));
+        y_cursor += 1;
     }
 
-    // Disk section: symmetric read/write chart
-    let disk_start = info_y + 1;
+    // F1d: Visual separator between mem and disk groups
+    if y_cursor < inner.y + inner.height {
+        let sep = "─".repeat(inner.width as usize);
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(sep, Style::default().fg(theme.muted)))),
+            Rect::new(inner.x, y_cursor, inner.width, 1),
+        );
+        y_cursor += 1;
+    }
+
+    // === DISK GROUP ===
+
+    // F1e: Disk title + full-width gauge + size label
     let disk_used_gb = s.disk.used_bytes as f64 / gb;
     let disk_total_gb = s.disk.total_bytes as f64 / gb;
-    let disk_pct = if s.disk.total_bytes > 0 { (s.disk.used_bytes as f64 / s.disk.total_bytes as f64 * 100.0) as u32 } else { 0 };
+    let disk_fraction = if s.disk.total_bytes > 0 {
+        s.disk.used_bytes as f64 / s.disk.total_bytes as f64
+    } else {
+        0.0
+    };
 
-    if disk_start < inner.y + inner.height {
-        let disk_label = format!(
-            " disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB  r:{} w:{}",
-            format_bytes_rate_compact(s.disk.read_bytes_sec as f64),
-            format_bytes_rate_compact(s.disk.write_bytes_sec as f64),
-        );
+    if y_cursor < inner.y + inner.height {
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(disk_label, Style::default().fg(theme.muted)))),
-            Rect::new(inner.x, disk_start, inner.width, 1),
+            Paragraph::new(Line::from(Span::styled(" disk", Style::default().fg(theme.fg).bold()))),
+            Rect::new(inner.x, y_cursor, inner.width, 1),
         );
+        y_cursor += 1;
     }
 
-    // Disk symmetric chart: read ↑ up, write ↓ down (matching net convention)
-    let disk_chart_y = disk_start + 1;
-    let remaining_h = inner.y + inner.height - disk_chart_y.min(inner.y + inner.height);
-    let actual_disk_h = disk_chart_h.min(remaining_h);
+    if y_cursor < inner.y + inner.height {
+        let disk_gauge_spans = gauge::render_compact_gauge(disk_fraction, inner.width as usize, theme);
+        f.render_widget(Paragraph::new(Line::from(disk_gauge_spans)), Rect::new(inner.x, y_cursor, inner.width, 1));
+        y_cursor += 1;
+    }
 
-    if actual_disk_h >= 2 && disk_chart_y < inner.y + inner.height {
-        let disk_half_h = actual_disk_h / 2;
+    if y_cursor < inner.y + inner.height {
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                format!(" {disk_used_gb:.0}/{disk_total_gb:.0} GB"),
+                Style::default().fg(theme.fg),
+            ))),
+            Rect::new(inner.x, y_cursor, inner.width, 1),
+        );
+        y_cursor += 1;
+    }
+
+    // F1f + F1g: Disk symmetric chart — write ↓ top half, read ↑ bottom half
+    // Both halves grow DOWNWARD (write from top edge, read from midline)
+    let remaining_h = (inner.y + inner.height).saturating_sub(y_cursor);
+    if remaining_h >= 2 {
+        let disk_chart_h = remaining_h;
+        let disk_half_h = disk_chart_h / 2;
+
         let read_data: Vec<f64> = state.history.disk_read.iter().copied().collect();
         let write_data: Vec<f64> = state.history.disk_write.iter().copied().collect();
 
-        // Use net tier scale for disk (auto-scale based on max observed)
         let max_disk = read_data.iter().chain(write_data.iter()).copied().fold(0.0f64, f64::max).max(1024.0);
         let disk_scale = max_disk * 1.2;
         let disk_baseline = disk_scale * 0.005;
 
-        // Read ↑ top half (grows upward)
+        // Write ↓ top half (grows DOWNWARD from top edge)
         if disk_half_h > 0 {
-            let top_area = Rect::new(inner.x, disk_chart_y, inner.width, disk_half_h);
-            let clamped: Vec<f64> = read_data.iter().map(|&v| v.max(disk_baseline)).collect();
-            let graph = braille::render_braille_graph(&clamped, disk_scale, inner.width as usize, disk_half_h as usize, theme);
+            let top_area = Rect::new(inner.x, y_cursor, inner.width, disk_half_h);
+            let clamped: Vec<f64> = write_data.iter().map(|&v| v.max(disk_baseline)).collect();
+            let graph = braille::render_braille_graph_down(&clamped, disk_scale, inner.width as usize, disk_half_h as usize, theme);
             let needed = inner.width as usize * 2;
-            let start = read_data.len().saturating_sub(needed);
-            let visible_orig = &read_data[start..];
+            let start = write_data.len().saturating_sub(needed);
+            let visible_orig = &write_data[start..];
             for (row_idx, row) in graph.iter().enumerate() {
-                let y = top_area.y + top_area.height.saturating_sub(1) - row_idx as u16;
-                if y < top_area.y { break; }
+                let y = top_area.y + row_idx as u16;
+                if y >= top_area.y + top_area.height { break; }
                 let y_frac = row_idx as f64 / (disk_half_h as f64 - 1.0).max(1.0);
                 let gradient_color = super::gradient::value_to_color(y_frac, theme);
                 let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
@@ -322,17 +360,23 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
                     f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(top_area.x, y, top_area.width, 1));
                 }
             }
+
+            // ↓ write label overlay (top-left)
+            if top_area.width > 8 && top_area.height > 0 {
+                let label = Span::styled(" ↓write ", Style::default().fg(theme.muted));
+                f.render_widget(Paragraph::new(Line::from(label)), Rect::new(top_area.x, top_area.y, 8, 1));
+            }
         }
 
-        // Write ↓ bottom half (grows downward)
-        let bottom_disk_h = actual_disk_h - disk_half_h;
+        // Read ↑ bottom half (grows DOWNWARD from midline)
+        let bottom_disk_h = disk_chart_h - disk_half_h;
         if bottom_disk_h > 0 {
-            let bottom_area = Rect::new(inner.x, disk_chart_y + disk_half_h, inner.width, bottom_disk_h);
-            let clamped: Vec<f64> = write_data.iter().map(|&v| v.max(disk_baseline)).collect();
+            let bottom_area = Rect::new(inner.x, y_cursor + disk_half_h, inner.width, bottom_disk_h);
+            let clamped: Vec<f64> = read_data.iter().map(|&v| v.max(disk_baseline)).collect();
             let graph = braille::render_braille_graph_down(&clamped, disk_scale, inner.width as usize, bottom_disk_h as usize, theme);
             let needed = inner.width as usize * 2;
-            let start = write_data.len().saturating_sub(needed);
-            let visible_orig = &write_data[start..];
+            let start = read_data.len().saturating_sub(needed);
+            let visible_orig = &read_data[start..];
             for (row_idx, row) in graph.iter().enumerate() {
                 let y = bottom_area.y + row_idx as u16;
                 if y >= bottom_area.y + bottom_area.height { break; }
@@ -348,6 +392,12 @@ fn draw_mem_disk_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state:
                 if !spans.is_empty() {
                     f.render_widget(Paragraph::new(Line::from(spans)), Rect::new(bottom_area.x, y, bottom_area.width, 1));
                 }
+            }
+
+            // ↑ read label overlay (bottom-left)
+            if bottom_area.width > 7 && bottom_area.height > 0 {
+                let label = Span::styled(" ↑read ", Style::default().fg(theme.muted));
+                f.render_widget(Paragraph::new(Line::from(label)), Rect::new(bottom_area.x, bottom_area.y, 7, 1));
             }
         }
     }
