@@ -1702,3 +1702,32 @@ While `process_filter` is `Some`, printable characters SHALL append to the filte
 The expanded process panel SHALL render a filter bar at the top (below header) when filter is active, showing the current query. Rows SHALL be filtered by case-insensitive substring match on process name. Selection indices and `resolve_selected_process` SHALL operate on the filtered list, not the unfiltered list. Scroll SHALL clamp against filtered list length. The hint bar SHALL include `[f] filter`.
 
 > SHALL-45-F5c
+
+---
+
+## Iteration 46 — CPU/GPU temperature accuracy
+
+### Requirement: HID sensor name lookup [I46-F1a]
+`hid_read_temperatures()` SHALL call `IOHIDServiceClientCopyProperty(service, "Product")` for each HID service to obtain the sensor name as a CFString. The returned CFString SHALL be converted to a Rust string via `CFStringGetCStringPtr` with `kCFStringEncodingUTF8` fallback to `CFStringGetCString` with a stack buffer. The CFString SHALL be released via `CFRelease` after conversion. Services returning a null property SHALL be skipped.
+
+> SHALL-46-F1a
+
+### Requirement: HID sensor classification [I46-F1b]
+Sensors with names starting with `"pACC MTR Temp Sensor"` or `"eACC MTR Temp Sensor"` SHALL be classified as CPU sensors. Sensors with names starting with `"GPU MTR Temp Sensor"` SHALL be classified as GPU sensors with a sanity filter of `0.0 < value <= 150.0`. All other sensors SHALL be discarded. Classification SHALL use `starts_with` matching.
+
+> SHALL-46-F1b
+
+### Requirement: Separate CPU/GPU temperature averages [I46-F1c]
+`hid_read_temperatures()` SHALL compute `cpu_avg_c` as the mean of CPU-classified sensor values and `gpu_avg_c` as the mean of GPU-classified sensor values. If no GPU sensors are found, `gpu_avg_c` SHALL fall back to `cpu_avg_c` (matching existing SMC path behavior). If no CPU sensors are found, the function SHALL return `None`.
+
+> SHALL-46-F1c
+
+### Requirement: FFI declarations for HID property lookup [I46-F1d]
+The IOKit FFI block SHALL declare `IOHIDServiceClientCopyProperty(service: *const c_void, key: *const c_void) -> *const c_void`. The CoreFoundation FFI block SHALL declare `CFStringCreateWithCString`, `CFStringGetCStringPtr`, `CFStringGetCString`, `CFStringGetLength`, and the constant `kCFStringEncodingUTF8` (value `0x08000100`). All new FFI functions SHALL include SAFETY documentation.
+
+> SHALL-46-F1d
+
+### Requirement: CPU sensor temperature sanity filter [I46-F1e]
+CPU-classified sensor values SHALL be filtered with the existing range `0.0 < value < 130.0` (matching the SMC path). The GPU range of `0.0 < value <= 150.0` is intentionally wider per macmon reference implementation.
+
+> SHALL-46-F1e
