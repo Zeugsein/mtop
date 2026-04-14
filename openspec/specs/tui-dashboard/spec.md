@@ -1293,10 +1293,40 @@ The expanded network symmetric chart SHALL use the same `gradient::value_to_colo
 
 > SHALL-35-02a
 
-### Requirement: Memory expanded 2×2 chart grid [I36-F1]
-The expanded memory panel SHALL render a 2×2 grid of braille sparkline charts: used (top-left), available (top-right), cached (bottom-left), free (bottom-right). Each sub-chart SHALL have its own titled border and current value label. Compressed memory and swap SHALL appear as text metrics below the chart grid.
+### Requirement: Memory expanded layout — mem gauge at top [I36-F1a]
+The expanded memory panel SHALL render a full-width memory usage gauge (`render_compact_gauge`) at the top of the memory group, showing overall RAM usage percentage before the chart grid.
 
-> SHALL-36-F1
+> SHALL-36-F1a
+
+### Requirement: Memory expanded layout — 2×2 chart grid [I36-F1b]
+The expanded memory panel SHALL render a 2×2 grid of braille sparkline charts below the memory gauge: used (top-left), available (top-right), cached (bottom-left), free (bottom-right). Each sub-chart SHALL have its own titled border and current value label.
+
+> SHALL-36-F1b
+
+### Requirement: Memory expanded layout — compressed and swap text [I36-F1c]
+Compressed memory and swap SHALL appear as text metrics below the 2×2 chart grid within the memory group (e.g. `compressed: 2.1GB  swap: 0.0/4.0GB`).
+
+> SHALL-36-F1c
+
+### Requirement: Memory expanded layout — visual separator [I36-F1d]
+A horizontal visual separator line SHALL divide the memory group from the disk group in the expanded memory panel.
+
+> SHALL-36-F1d
+
+### Requirement: Disk expanded layout — disk gauge at top of disk group [I36-F1e]
+The disk group SHALL begin with a `disk` title, a full-width disk usage gauge (`render_compact_gauge`) showing disk usage percentage, and a size label (e.g. `240/500 GB`), matching the style of the non-expanded right-detail disk gauge.
+
+> SHALL-36-F1e
+
+### Requirement: Disk expanded layout — symmetric chart direction [I36-F1f]
+The disk symmetric chart SHALL place write on the top half and read on the bottom half. Both halves SHALL grow downward: write bars grow downward from the top edge, read bars grow downward from the center baseline (midline). This differs from the network symmetric chart where the bottom half grows upward.
+
+> SHALL-36-F1f
+
+### Requirement: Disk expanded layout — arrow label convention [I36-F1g]
+The disk symmetric chart SHALL label write with ↓ and read with ↑, consistent with the network panel convention where download=↓ and upload=↑. Write ↓ (data to disk, like download) occupies the top half; read ↑ (data from disk, like upload) occupies the bottom half.
+
+> SHALL-36-F1g
 
 ### Requirement: Expanded panel chart height parity [I36-F2]
 All expanded panels SHALL allocate chart height proportional to the non-expanded (hide-mode) layout (~70% for CPU/GPU, ~45% for memory 2×2 grid, ~60% for network symmetric chart) so expanded charts are not significantly shorter than their non-expanded counterparts.
