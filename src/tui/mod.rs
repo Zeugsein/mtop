@@ -111,6 +111,9 @@ pub(crate) struct AppState {
     pub(crate) show_help: bool,
     pub(crate) history: MetricsHistory,
     pub(crate) snapshot: MetricsSnapshot,
+    // I44-F5: process selection and signal confirmation
+    pub(crate) process_selected: Option<usize>,
+    pub(crate) pending_signal: Option<(i32, String, i32)>, // (pid, process_name, signal)
 }
 
 impl Default for AppState {
@@ -126,6 +129,8 @@ impl Default for AppState {
             show_help: false,
             history: MetricsHistory::new(),
             snapshot: MetricsSnapshot::default(),
+            process_selected: None,
+            pending_signal: None,
         }
     }
 }
@@ -152,6 +157,8 @@ pub fn run(interval_ms: u32, color: &str, temp_unit: &str) -> Result<(), Box<dyn
         show_help: false,
         history: MetricsHistory::new(),
         snapshot: MetricsSnapshot::default(),
+        process_selected: None,
+        pending_signal: None,
     };
 
     // Initial sample
