@@ -35,11 +35,11 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
 
     // F1: add frequency; F6: superscript as separate muted span
     let max_freq = s.cpu.p_cluster.freq_mhz.max(s.cpu.e_cluster.freq_mhz);
+    // I43-F1: % removed from title (deduplicated to chart overlay only)
     let title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[0]), Style::default().fg(theme.muted)),
         Span::styled("cpu  ", Style::default().fg(theme.cpu_accent).bold()),
-        Span::styled(format!("{:.1}%", cpu_pct), Style::default().fg(theme.fg)),
-        Span::styled(format!(" @ {}MHz", max_freq), Style::default().fg(theme.muted)),
+        Span::styled(format!("@ {}MHz", max_freq), Style::default().fg(theme.muted)),
         Span::styled(format!("  {:.1}W", s.power.cpu_w), Style::default().fg(theme.muted)),
         Span::styled(format!("  {}", temp_str), Style::default().fg(temp_display_color)),
         Span::raw(" "),
@@ -615,15 +615,17 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
     });
 
     // F6: max rates display matching non-expanded bottom bar
+    // I43-F2: per-direction theme colors on max-rates row
     let max_y = inner.y.saturating_add(chart_height);
     if max_y < inner.y.saturating_add(inner.height) {
-        let max_text = format!(
-            " max ↓{}  ↑{}",
-            format_bytes_rate_compact(state.history.net_download_max),
-            format_bytes_rate_compact(state.history.net_upload_max),
-        );
+        let max_line = Line::from(vec![
+            Span::styled(" max ", Style::default().fg(theme.muted)),
+            Span::styled(format!("↓{}", format_bytes_rate_compact(state.history.net_download_max)), Style::default().fg(theme.net_download)),
+            Span::styled("  ", Style::default()),
+            Span::styled(format!("↑{}", format_bytes_rate_compact(state.history.net_upload_max)), Style::default().fg(theme.net_upload)),
+        ]);
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(max_text, Style::default().fg(theme.muted)))),
+            Paragraph::new(max_line),
             Rect::new(inner.x, max_y, inner.width, 1),
         );
     }
