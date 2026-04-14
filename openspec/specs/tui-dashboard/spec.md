@@ -1434,3 +1434,40 @@ The expanded GPU panel power display SHALL use `{:.1}W` precision, matching non-
 The expanded GPU panel SHALL display `"N/A"` in muted color when temperature is unavailable, matching non-expanded.
 
 > SHALL-38-F13
+
+## Iteration 39 — Network expanded panel parity
+
+### Requirement: Network expanded border dimming [I39-F1]
+The expanded network panel border SHALL use `dim_color(theme.net_download, adaptive_border_dim(theme))`, matching non-expanded.
+
+> SHALL-39-F1
+
+### Requirement: Network expanded scale label [I39-F2]
+The expanded network panel SHALL display the current tier scale label (`100%={scale}`) as a right-aligned title, matching non-expanded.
+
+> SHALL-39-F2
+
+### Requirement: Network expanded idle detection [I39-F3]
+The expanded network panel SHALL display `"(idle)"` in the title when both rx and tx are below 1024 bytes/sec, matching non-expanded.
+
+> SHALL-39-F3
+
+### Requirement: Network expanded baseline floor [I39-F4]
+The expanded network panel baseline floor SHALL use `scale * 0.035`, matching non-expanded (not `scale * 0.005`).
+
+> SHALL-39-F4
+
+### Requirement: Network expanded title rate format [I39-F5]
+The expanded network panel title rates SHALL use `format_bytes_rate_compact`, matching the compact style used throughout the UI.
+
+> SHALL-39-F5
+
+### Requirement: Network expanded max rates [I39-F6]
+The expanded network panel SHALL display max download and upload rates, matching non-expanded bottom bar pattern.
+
+> SHALL-39-F6
+
+### Requirement: Network expanded chart height cap [I39-F7]
+The expanded network panel symmetric chart height SHALL be capped at 20 rows maximum, matching the CPU/GPU cap for very tall terminals.
+
+> SHALL-39-F7
