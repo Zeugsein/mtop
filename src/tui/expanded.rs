@@ -5,7 +5,7 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use super::{AppState, PanelId, theme, braille, gauge, gradient};
-use super::helpers::{format_bytes_rate, format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, sort_indices};
+use super::helpers::{format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, sort_indices};
 use super::panels::render_graph_with_baseline;
 
 
@@ -477,19 +477,38 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         (rx + i.rx_bytes_sec, tx + i.tx_bytes_sec)
     });
 
-    let title_spans = vec![
+    // F1: dim border matching non-expanded
+    let border_color = theme::dim_color(theme.net_download, theme::adaptive_border_dim(theme));
+
+    // F3: idle detection matching non-expanded
+    let net_idle = total_rx < 1024.0 && total_tx < 1024.0;
+
+    let mut title_spans = vec![
         Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[3]), Style::default().fg(theme.muted)),
-        Span::styled("net  ", Style::default().fg(theme.net_upload).bold()),
-        Span::styled(format!("↑ {}", format_bytes_rate(total_tx)), Style::default().fg(theme.net_upload)),
-        Span::styled("  ", Style::default()),
-        Span::styled(format!("↓ {}", format_bytes_rate(total_rx)), Style::default().fg(theme.net_download)),
-        Span::raw(" "),
+        Span::styled("net ", Style::default().fg(theme.net_upload).bold()),
     ];
+    if net_idle {
+        title_spans.push(Span::styled("(idle) ", Style::default().fg(theme.muted)));
+    } else {
+        // F5: use format_bytes_rate_compact matching UI style
+        title_spans.push(Span::styled(format!("↑ {}", format_bytes_rate_compact(total_tx)), Style::default().fg(theme.net_upload)));
+        title_spans.push(Span::styled("  ", Style::default()));
+        title_spans.push(Span::styled(format!("↓ {}", format_bytes_rate_compact(total_rx)), Style::default().fg(theme.net_download)));
+    }
+    title_spans.push(Span::raw(" "));
+
+    // F2: scale label matching non-expanded
+    let tier_idx = state.history.net_tier_idx;
+    let scale_label = super::panels::NET_TIERS[tier_idx].1;
+    let right_title = Line::from(vec![
+        Span::styled(format!("100%={} ", scale_label), Style::default().fg(theme.muted)),
+    ]);
 
     let block = Block::default()
         .title(Line::from(title_spans))
+        .title_top(right_title.alignment(ratatui::layout::Alignment::Right))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.net_download))
+        .border_style(Style::default().fg(border_color))
         .border_type(BorderType::Rounded);
 
     let raw_inner = block.inner(area);
@@ -498,11 +517,12 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
 
     if inner.height == 0 || inner.width == 0 { return; }
 
-    let scale = super::panels::NET_TIERS[state.history.net_tier_idx].0;
-    let baseline_floor = scale * 0.005;
+    let scale = super::panels::NET_TIERS[tier_idx].0;
+    // F4: baseline floor matching non-expanded (0.035 not 0.005)
+    let baseline_floor = scale * 0.035;
 
-    // Symmetric center-baseline chart (~60% of panel height)
-    let chart_height = (inner.height * 6 / 10).max(4).min(inner.height);
+    // F7: Symmetric center-baseline chart (~60% of panel height, capped at 20 rows)
+    let chart_height = (inner.height * 6 / 10).clamp(4, 20);
     let half_h = chart_height / 2;
 
     let download_data: Vec<f64> = state.history.net_download.iter().copied().collect();
@@ -571,7 +591,21 @@ fn draw_network_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         b_total.partial_cmp(&a_total).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let header_y = inner.y.saturating_add(chart_height);
+    // F6: max rates display matching non-expanded bottom bar
+    let max_y = inner.y.saturating_add(chart_height);
+    if max_y < inner.y.saturating_add(inner.height) {
+        let max_text = format!(
+            " max ↓{}  ↑{}",
+            format_bytes_rate_compact(state.history.net_download_max),
+            format_bytes_rate_compact(state.history.net_upload_max),
+        );
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(max_text, Style::default().fg(theme.muted)))),
+            Rect::new(inner.x, max_y, inner.width, 1),
+        );
+    }
+
+    let header_y = max_y.saturating_add(1);
     if header_y < inner.y.saturating_add(inner.height) {
         let hdr = Line::from(vec![
             Span::styled(format!("{:<10} {:>14} {:>10} {:>10} {:>8} {:>8}", "interface", "type", "baudrate", "upload", "download", "pkt in"), Style::default().fg(theme.muted)),
