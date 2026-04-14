@@ -291,6 +291,10 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
 /// - pACC/eACC MTR Temp Sensor* → CPU (sanity: 0 < val < 130)
 /// - GPU MTR Temp Sensor* → GPU (sanity: 0 < val <= 150)
 fn hid_read_temperatures() -> Option<ThermalMetrics> {
+    // I47-F1b: Apple Vendor HID constants (from macmon sources.rs)
+    const K_HID_PAGE_APPLE_VENDOR: i32 = 0xff00;
+    const K_HID_USAGE_APPLE_VENDOR_TEMP_SENSOR: i32 = 0x0005;
+
     // SAFETY: IOHIDEventSystem and CoreFoundation calls with opaque pointer types.
     // All returned objects are checked for null and released via CFRelease.
     unsafe {
@@ -298,6 +302,52 @@ fn hid_read_temperatures() -> Option<ThermalMetrics> {
         if client.is_null() {
             return None;
         }
+
+        // I47-F1a: set matching filter to Apple Vendor temperature sensors only
+        // Without this, CopyServices returns ALL HID services (hundreds), most
+        // lacking "Product" property → iter46 classification skips them all → N/A.
+        let matching = {
+            let key_page = CFStringCreateWithCString(kCFAllocatorDefault, c"PrimaryUsagePage".as_ptr(), K_CF_STRING_ENCODING_UTF8);
+            let key_usage = CFStringCreateWithCString(kCFAllocatorDefault, c"PrimaryUsage".as_ptr(), K_CF_STRING_ENCODING_UTF8);
+            let val_page = CFNumberCreate(kCFAllocatorDefault, K_CF_NUMBER_SINT32_TYPE, &K_HID_PAGE_APPLE_VENDOR as *const i32 as *const libc::c_void);
+            let val_usage = CFNumberCreate(kCFAllocatorDefault, K_CF_NUMBER_SINT32_TYPE, &K_HID_USAGE_APPLE_VENDOR_TEMP_SENSOR as *const i32 as *const libc::c_void);
+
+            if key_page.is_null() || key_usage.is_null() || val_page.is_null() || val_usage.is_null() {
+                // I47-F1c: cleanup on failure
+                if !key_page.is_null() { CFRelease(key_page); }
+                if !key_usage.is_null() { CFRelease(key_usage); }
+                if !val_page.is_null() { CFRelease(val_page); }
+                if !val_usage.is_null() { CFRelease(val_usage); }
+                CFRelease(client);
+                return None;
+            }
+
+            let keys: [*const libc::c_void; 2] = [key_page, key_usage];
+            let vals: [*const libc::c_void; 2] = [val_page, val_usage];
+            let dict = CFDictionaryCreate(
+                kCFAllocatorDefault,
+                keys.as_ptr(),
+                vals.as_ptr(),
+                2,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks,
+            );
+
+            // I47-F1c: release key/value CF objects (dict retains them)
+            CFRelease(key_page);
+            CFRelease(key_usage);
+            CFRelease(val_page);
+            CFRelease(val_usage);
+
+            if dict.is_null() {
+                CFRelease(client);
+                return None;
+            }
+            dict
+        };
+
+        IOHIDEventSystemClientSetMatching(client, matching);
+        CFRelease(matching);
 
         let services = IOHIDEventSystemClientCopyServices(client);
         if services.is_null() {
@@ -664,15 +714,25 @@ unsafe extern "C" {
         service: *const libc::c_void,
         key: *const libc::c_void,
     ) -> *const libc::c_void;
+    // I47-F1b: matching filter to limit services to temperature sensors
+    fn IOHIDEventSystemClientSetMatching(
+        client: *const libc::c_void,
+        matching: *const libc::c_void,
+    );
 }
 
 // --- CoreFoundation FFI (minimal subset for HID temperature fallback) ---
 // I46-F1d: kCFStringEncodingUTF8 = 0x08000100
 const K_CF_STRING_ENCODING_UTF8: u32 = 0x0800_0100;
+// I47-F1b: kCFNumberSInt32Type = 3
+const K_CF_NUMBER_SINT32_TYPE: i64 = 3;
 
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     static kCFAllocatorDefault: *const libc::c_void;
+    // I47-F1b: CFDictionary callback statics for proper key/value retain/release
+    static kCFTypeDictionaryKeyCallBacks: libc::c_void;
+    static kCFTypeDictionaryValueCallBacks: libc::c_void;
     fn CFRelease(cf: *const libc::c_void);
     fn CFArrayGetCount(array: *const libc::c_void) -> i64;
     fn CFArrayGetValueAtIndex(array: *const libc::c_void, idx: i64) -> *const libc::c_void;
@@ -693,4 +753,18 @@ unsafe extern "C" {
         encoding: u32,
     ) -> bool;
     fn CFStringGetLength(the_string: *const libc::c_void) -> i64;
+    // I47-F1b: CFDictionary and CFNumber for matching filter
+    fn CFDictionaryCreate(
+        allocator: *const libc::c_void,
+        keys: *const *const libc::c_void,
+        values: *const *const libc::c_void,
+        num_values: i64,
+        key_callbacks: *const libc::c_void,
+        value_callbacks: *const libc::c_void,
+    ) -> *const libc::c_void;
+    fn CFNumberCreate(
+        allocator: *const libc::c_void,
+        the_type: i64,
+        value_ptr: *const libc::c_void,
+    ) -> *const libc::c_void;
 }
