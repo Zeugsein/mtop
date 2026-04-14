@@ -1560,3 +1560,50 @@ The expanded process panel SHALL use the same fixed column width constants as no
 The expanded process panel dots SHALL use `\u{2022}` consistently, matching non-expanded.
 
 > SHALL-41-F9
+
+## Iteration 42 — UAT feedback round 2
+
+### Requirement: CPU chart percentage overlay [I42-F1a]
+The expanded CPU panel SHALL render a percentage overlay label at the top-left of the chart area showing the current CPU usage (e.g. `"45% "`). The title bar SHALL retain the percentage as well (no removal).
+
+> SHALL-42-F1a
+
+### Requirement: CPU chart section margins [I42-F1b]
+The expanded CPU panel SHALL include 1-row empty margin between the chart area and the e-cluster header, and 1-row empty margin between the last e-cluster core bar and the p-cluster header. The `core_rows_needed` calculation SHALL account for these 2 additional margin rows.
+
+> SHALL-42-F1b
+
+### Requirement: GPU chart percentage overlay [I42-F2]
+The expanded GPU panel SHALL render a percentage overlay label at the top-left of the chart area showing GPU usage. The overlay SHALL be suppressed when GPU is idle (`gpu_idle = true`).
+
+> SHALL-42-F2
+
+### Requirement: Disk chart baseline floor [I42-F3a]
+The expanded memory panel disk chart baseline floor SHALL use `disk_scale * 0.035` (matching network), not `disk_scale * 0.005`.
+
+> SHALL-42-F3a
+
+### Requirement: Disk chart label spacing [I42-F3b]
+The expanded memory panel disk chart labels SHALL include a space between arrow and word: `"↓ write"` and `"↑ read"` (not `"↓write"` / `"↑read"`).
+
+> SHALL-42-F3b
+
+### Requirement: Disk chart label colors [I42-F3c]
+The expanded memory panel disk chart labels SHALL use positional color mapping: write label (top half) uses `theme.net_download`, read label (bottom half) uses `theme.net_upload`.
+
+> SHALL-42-F3c
+
+### Requirement: Disk chart gauge-to-chart margin [I42-F3d]
+The expanded memory panel SHALL include 1-row margin between the disk gauge and the disk chart.
+
+> SHALL-42-F3d
+
+### Requirement: Network expanded label colors [I42-F4]
+The expanded network panel chart overlay labels SHALL remain `theme.muted`, matching non-expanded behavior. No color change or additional margin needed (max-rates row already provides separation).
+
+> SHALL-42-F4
+
+### Requirement: Battery header width calculation [I42-F6]
+The dashboard header battery gauge width calculation SHALL use `UnicodeWidthStr::width()` instead of `.len()` to correctly measure display width of Unicode characters.
+
+> SHALL-42-F6
