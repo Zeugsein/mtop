@@ -5,8 +5,9 @@ use ratatui::widgets::*;
 
 use crate::metrics::MetricsSnapshot;
 use super::{AppState, PanelId, theme, braille, gauge, gradient};
-use super::helpers::{format_bytes_rate_compact, truncate_with_ellipsis, is_infrastructure_interface, format_baudrate, sort_indices};
+use super::helpers::{format_bytes_rate_compact, truncate_with_ellipsis, truncate_by_display_width, pad_to_display_width, is_infrastructure_interface, format_baudrate, sort_indices};
 use super::panels::render_graph_with_baseline;
+use super::panels::{COL_PID, COL_CPU, COL_MEM, COL_POW, COL_THR, COL_FIXED_TOTAL};
 
 
 pub(crate) fn draw_expanded_panel(f: &mut Frame, area: Rect, panel: PanelId, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
@@ -812,37 +813,48 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
 }
 
 fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
-    let sort_label = state.sort_mode.label();
+    // F6: dim border matching non-expanded
+    let border_color = theme::dim_color(theme.process_accent, theme::adaptive_border_dim(theme));
+
+    // F7: sort indicator moved to bottom-right, removed from title
     let block = Block::default()
         .title(Line::from(vec![
             Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[5]), Style::default().fg(theme.muted)),
-            Span::styled("proc  ", Style::default().fg(theme.fg).bold()),
-            Span::styled(format!(" sort: {} ", sort_label), Style::default().fg(theme.muted)),
+            Span::styled("proc ", Style::default().fg(theme.fg).bold()),
         ]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme.process_accent));
+        .border_style(Style::default().fg(border_color));
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
     let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
 
-    if inner.width == 0 || inner.height == 0 { return; }
+    if inner.width == 0 || inner.height < 3 { return; }
 
     let gb = 1024.0 * 1024.0 * 1024.0;
     let mb = 1024.0 * 1024.0;
 
-    // Header row with thread count and I/O
+    // F8: expanded-specific column widths (adds io r, io w, user to base)
+    let col_io: usize = 7;
+    let col_user: usize = 9; // " " + 8 chars
+    let expanded_fixed = COL_FIXED_TOTAL + col_io + col_io + col_user;
+    // F4: dynamic name width
+    let panel_width = inner.width as usize;
+    let name_width = panel_width.saturating_sub(expanded_fixed).max(4);
+
+    // F1: pid first; F2: all headers muted
     let header = Line::from(vec![
-        Span::styled(format!("{:<24}", "name"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>6}", "cpu%"), Style::default().fg(theme.cpu_accent).bold()),
-        Span::styled(format!("{:>8}", "mem"), Style::default().fg(theme.mem_accent).bold()),
-        Span::styled(format!("{:>7}", "power"), Style::default().fg(theme.power_accent).bold()),
-        Span::styled(format!("{:>7}", "thread"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "io r"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "io w"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!("{:>7}", "pid"), Style::default().fg(theme.muted).bold()),
-        Span::styled(format!(" {:<8}", "user"), Style::default().fg(theme.muted).bold()),
+        Span::styled(format!("{:<w$}", "pid", w = COL_PID), Style::default().fg(theme.muted)),
+        Span::styled(" ", Style::default()),
+        Span::styled(pad_to_display_width("name", name_width), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "cpu", w = COL_CPU + 2), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "mem", w = COL_MEM + 2), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "pow", w = COL_POW + 2), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "thread", w = COL_THR), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "io r", w = col_io), Style::default().fg(theme.muted)),
+        Span::styled(format!("{:>w$}", "io w", w = col_io), Style::default().fg(theme.muted)),
+        Span::styled(format!(" {:<8}", "user"), Style::default().fg(theme.muted)),
     ]);
     f.render_widget(Paragraph::new(header), Rect::new(inner.x, inner.y, inner.width, 1));
 
@@ -864,14 +876,20 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         return;
     }
 
+    // Reserve header + sort indicator rows
     let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
-    let max_visible = inner.height.saturating_sub(1) as usize;
+    let max_visible = inner.height.saturating_sub(2) as usize;
 
     for (i, &idx) in indices.iter().skip(scroll).take(max_visible).enumerate() {
         let y = inner.y + 1 + i as u16;
-        if y >= inner.y + inner.height { break; }
+        if y >= inner.y + inner.height.saturating_sub(1) { break; }
 
         let proc = &procs[idx];
+
+        // F3: CJK-aware name truncation and padding
+        let name_trunc = truncate_by_display_width(&proc.name, name_width);
+        let name_padded = pad_to_display_width(&name_trunc, name_width);
+
         let mem_display = if proc.mem_bytes as f64 >= gb {
             format!("{:.1}G", proc.mem_bytes as f64 / gb)
         } else {
@@ -881,24 +899,37 @@ fn draw_process_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: 
         let cpu_norm = if max_cpu > 0.0 { (proc.cpu_pct / max_cpu).clamp(0.0, 1.0) as f64 } else { 0.0 };
         let mem_norm = if max_mem > 0 { (proc.mem_bytes as f64 / max_mem as f64).clamp(0.0, 1.0) } else { 0.0 };
         let pwr_norm = if max_power > 0.0 { (proc.power_w / max_power).clamp(0.0, 1.0) as f64 } else { 0.0 };
-        let cpu_color = gradient::value_to_color(cpu_norm, theme);
-        let mem_color = gradient::value_to_color(mem_norm, theme);
-        let pwr_color = gradient::value_to_color(pwr_norm, theme);
 
+        // F5: dot thresholds matching non-expanded
+        let cpu_dot_color = if proc.cpu_pct < 0.1 { theme.muted } else { gradient::value_to_color(cpu_norm, theme) };
+        let mem_dot_color = if proc.mem_bytes < 1_048_576 { theme.muted } else { gradient::value_to_color(mem_norm, theme) };
+        let pow_dot_color = if proc.power_w < 0.1 { theme.muted } else { gradient::value_to_color(pwr_norm, theme) };
+
+        // F1: pid first; F9: use \u{2022} consistently
         let line = Line::from(vec![
-            Span::styled(format!("{:<24}", truncate_with_ellipsis(&proc.name, 24)), Style::default().fg(theme.fg)),
-            Span::styled("•", Style::default().fg(cpu_color)),
-            Span::styled(format!("{:>4.1}%", proc.cpu_pct), Style::default().fg(cpu_color)),
-            Span::styled("•", Style::default().fg(mem_color)),
-            Span::styled(format!("{:>7}", mem_display), Style::default().fg(mem_color)),
-            Span::styled("•", Style::default().fg(pwr_color)),
-            Span::styled(format!("{:>5.1}W", proc.power_w), Style::default().fg(pwr_color)),
-            Span::styled(format!("{:>7}", proc.thread_count), Style::default().fg(theme.muted)),
-            Span::styled(format!("{:>7}", format_bytes_rate_compact(proc.io_read_bytes_sec)), Style::default().fg(theme.muted)),
-            Span::styled(format!("{:>7}", format_bytes_rate_compact(proc.io_write_bytes_sec)), Style::default().fg(theme.muted)),
-            Span::styled(format!("{:>7}", proc.pid), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:<w$}", proc.pid, w = COL_PID), Style::default().fg(theme.muted)),
+            Span::styled(" ", Style::default()),
+            Span::styled(name_padded, Style::default().fg(theme.fg)),
+            Span::styled(" \u{2022}", Style::default().fg(cpu_dot_color)),
+            Span::styled(format!("{:>w$.1}", proc.cpu_pct, w = COL_CPU), Style::default().fg(theme.fg)),
+            Span::styled(" \u{2022}", Style::default().fg(mem_dot_color)),
+            Span::styled(format!("{:>w$}", mem_display, w = COL_MEM), Style::default().fg(theme.fg)),
+            Span::styled(" \u{2022}", Style::default().fg(pow_dot_color)),
+            Span::styled(format!("{:>w$.1}", proc.power_w, w = COL_POW), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$}", proc.thread_count, w = COL_THR), Style::default().fg(theme.fg)),
+            Span::styled(format!("{:>w$}", format_bytes_rate_compact(proc.io_read_bytes_sec), w = col_io), Style::default().fg(theme.muted)),
+            Span::styled(format!("{:>w$}", format_bytes_rate_compact(proc.io_write_bytes_sec), w = col_io), Style::default().fg(theme.muted)),
             Span::styled(format!(" {:<8}", truncate_with_ellipsis(&proc.user, 8)), Style::default().fg(theme.muted)),
         ]);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
+
+    // F7: sort indicator at bottom-right matching non-expanded
+    let sort_y = inner.y + inner.height.saturating_sub(1);
+    let sort_text = format!("sort: {} \u{2193}", state.sort_mode.label());
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(sort_text, Style::default().fg(theme.muted)))
+            .alignment(ratatui::layout::Alignment::Right)),
+        Rect::new(inner.x, sort_y, inner.width, 1),
+    );
 }
