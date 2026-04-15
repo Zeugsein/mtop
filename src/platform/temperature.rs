@@ -474,9 +474,9 @@ fn smc_read_temp(conn: u32, key: &str) -> Option<f32> {
                 Some(raw as i16 as f32 / 256.0)
             }
             "flt " => {
-                // 32-bit float (big-endian)
+                // 32-bit float (little-endian — Apple SMC stores flt in LE)
                 let bytes = [output.bytes[0], output.bytes[1], output.bytes[2], output.bytes[3]];
-                Some(f32::from_be_bytes(bytes))
+                Some(f32::from_le_bytes(bytes))
             }
             "fpe2" => {
                 // FPE2: unsigned 14.2 fixed point
