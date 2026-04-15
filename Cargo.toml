@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "System monitor for macOS — TUI, HTTP API, pipe mode"
 license = "MIT"
+default-run = "mtop"
 repository = "https://github.com/Zeugsein/mtop"
 
 [[bin]]
