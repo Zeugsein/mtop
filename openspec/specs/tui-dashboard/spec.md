@@ -1750,3 +1750,39 @@ The IOKit FFI block SHALL declare `IOHIDEventSystemClientSetMatching(client: *co
 All CF objects created for the matching dictionary (CFStrings for keys, CFNumbers for values, the CFDictionary itself) SHALL be released via CFRelease after `IOHIDEventSystemClientSetMatching` returns. The matching dictionary creation failing SHALL cause `hid_read_temperatures()` to return None.
 
 > SHALL-47-F1c
+
+**NOTE: iter46 SHALLs (F1a-F1e) and iter47 SHALLs (F1a-F1c) are SUPERSEDED.** The HID sensor name classification and matching filter were reverted in commit `782f3de` (iter47b). The HID path now uses pooled averages without sensor name distinction. Temperature accuracy was resolved via SMC struct layout and endianness fixes in iter48.
+
+---
+
+## Iteration 48 — SMC temperature fix (retrospective recovery)
+
+### Requirement: SMC flt endianness [I48-F1a]
+`smc_read_temp()` SHALL decode SMC keys with data type "flt " as 32-bit IEEE 754 floats in **little-endian** byte order (`f32::from_le_bytes`), matching Apple SMC hardware byte order.
+
+> SHALL-48-F1a
+
+### Requirement: SmcKeyData repr(C) layout [I48-F2a]
+`SmcKeyData` SHALL be declared `#[repr(C)]` (NOT `#[repr(C, packed)]`) with natural alignment padding matching the macOS 15 AppleSMC kernel driver. Compile-time assertions SHALL verify: `data8` at offset 42, `data32` at offset 44, `bytes` at offset 48, total size 80 bytes.
+
+> SHALL-48-F2a
+
+### Requirement: SmcKeyInfoData repr(C) layout [I48-F2b]
+`SmcKeyInfoData` SHALL be declared `#[repr(C)]` (NOT `#[repr(C, packed)]`) with natural alignment padding. Compile-time assertion SHALL verify size is 12 bytes (u32 + u32 + u8 + 3 pad).
+
+> SHALL-48-F2b
+
+### Requirement: Dynamic type filter flt-only [I48-F2c]
+`smc_enumerate_temp_keys()` SHALL accept only "flt " as a valid key data type, excluding "sp78" and all other types, matching macmon's type filter for M-series hardware.
+
+> SHALL-48-F2c
+
+### Requirement: Key prefix classification without TC [I48-F2d]
+`smc_enumerate_temp_keys()` SHALL classify keys: prefix "Tp" or "Te" as CPU, "Tg" or "TG" as GPU, "Ts" or "TH" as SSD, "TB" as battery. Keys with prefix "TC" (Intel legacy) SHALL NOT appear in any category.
+
+> SHALL-48-F2d
+
+### Requirement: Static fallback without Intel keys [I48-F2e]
+The static CPU fallback key list SHALL NOT include Intel-legacy keys ("TC0P", "TC0C", "TC1C", "TC2C", "TC0F"). It SHALL contain only M-series keys: "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02".
+
+> SHALL-48-F2e
