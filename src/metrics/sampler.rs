@@ -128,7 +128,7 @@ impl Sampler {
                 out.push_str(&format!("  Battery: {}\n", if battery_keys.is_empty() { "none".to_string() } else { battery_keys.join(", ") }));
             } else {
                 out.push_str("\nSMC Keys (static fallback):\n");
-                out.push_str("  CPU: TC0P, TC0C, TC1C, TC2C, TC0F, Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");
+                out.push_str("  CPU: Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");
                 out.push_str("  GPU: TG0P, TG0D, TG1D, Tg05, Tg0f, Tg0j\n");
             }
         } else {

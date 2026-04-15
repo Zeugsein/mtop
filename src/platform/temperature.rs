@@ -70,7 +70,7 @@ fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
             .filter(|&t| t > 0.0 && t < 130.0)
             .collect()
     } else {
-        let cpu_keys = ["TC0P", "TC0C", "TC1C", "TC2C", "TC0F", "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
+        let cpu_keys = ["Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
         cpu_keys.iter()
             .filter_map(|k| smc_read_temp(conn, k))
             .filter(|&t| t > 0.0 && t < 130.0)
@@ -232,12 +232,12 @@ pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>, Vec<Stri
             let type_bytes = info_output.key_info.data_type.to_be_bytes();
             let type_str = std::str::from_utf8(&type_bytes).unwrap_or("");
 
-            if type_str != "flt " && type_str != "sp78" {
+            if type_str != "flt " {
                 continue;
             }
 
             // Classify by prefix
-            if key_str.starts_with("Tp") || key_str.starts_with("Te") || key_str.starts_with("TC") {
+            if key_str.starts_with("Tp") || key_str.starts_with("Te") {
                 cpu_keys.push(key_str);
             } else if key_str.starts_with("Tg") || key_str.starts_with("TG") {
                 gpu_keys.push(key_str);
@@ -520,36 +520,41 @@ const SMC_CMD_READ_KEYINFO: u8 = 9;
 const KERNEL_INDEX_SMC: u8 = 2;
 const MASTER_PORT: u32 = 0;
 
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Clone, Copy)]
 struct SmcKeyInfoData {
     data_size: u32,
     data_type: u32,
     data_attributes: u8,
+    // 3 bytes alignment padding (natural repr(C) padding to make size a multiple of 4)
 }
 
-// Compile-time assertions: SmcKeyInfoData must be exactly 9 bytes,
+// Compile-time assertions: SmcKeyInfoData must be exactly 12 bytes (4+4+1+3 align padding),
 // SmcKeyData must be exactly 80 bytes to match the macOS kernel struct layout.
-const _: () = assert!(std::mem::size_of::<SmcKeyInfoData>() == 9);
+// Uses repr(C) natural alignment so field offsets match what the macOS 15 SMC driver expects:
+//   key_info starts at 28 (2 bytes padding after p_limit_data ends at 26, for 4-byte alignment),
+//   result at 40, status at 41, data8 at 42, data32 at 44, bytes at 48.
+const _: () = assert!(std::mem::size_of::<SmcKeyInfoData>() == 12);
 const _: () = assert!(std::mem::size_of::<SmcKeyData>() == 80);
-// Field offset assertions (from macOS AppleSMC kernel interface).
+// Field offset assertions (from macOS AppleSMC kernel interface, verified against macmon).
 const _: () = assert!(std::mem::offset_of!(SmcKeyData, key) == 0);
-const _: () = assert!(std::mem::offset_of!(SmcKeyData, data8) == 37);
-const _: () = assert!(std::mem::offset_of!(SmcKeyData, data32) == 38);
+const _: () = assert!(std::mem::offset_of!(SmcKeyData, data8) == 42);
+const _: () = assert!(std::mem::offset_of!(SmcKeyData, data32) == 44);
 const _: () = assert!(std::mem::offset_of!(SmcKeyData, bytes) == 48);
 
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Clone, Copy)]
 struct SmcKeyData {
-    key: u32,               // offset 0, size 4
-    vers: [u8; 6],          // offset 4, size 6
+    key: u32,               // offset 0,  size 4
+    vers: [u8; 6],          // offset 4,  size 6
     p_limit_data: [u8; 16], // offset 10, size 16
-    key_info: SmcKeyInfoData, // offset 26, size 9
-    result: u8,             // offset 35, size 1
-    status: u8,             // offset 36, size 1
-    data8: u8,              // offset 37, size 1
-    data32: u32,            // offset 38, size 4
-    _pad: [u8; 6],          // offset 42, size 6 (padding to align bytes at offset 48)
+    // 2 bytes alignment padding here (key_info has u32 fields → 4-byte alignment, 26→28)
+    key_info: SmcKeyInfoData, // offset 28, size 12
+    result: u8,             // offset 40, size 1
+    status: u8,             // offset 41, size 1
+    data8: u8,              // offset 42, size 1
+    // 1 byte alignment padding here (data32 needs 4-byte alignment, 43→44)
+    data32: u32,            // offset 44, size 4
     bytes: [u8; 32],        // offset 48, size 32
 }                           // total: 80 bytes
 
