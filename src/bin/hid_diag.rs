@@ -1,6 +1,8 @@
-/// Diagnostic binary for HID temperature sensor enumeration.
-/// Run: cargo run --bin hid_diag
-/// Prints step-by-step what SetMatching + CopyServices finds on this hardware.
+//! Diagnostic binary for HID temperature sensor enumeration.
+//! Run: cargo run --bin hid_diag
+//! Prints step-by-step what SetMatching + CopyServices finds on this hardware.
+#![allow(unsafe_op_in_unsafe_fn)]
+
 fn main() {
     unsafe { run() };
 }
@@ -57,44 +59,102 @@ unsafe fn from_cfstr(cf: *const libc::c_void) -> String {
     }
 }
 
+struct Row {
+    idx: i64,
+    temp: Option<f64>,
+    name: Option<String>,
+}
+
+unsafe fn collect_services(services: *const libc::c_void, with_product: bool) -> Vec<Row> {
+    let count = CFArrayGetCount(services);
+    let product_key = if with_product { cfstr("Product") } else { std::ptr::null() };
+    let mut rows = Vec::new();
+
+    for i in 0..count {
+        let sc = CFArrayGetValueAtIndex(services, i);
+        if sc.is_null() { continue; }
+
+        let ev = IOHIDServiceClientCopyEvent(sc, 15, 0, 0);
+        let temp = if !ev.is_null() {
+            let t = IOHIDEventGetFloatValue(ev, 15 << 16);
+            CFRelease(ev);
+            Some(t)
+        } else {
+            None
+        };
+
+        let name = if with_product && !product_key.is_null() {
+            let name_cf = IOHIDServiceClientCopyProperty(sc, product_key);
+            if name_cf.is_null() {
+                None
+            } else {
+                let s = from_cfstr(name_cf);
+                CFRelease(name_cf);
+                Some(s)
+            }
+        } else {
+            None
+        };
+
+        rows.push(Row { idx: i, temp, name });
+    }
+
+    if with_product && !product_key.is_null() {
+        CFRelease(product_key);
+    }
+    rows
+}
+
+fn print_table(rows: &[Row], only_with_temp: bool) {
+    let col_w = 36usize;
+    let rows: Vec<_> = if only_with_temp {
+        rows.iter().filter(|r| r.temp.is_some()).collect()
+    } else {
+        rows.iter().collect()
+    };
+
+    for chunk in rows.chunks(2) {
+        let mut line = String::new();
+        for r in chunk {
+            let temp_s = match r.temp {
+                Some(t) => format!("{:.1}°C", t),
+                None => "no-event".into(),
+            };
+            let name_s = match &r.name {
+                Some(n) => n.as_str(),
+                None => "<no Product>",
+            };
+            let cell = format!("[{:3}] {:7}  {}", r.idx, temp_s, name_s);
+            let padded = format!("{:<width$}", cell, width = col_w);
+            line.push_str(&padded);
+            line.push_str("  ");
+        }
+        println!("{}", line.trim_end());
+    }
+}
+
 unsafe fn run() {
     println!("=== HID temperature diagnostic ===");
 
-    // Phase 1: no filter — enumerate all services
-    println!("\n--- Phase 1: no filter (all services) ---");
+    // Phase 1: no filter
+    println!("\n--- Phase 1: no filter ---");
     let client_all = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
     if client_all.is_null() { println!("CLIENT CREATE FAILED"); return; }
     let services_all = IOHIDEventSystemClientCopyServices(client_all);
     if services_all.is_null() {
         println!("CopyServices (no filter) returned null");
     } else {
-        let n = CFArrayGetCount(services_all);
-        println!("CopyServices (no filter): {} services", n);
-        let mut temp_event_count = 0i64;
-        for i in 0..n {
-            let sc = CFArrayGetValueAtIndex(services_all, i);
-            if sc.is_null() { continue; }
-            let ev = IOHIDServiceClientCopyEvent(sc, 15, 0, 0);
-            if !ev.is_null() {
-                let t = IOHIDEventGetFloatValue(ev, 15 << 16);
-                CFRelease(ev);
-                let name_cf = IOHIDServiceClientCopyProperty(sc, cfstr("Product"));
-                let name = if name_cf.is_null() { "<no Product>".into() } else {
-                    let s = from_cfstr(name_cf);
-                    CFRelease(name_cf);
-                    s
-                };
-                println!("  [{}] temp={:.1}°C  name={}", i, t, name);
-                temp_event_count += 1;
-            }
-        }
-        println!("  total services with temp events: {}", temp_event_count);
+        let total = CFArrayGetCount(services_all);
+        let rows = collect_services(services_all, true);
+        let with_temp: Vec<_> = rows.iter().filter(|r| r.temp.is_some()).collect();
+        println!("{} services total, {} with temp events:", total, with_temp.len());
+        print_table(&rows, true);
         CFRelease(services_all);
     }
     CFRelease(client_all);
 
-    // Phase 2: with Apple Vendor temperature sensor filter
-    println!("\n--- Phase 2: with SetMatching filter ---");
+    // Phase 2: Apple Vendor temperature sensor filter
+    println!("\n--- Phase 2: SetMatching filter (PrimaryUsagePage=0xff00, PrimaryUsage=0x0005) ---");
     let client = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
     if client.is_null() { println!("CLIENT CREATE FAILED"); return; }
 
@@ -124,32 +184,12 @@ unsafe fn run() {
         return;
     }
 
-    let count = CFArrayGetCount(services);
-    println!("CopyServices (filtered): {} services", count);
+    let total = CFArrayGetCount(services);
+    let rows = collect_services(services, true);
+    let with_temp: Vec<_> = rows.iter().filter(|r| r.temp.is_some()).collect();
+    println!("{} filtered services, {} with temp events:", total, with_temp.len());
+    print_table(&rows, false);
 
-    let product_key = cfstr("Product");
-    for i in 0..count {
-        let sc = CFArrayGetValueAtIndex(services, i);
-        if sc.is_null() { println!("  [{}] null service", i); continue; }
-
-        let name_cf = IOHIDServiceClientCopyProperty(sc, product_key);
-        let name = if name_cf.is_null() { "<no Product>".into() } else {
-            let s = from_cfstr(name_cf);
-            CFRelease(name_cf);
-            s
-        };
-
-        let ev = IOHIDServiceClientCopyEvent(sc, 15, 0, 0);
-        if ev.is_null() {
-            println!("  [{}] name={:?}  event=null", i, name);
-        } else {
-            let t = IOHIDEventGetFloatValue(ev, 15 << 16);
-            CFRelease(ev);
-            println!("  [{}] name={:?}  temp={:.1}°C", i, name, t);
-        }
-    }
-
-    CFRelease(product_key);
     CFRelease(services);
     CFRelease(client);
 
