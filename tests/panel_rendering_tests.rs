@@ -945,11 +945,12 @@ fn memory_panel_swap_guard() {
 // ===========================================================================
 
 #[test]
-fn idle_threshold_gpu() {
+fn idle_threshold_gpu_removed() {
+    // iter45: gpu_idle suppression was removed — no idle threshold in power.rs
     let power_src = include_str!("../src/tui/panels/power.rs");
     assert!(
-        power_src.contains("< 0.5"),
-        "expected GPU idle threshold `< 0.5` in power.rs"
+        power_src.contains("removed gpu_idle"),
+        "expected gpu_idle removal comment in power.rs (iter45)"
     );
 }
 

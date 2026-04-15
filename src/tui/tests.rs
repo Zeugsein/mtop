@@ -492,18 +492,20 @@ fn key_minus_floors_at_100() {
 }
 
 #[test]
-fn key_j_scrolls_down() {
+fn key_j_selects_next_in_expanded_process() {
     let mut state = AppState::default();
+    state.expanded_panel = Some(PanelId::Process);
+    state.process_selected = Some(0);
     input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
-    assert_eq!(state.process_scroll, 1);
+    assert_eq!(state.process_selected, Some(1));
 }
 
 #[test]
-fn key_k_scrolls_up() {
+fn key_j_noop_outside_expanded() {
     let mut state = AppState::default();
-    state.process_scroll = 5;
-    input::handle_key_event(make_key(KeyCode::Char('k')), &mut state);
-    assert_eq!(state.process_scroll, 4);
+    let scroll_before = state.process_scroll;
+    input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
+    assert_eq!(state.process_scroll, scroll_before);
 }
 
 #[test]
