@@ -157,7 +157,7 @@ fn smc_read_fan_rpm(conn: u32, key: &str) -> Option<u32> {
     let key_bytes: [u8; 4] = [
         key.as_bytes()[0], key.as_bytes()[1], key.as_bytes()[2], key.as_bytes()[3],
     ];
-    // SAFETY: SmcKeyData is repr(C, packed) with compile-time size/offset assertions.
+    // SAFETY: SmcKeyData is repr(C) with compile-time size/offset assertions.
     // smc_call communicates with the SMC driver via IOConnectCallStructMethod.
     // conn is a valid IOService connection obtained from smc_open.
     unsafe {
@@ -431,7 +431,7 @@ fn smc_read_temp(conn: u32, key: &str) -> Option<f32> {
         key.as_bytes()[3],
     ];
 
-    // SAFETY: SmcKeyData is repr(C, packed) with verified layout. Two smc_call rounds:
+    // SAFETY: SmcKeyData is repr(C) with verified layout. Two smc_call rounds:
     // first reads key info (data type + size), second reads the actual value bytes.
     // Decoding uses the returned data type to interpret bytes correctly (sp78/flt/fpe2).
     unsafe {
