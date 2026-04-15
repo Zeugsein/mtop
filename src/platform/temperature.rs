@@ -184,7 +184,7 @@ fn smc_read_fan_rpm(conn: u32, key: &str) -> Option<u32> {
 }
 
 /// Dynamically enumerate SMC temperature keys via SMC_CMD_READ_INDEX.
-/// Returns (cpu_keys, gpu_keys, ssd_keys, battery_keys) filtered by prefix and flt/sp78 data type.
+/// Returns (cpu_keys, gpu_keys, ssd_keys, battery_keys) filtered by prefix and flt data type.
 /// Returns empty vecs if enumeration fails (caller falls back to static list).
 /// Public for debug_info().
 pub fn smc_enumerate_temp_keys(conn: u32) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
