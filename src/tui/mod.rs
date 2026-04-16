@@ -203,10 +203,13 @@ pub fn render_mem_panel_to_string(width: u16, height: u16, snapshot: MetricsSnap
     };
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let swap_rate = 512.0 * 1024.0 * (t * std::f64::consts::PI).sin().abs();
+        let factor = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
         let mut varied = snap.clone();
-        varied.memory.swap_in_bytes_sec = swap_rate;
-        varied.cpu.total_usage = (0.1 + 0.3 * (t * std::f64::consts::PI).sin()) as f32;
+        // Disk I/O forms the sparkline — vary read/write rates
+        varied.disk.read_bytes_sec = (snap.disk.read_bytes_sec as f32 * factor) as u64;
+        varied.disk.write_bytes_sec = (snap.disk.write_bytes_sec as f32 * factor) as u64;
+        // cpu for background cpu sparkline
+        varied.cpu.total_usage = (factor * 0.3).clamp(0.0, 1.0);
         state.history.push(&varied);
     }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
@@ -366,6 +369,10 @@ pub fn story_mem_near_full_fixture() -> MetricsSnapshot {
     s.memory.pressure_level = 4;
     s.memory.swap_total = 4 * gb; s.memory.swap_used = 2 * gb;
     s.memory.swap_in_bytes_sec = 512.0 * 1024.0; s.memory.swap_out_bytes_sec = 256.0 * 1024.0;
+    s.disk.total_bytes = 512 * 1024 * 1024 * 1024; // 512 GB SSD
+    s.disk.used_bytes = 380 * 1024 * 1024 * 1024;  // 380 GB used (~74%)
+    s.disk.read_bytes_sec = 80_000_000;   // 80 MB/s read
+    s.disk.write_bytes_sec = 35_000_000;  // 35 MB/s write
     s
 }
 
@@ -427,6 +434,46 @@ pub fn story_process_populated_fixture() -> MetricsSnapshot {
     s
 }
 
+fn vary_cpu(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
+    let mut v = snap.clone();
+    v.cpu.total_usage = f.clamp(0.0, 1.0);
+    v.cpu.e_cluster.usage = (f * 0.7).clamp(0.0, 1.0);
+    v.cpu.p_cluster.usage = (f * 0.95).clamp(0.0, 1.0);
+    v
+}
+
+fn vary_gpu(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
+    let mut v = snap.clone();
+    v.gpu.usage = f.clamp(0.0, 1.0);
+    v.cpu.total_usage = (f * 0.4).clamp(0.0, 1.0);
+    v
+}
+
+fn vary_disk(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
+    let mut v = snap.clone();
+    // Disk I/O rates form the sparkline (memory stays near-full — that IS the story)
+    v.disk.read_bytes_sec = (snap.disk.read_bytes_sec as f32 * f) as u64;
+    v.disk.write_bytes_sec = (snap.disk.write_bytes_sec as f32 * f) as u64;
+    v.cpu.total_usage = (f * 0.3).clamp(0.0, 1.0);
+    v
+}
+
+fn vary_network(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
+    let mut v = snap.clone();
+    for iface in &mut v.network.interfaces {
+        iface.rx_bytes_sec *= f as f64;
+        iface.tx_bytes_sec *= f as f64;
+    }
+    v.cpu.total_usage = (f * 0.2).clamp(0.0, 1.0);
+    v
+}
+
+fn vary_process(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
+    let mut v = snap.clone();
+    v.cpu.total_usage = f.clamp(0.0, 1.0);
+    v
+}
+
 /// Run the interactive story browser in the current terminal.
 /// Stories: all panels with meaningful fixture data.
 /// Navigate: n/→ next, p/← prev, q quit.
@@ -437,6 +484,7 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::stdout;
 
     type DrawFn = fn(&mut ratatui::Frame, ratatui::layout::Rect, &MetricsSnapshot, &AppState, &theme::Theme);
+    type VaryFn = fn(&MetricsSnapshot, f32) -> MetricsSnapshot;
 
     struct Story {
         name: &'static str,
@@ -444,16 +492,17 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
         show_detail: bool,
         theme_idx: usize,
         draw_fn: DrawFn,
+        vary_fn: VaryFn,
     }
 
     let dark = 0usize;
     let stories: Vec<Story> = vec![
-        Story { name: "cpu compact — normal",  snapshot: story_cpu_normal_fixture(),      show_detail: false, theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
-        Story { name: "cpu show — normal",     snapshot: story_cpu_normal_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
-        Story { name: "gpu active",            snapshot: story_gpu_active_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_gpu_panel_v2 },
-        Story { name: "mem near-full",         snapshot: story_mem_near_full_fixture(),   show_detail: true,  theme_idx: dark, draw_fn: panels::draw_mem_disk_panel_v2 },
-        Story { name: "network active",        snapshot: story_network_active_fixture(),  show_detail: true,  theme_idx: dark, draw_fn: panels::draw_network_panel_v2 },
-        Story { name: "process populated",     snapshot: story_process_populated_fixture(), show_detail: true, theme_idx: dark, draw_fn: panels::draw_process_panel_v2 },
+        Story { name: "cpu compact", snapshot: story_cpu_normal_fixture(),        show_detail: false, theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2,     vary_fn: vary_cpu },
+        Story { name: "cpu show",    snapshot: story_cpu_normal_fixture(),        show_detail: true,  theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2,     vary_fn: vary_cpu },
+        Story { name: "gpu active",  snapshot: story_gpu_active_fixture(),        show_detail: true,  theme_idx: dark, draw_fn: panels::draw_gpu_panel_v2,     vary_fn: vary_gpu },
+        Story { name: "mem near-full",      snapshot: story_mem_near_full_fixture(),    show_detail: true,  theme_idx: dark, draw_fn: panels::draw_mem_disk_panel_v2, vary_fn: vary_disk },
+        Story { name: "network active",     snapshot: story_network_active_fixture(),   show_detail: true,  theme_idx: dark, draw_fn: panels::draw_network_panel_v2,  vary_fn: vary_network },
+        Story { name: "process populated",  snapshot: story_process_populated_fixture(), show_detail: true, theme_idx: dark, draw_fn: panels::draw_process_panel_v2,  vary_fn: vary_process },
     ];
 
     let total = stories.len();
@@ -483,12 +532,11 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
             theme_idx: story.theme_idx,
             ..AppState::default()
         };
-        // Populate history with sine-wave fluctuating values for realistic sparklines
+        // Populate history with panel-specific sine-wave fluctuating values for realistic sparklines
         for i in 0..50 {
             let t = i as f64 / 49.0;
-            let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
-            let mut varied = snap.clone();
-            varied.cpu.total_usage = usage.clamp(0.0, 1.0);
+            let factor = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
+            let varied = (story.vary_fn)(&snap, factor);
             state.history.push(&varied);
         }
 
