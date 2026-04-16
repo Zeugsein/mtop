@@ -17,6 +17,7 @@ path = "src/lib.rs"
 
 [dev-dependencies]
 libc = "0.2"
+insta = "1"
 
 [dependencies]
 ratatui = "0.30"
