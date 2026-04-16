@@ -88,12 +88,15 @@ pub fn render_cpu_panel_compact_to_string(width: u16, height: u16, snapshot: Met
     use ratatui::Terminal;
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = AppState {
+    let snap = snapshot.clone();
+    let mut state = AppState {
         snapshot,
         show_detail: false,
         theme_idx,
         ..AppState::default()
     };
+    // Populate history so sparkline charts render (50 identical samples = flat line)
+    for _ in 0..50 { state.history.push(&snap); }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_cpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -113,12 +116,15 @@ pub fn render_cpu_panel_expanded_to_string(width: u16, height: u16, snapshot: Me
     use ratatui::Terminal;
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
-    let state = AppState {
+    let snap = snapshot.clone();
+    let mut state = AppState {
         snapshot,
         show_detail: true,
         theme_idx,
         ..AppState::default()
     };
+    // Populate history so sparkline charts render (50 identical samples = flat line)
+    for _ in 0..50 { state.history.push(&snap); }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_cpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -198,12 +204,15 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let (name, show_detail, theme_idx) = stories[current];
         let th = &theme::THEMES[theme_idx];
-        let state = AppState {
+        let snap = snapshot.clone();
+        let mut state = AppState {
             snapshot: snapshot.clone(),
             show_detail,
             theme_idx,
             ..AppState::default()
         };
+        // Populate history so sparkline charts render
+        for _ in 0..50 { state.history.push(&snap); }
 
         terminal.draw(|f| {
             let full = f.area();
