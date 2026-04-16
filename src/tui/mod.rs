@@ -138,50 +138,282 @@ pub fn render_cpu_panel_expanded_to_string(width: u16, height: u16, snapshot: Me
     text
 }
 
+/// Test helper: render the GPU panel (show_detail=true) to a string.
+pub fn render_gpu_panel_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let snap = snapshot.clone();
+    let mut state = AppState {
+        snapshot,
+        show_detail: true,
+        theme_idx,
+        ..AppState::default()
+    };
+    for _ in 0..50 { state.history.push(&snap); }
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_gpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Test helper: render the memory/disk panel (show_detail=true) to a string.
+pub fn render_mem_panel_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let snap = snapshot.clone();
+    let mut state = AppState {
+        snapshot,
+        show_detail: true,
+        theme_idx,
+        ..AppState::default()
+    };
+    for _ in 0..50 { state.history.push(&snap); }
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_mem_disk_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Test helper: render the power panel (show_detail=true) to a string.
+pub fn render_power_panel_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let snap = snapshot.clone();
+    let mut state = AppState {
+        snapshot,
+        show_detail: true,
+        theme_idx,
+        ..AppState::default()
+    };
+    for _ in 0..50 { state.history.push(&snap); }
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_power_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Test helper: render the network panel (show_detail=true) to a string.
+pub fn render_network_panel_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let snap = snapshot.clone();
+    let mut state = AppState {
+        snapshot,
+        show_detail: true,
+        theme_idx,
+        ..AppState::default()
+    };
+    for _ in 0..50 { state.history.push(&snap); }
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_network_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Test helper: render the process panel (show_detail=true) to a string.
+pub fn render_process_panel_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let snap = snapshot.clone();
+    let mut state = AppState {
+        snapshot,
+        show_detail: true,
+        theme_idx,
+        ..AppState::default()
+    };
+    for _ in 0..50 { state.history.push(&snap); }
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_process_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Story fixture: cpu panel, normal load (M3 Pro, 42% total)
+pub fn story_cpu_normal_fixture() -> MetricsSnapshot {
+    let mut s = MetricsSnapshot::default();
+    s.soc.chip = "Apple M3 Pro".to_string();
+    s.soc.e_cores = 4; s.soc.p_cores = 6; s.soc.gpu_cores = 18; s.soc.memory_gb = 18;
+    s.cpu.total_usage = 0.42;
+    s.cpu.e_cluster.freq_mhz = 1200; s.cpu.e_cluster.usage = 0.24;
+    s.cpu.p_cluster.freq_mhz = 3400; s.cpu.p_cluster.usage = 0.67;
+    s.cpu.core_usages = vec![0.12, 0.45, 0.08, 0.31, 0.78, 0.55, 0.92, 0.43, 0.61, 0.39];
+    s.power.cpu_w = 8.5; s.power.gpu_w = 3.2; s.power.ane_w = 0.8; s.power.dram_w = 1.5;
+    s.power.package_w = 14.0; s.power.system_w = 16.5; s.power.available = true;
+    s.temperature.cpu_avg_c = 55.0; s.temperature.gpu_avg_c = 48.0;
+    s.temperature.available = true; s.temperature.fan_speeds = vec![1200];
+    s
+}
+
+/// Story fixture: cpu panel, stress load (95%+ all cores)
+pub fn story_cpu_stress_fixture() -> MetricsSnapshot {
+    let mut s = story_cpu_normal_fixture();
+    s.cpu.total_usage = 0.95;
+    s.cpu.e_cluster.usage = 0.92; s.cpu.e_cluster.freq_mhz = 2000;
+    s.cpu.p_cluster.usage = 0.97; s.cpu.p_cluster.freq_mhz = 4050;
+    s.cpu.core_usages = vec![0.89, 0.94, 0.91, 0.88, 0.97, 0.99, 0.96, 0.98, 0.95, 0.93];
+    s.power.cpu_w = 28.5;
+    s.temperature.cpu_avg_c = 87.0;
+    s
+}
+
+/// Story fixture: gpu panel, active usage
+pub fn story_gpu_active_fixture() -> MetricsSnapshot {
+    let mut s = story_cpu_normal_fixture();
+    s.gpu.usage = 0.73; s.gpu.freq_mhz = 1400; s.gpu.available = true;
+    s.power.gpu_w = 12.5; s.power.ane_w = 1.2; s.power.dram_w = 2.3;
+    s.power.cpu_w = 4.5; s.power.package_w = 20.5; s.power.system_w = 25.0;
+    s.temperature.gpu_avg_c = 68.0; s.temperature.cpu_avg_c = 52.0;
+    s
+}
+
+/// Story fixture: mem/disk panel, near full with critical pressure
+pub fn story_mem_near_full_fixture() -> MetricsSnapshot {
+    let mut s = story_cpu_normal_fixture();
+    let gb: u64 = 1024 * 1024 * 1024;
+    s.memory.ram_total = 18 * gb;
+    s.memory.ram_used = 17 * gb;
+    s.memory.wired = 4 * gb;
+    s.memory.app = 10 * gb;
+    s.memory.compressed = 2 * gb;
+    s.memory.cached = gb;
+    s.memory.free = 256 * 1024 * 1024;
+    s.memory.pressure_level = 4;
+    s.memory.swap_total = 4 * gb; s.memory.swap_used = 2 * gb;
+    s.memory.swap_in_bytes_sec = 512.0 * 1024.0; s.memory.swap_out_bytes_sec = 256.0 * 1024.0;
+    s
+}
+
+/// Story fixture: network panel, active traffic on 3 interfaces
+pub fn story_network_active_fixture() -> MetricsSnapshot {
+    use crate::metrics::NetInterface;
+    let mut s = story_cpu_normal_fixture();
+    s.network.interfaces = vec![
+        NetInterface {
+            name: "en0".to_string(),
+            iface_type: "ethernet".to_string(),
+            rx_bytes_sec: 8_500_000.0,
+            tx_bytes_sec: 2_200_000.0,
+            baudrate: 1_000_000_000,
+            rx_bytes_total: 2_500_000_000,
+            tx_bytes_total: 800_000_000,
+            ..Default::default()
+        },
+        NetInterface {
+            name: "en1".to_string(),
+            iface_type: "wifi".to_string(),
+            rx_bytes_sec: 1_200_000.0,
+            tx_bytes_sec: 450_000.0,
+            baudrate: 600_000_000,
+            rx_bytes_total: 900_000_000,
+            tx_bytes_total: 300_000_000,
+            ..Default::default()
+        },
+        NetInterface {
+            name: "utun3".to_string(),
+            iface_type: "vpn".to_string(),
+            rx_bytes_sec: 85_000.0,
+            tx_bytes_sec: 12_000.0,
+            baudrate: 10_000_000,
+            rx_bytes_total: 50_000_000,
+            tx_bytes_total: 15_000_000,
+            ..Default::default()
+        },
+    ];
+    s
+}
+
+/// Story fixture: process panel, 10 populated processes
+pub fn story_process_populated_fixture() -> MetricsSnapshot {
+    use crate::metrics::ProcessInfo;
+    let mut s = story_cpu_normal_fixture();
+    s.processes = vec![
+        ProcessInfo { pid: 1,    name: "kernel_task".to_string(), cpu_pct: 5.2,  mem_bytes: 2_048_000_000, power_w: 0.0, user: "root".to_string(),          thread_count: 512, io_read_bytes_sec: 1_000_000.0, io_write_bytes_sec: 500_000.0, ..Default::default() },
+        ProcessInfo { pid: 312,  name: "WindowServer".to_string(), cpu_pct: 12.4, mem_bytes: 512_000_000,  power_w: 1.8, user: "_windowserver".to_string(),  thread_count: 18,  io_read_bytes_sec: 250_000.0,   io_write_bytes_sec: 100_000.0, ..Default::default() },
+        ProcessInfo { pid: 891,  name: "Safari".to_string(),       cpu_pct: 8.7,  mem_bytes: 350_000_000,  power_w: 0.9, user: "lume".to_string(),           thread_count: 32,  io_read_bytes_sec: 80_000.0,    io_write_bytes_sec: 20_000.0,  ..Default::default() },
+        ProcessInfo { pid: 1204, name: "Xcode".to_string(),        cpu_pct: 45.3, mem_bytes: 1_800_000_000, power_w: 6.2, user: "lume".to_string(),          thread_count: 64,  ..Default::default() },
+        ProcessInfo { pid: 2341, name: "mtop".to_string(),         cpu_pct: 3.1,  mem_bytes: 8_500_000,    power_w: 0.2, user: "lume".to_string(),           thread_count: 4,   ..Default::default() },
+        ProcessInfo { pid: 445,  name: "Finder".to_string(),       cpu_pct: 0.8,  mem_bytes: 95_000_000,   power_w: 0.1, user: "lume".to_string(),           thread_count: 8,   ..Default::default() },
+        ProcessInfo { pid: 678,  name: "Terminal".to_string(),     cpu_pct: 1.4,  mem_bytes: 45_000_000,   power_w: 0.05, user: "lume".to_string(),          thread_count: 6,   ..Default::default() },
+        ProcessInfo { pid: 2890, name: "cargo".to_string(),        cpu_pct: 88.5, mem_bytes: 420_000_000,  power_w: 9.8, user: "lume".to_string(),           thread_count: 16,  ..Default::default() },
+        ProcessInfo { pid: 334,  name: "coreaudiod".to_string(),   cpu_pct: 0.3,  mem_bytes: 22_000_000,   power_w: 0.03, user: "_coreaudio".to_string(),    thread_count: 4,   ..Default::default() },
+        ProcessInfo { pid: 512,  name: "mds_stores".to_string(),   cpu_pct: 15.2, mem_bytes: 180_000_000,  power_w: 1.1, user: "root".to_string(),           thread_count: 8,   ..Default::default() },
+    ];
+    s
+}
+
 /// Run the interactive story browser in the current terminal.
-/// Stories: cpu panel (compact/expanded) × (dark/light themes).
+/// Stories: all panels with meaningful fixture data.
 /// Navigate: n/→ next, p/← prev, q quit.
 pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::{event::{self, Event, KeyCode}, terminal, ExecutableCommand};
     use ratatui::backend::CrosstermBackend;
     use ratatui::Terminal;
     use std::io::stdout;
-    use crate::metrics::MetricsSnapshot;
 
-    // Build fixture snapshot (same as insta tests) — realistic M3 Pro-like data
-    let mut snapshot = MetricsSnapshot::default();
-    snapshot.soc.chip = "Apple M3 Pro".to_string();
-    snapshot.soc.e_cores = 4;
-    snapshot.soc.p_cores = 6;
-    snapshot.soc.gpu_cores = 18;
-    snapshot.soc.memory_gb = 18;
-    snapshot.cpu.total_usage = 0.42;
-    snapshot.cpu.e_cluster.freq_mhz = 1200;
-    snapshot.cpu.e_cluster.usage = 0.24;
-    snapshot.cpu.p_cluster.freq_mhz = 3400;
-    snapshot.cpu.p_cluster.usage = 0.67;
-    // 4 e-cores + 6 p-cores
-    snapshot.cpu.core_usages = vec![0.12, 0.45, 0.08, 0.31, 0.78, 0.55, 0.92, 0.43, 0.61, 0.39];
-    snapshot.power.cpu_w = 8.5;
-    snapshot.power.gpu_w = 3.2;
-    snapshot.power.ane_w = 0.8;
-    snapshot.power.dram_w = 1.5;
-    snapshot.power.package_w = 14.0;
-    snapshot.power.system_w = 16.5;
-    snapshot.power.available = true;
-    snapshot.temperature.cpu_avg_c = 55.0;
-    snapshot.temperature.gpu_avg_c = 48.0;
-    snapshot.temperature.available = true;
-    snapshot.temperature.fan_speeds = vec![1200];
+    type DrawFn = fn(&mut ratatui::Frame, ratatui::layout::Rect, &MetricsSnapshot, &AppState, &theme::Theme);
 
-    let dark_idx = 0usize;
-    let light_idx = theme::THEMES.iter().position(|t| t.name == "solarized-light").unwrap_or(0);
+    struct Story {
+        name: &'static str,
+        snapshot: MetricsSnapshot,
+        show_detail: bool,
+        theme_idx: usize,
+        draw_fn: DrawFn,
+    }
 
-    let stories: &[(&str, bool, usize)] = &[
-        ("cpu compact — dark",    false, dark_idx),
-        ("cpu compact — light",   false, light_idx),
-        ("cpu expanded — dark",   true,  dark_idx),
-        ("cpu expanded — light",  true,  light_idx),
+    let dark = 0usize;
+    let stories: Vec<Story> = vec![
+        Story { name: "cpu compact — normal",  snapshot: story_cpu_normal_fixture(),      show_detail: false, theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
+        Story { name: "cpu show — normal",     snapshot: story_cpu_normal_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
+        Story { name: "cpu show — stress",     snapshot: story_cpu_stress_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
+        Story { name: "gpu active",            snapshot: story_gpu_active_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_gpu_panel_v2 },
+        Story { name: "mem near-full",         snapshot: story_mem_near_full_fixture(),   show_detail: true,  theme_idx: dark, draw_fn: panels::draw_mem_disk_panel_v2 },
+        Story { name: "network active",        snapshot: story_network_active_fixture(),  show_detail: true,  theme_idx: dark, draw_fn: panels::draw_network_panel_v2 },
+        Story { name: "process populated",     snapshot: story_process_populated_fixture(), show_detail: true, theme_idx: dark, draw_fn: panels::draw_process_panel_v2 },
     ];
 
     let total = stories.len();
@@ -202,18 +434,20 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     loop {
-        let (name, show_detail, theme_idx) = stories[current];
-        let th = &theme::THEMES[theme_idx];
-        let snap = snapshot.clone();
+        let story = &stories[current];
+        let th = &theme::THEMES[story.theme_idx];
+        let snap = story.snapshot.clone();
         let mut state = AppState {
-            snapshot: snapshot.clone(),
-            show_detail,
-            theme_idx,
+            snapshot: story.snapshot.clone(),
+            show_detail: story.show_detail,
+            theme_idx: story.theme_idx,
             ..AppState::default()
         };
         // Populate history so sparkline charts render
         for _ in 0..50 { state.history.push(&snap); }
 
+        let name = story.name;
+        let draw_fn = story.draw_fn;
         terminal.draw(|f| {
             let full = f.area();
             // Header bar (1 row)
@@ -230,7 +464,7 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
                 header_area,
             );
 
-            panels::draw_cpu_panel_v2(f, panel_area, &state.snapshot, &state, th);
+            draw_fn(f, panel_area, &state.snapshot, &state, th);
         })?;
 
         if event::poll(std::time::Duration::from_millis(200))? {
