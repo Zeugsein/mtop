@@ -98,7 +98,7 @@ pub fn render_cpu_panel_compact_to_string(width: u16, height: u16, snapshot: Met
     // Populate history with sine-wave fluctuating values for realistic sparklines
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+        let usage = ((t * std::f64::consts::PI).sin() as f32).clamp(0.0, 1.0);
         let mut varied = snap.clone();
         varied.cpu.total_usage = usage.clamp(0.0, 1.0);
         varied.cpu.e_cluster.usage = (usage * 0.7).clamp(0.0, 1.0);
@@ -134,7 +134,7 @@ pub fn render_cpu_panel_expanded_to_string(width: u16, height: u16, snapshot: Me
     // Populate history with sine-wave fluctuating values for realistic sparklines
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+        let usage = ((t * std::f64::consts::PI).sin() as f32).clamp(0.0, 1.0);
         let mut varied = snap.clone();
         varied.cpu.total_usage = usage.clamp(0.0, 1.0);
         varied.cpu.e_cluster.usage = (usage * 0.7).clamp(0.0, 1.0);
@@ -169,7 +169,7 @@ pub fn render_gpu_panel_to_string(width: u16, height: u16, snapshot: MetricsSnap
     };
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let usage = (0.05_f64 + 0.85 * (t * std::f64::consts::PI).sin()) as f32;
+        let usage = ((t * std::f64::consts::PI).sin() as f32).clamp(0.0, 1.0);
         let mut varied = snap.clone();
         varied.gpu.usage = usage.clamp(0.0, 1.0);
         varied.cpu.total_usage = (usage * 0.4).clamp(0.0, 1.0);
@@ -203,7 +203,7 @@ pub fn render_mem_panel_to_string(width: u16, height: u16, snapshot: MetricsSnap
     };
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let factor = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
+        let factor = ((t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
         let mut varied = snap.clone();
         // Memory usage forms the memory sparkline
         varied.memory.ram_used = (snap.memory.ram_total as f32 * factor * 0.95) as u64;
@@ -242,7 +242,7 @@ pub fn render_power_panel_to_string(width: u16, height: u16, snapshot: MetricsSn
     };
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let factor = (0.10_f64 + 0.85 * (t * std::f64::consts::PI).sin()) as f32;
+        let factor = ((t * std::f64::consts::PI).sin() as f32).clamp(0.0, 1.0);
         let mut varied = snap.clone();
         varied.cpu.total_usage = (factor * 0.8).clamp(0.0, 1.0);
         varied.power.cpu_w = snap.power.cpu_w * factor;
@@ -276,7 +276,7 @@ pub fn render_network_panel_to_string(width: u16, height: u16, snapshot: Metrics
     };
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let factor = 0.05 + 0.90 * (t * std::f64::consts::PI).sin().abs();
+        let factor = (t * std::f64::consts::PI).sin().clamp(0.0, 1.0);
         let mut varied = snap.clone();
         for iface in &mut varied.network.interfaces {
             iface.rx_bytes_sec *= factor;
@@ -313,7 +313,7 @@ pub fn render_process_panel_to_string(width: u16, height: u16, snapshot: Metrics
     };
     for i in 0..50 {
         let t = i as f64 / 49.0;
-        let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+        let usage = ((t * std::f64::consts::PI).sin() as f32).clamp(0.0, 1.0);
         let mut varied = snap.clone();
         varied.cpu.total_usage = usage.clamp(0.0, 1.0);
         state.history.push(&varied);
@@ -537,7 +537,7 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
         // Populate history with panel-specific sine-wave fluctuating values for realistic sparklines
         for i in 0..50 {
             let t = i as f64 / 49.0;
-            let factor = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
+            let factor = ((t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
             let varied = (story.vary_fn)(&snap, factor);
             state.history.push(&varied);
         }
