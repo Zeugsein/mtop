@@ -205,7 +205,9 @@ pub fn render_mem_panel_to_string(width: u16, height: u16, snapshot: MetricsSnap
         let t = i as f64 / 49.0;
         let factor = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()).clamp(0.0, 1.0) as f32;
         let mut varied = snap.clone();
-        // Disk I/O forms the sparkline — vary read/write rates
+        // Memory usage forms the memory sparkline
+        varied.memory.ram_used = (snap.memory.ram_total as f32 * factor * 0.95) as u64;
+        // Disk I/O forms the disk sparkline
         varied.disk.read_bytes_sec = (snap.disk.read_bytes_sec as f32 * factor) as u64;
         varied.disk.write_bytes_sec = (snap.disk.write_bytes_sec as f32 * factor) as u64;
         // cpu for background cpu sparkline
@@ -385,7 +387,7 @@ pub fn story_network_active_fixture() -> MetricsSnapshot {
             name: "en0".to_string(),
             iface_type: "ethernet".to_string(),
             rx_bytes_sec: 8_500_000.0,
-            tx_bytes_sec: 2_200_000.0,
+            tx_bytes_sec: 480_000.0,
             baudrate: 1_000_000_000,
             rx_bytes_total: 2_500_000_000,
             tx_bytes_total: 800_000_000,
@@ -395,7 +397,7 @@ pub fn story_network_active_fixture() -> MetricsSnapshot {
             name: "en1".to_string(),
             iface_type: "wifi".to_string(),
             rx_bytes_sec: 1_200_000.0,
-            tx_bytes_sec: 450_000.0,
+            tx_bytes_sec: 60_000.0,
             baudrate: 600_000_000,
             rx_bytes_total: 900_000_000,
             tx_bytes_total: 300_000_000,
@@ -451,7 +453,7 @@ fn vary_gpu(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
 
 fn vary_disk(snap: &MetricsSnapshot, f: f32) -> MetricsSnapshot {
     let mut v = snap.clone();
-    // Disk I/O rates form the sparkline (memory stays near-full — that IS the story)
+    v.memory.ram_used = (snap.memory.ram_total as f32 * f * 0.95) as u64;
     v.disk.read_bytes_sec = (snap.disk.read_bytes_sec as f32 * f) as u64;
     v.disk.write_bytes_sec = (snap.disk.write_bytes_sec as f32 * f) as u64;
     v.cpu.total_usage = (f * 0.3).clamp(0.0, 1.0);
