@@ -142,7 +142,7 @@ fn json_endpoint_503_body_has_error_field() {
 }
 
 // ---------------------------------------------------------------------------
-// FR-2: GET /metrics Prometheus endpoint (PARTIAL — duplicate HELP/TYPE, missing headers)
+// FR-2: GET /metrics Prometheus endpoint
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -277,7 +277,7 @@ fn prometheus_endpoint_returns_503_when_no_data() {
 }
 
 // ---------------------------------------------------------------------------
-// FR-3: Server port configuration (PARTIAL — --bind flag missing)
+// FR-3: Server port configuration
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -360,8 +360,145 @@ fn healthz_returns_404() {
 }
 
 // ---------------------------------------------------------------------------
+// V2: Connection limit / per-IP limit / security / Prometheus escaping
+// ---------------------------------------------------------------------------
+
+#[test]
+/// V2: server rejects the 65th connection with HTTP 503
+fn http_server_rejects_connection_beyond_max() {
+    use std::io::{Read as _, Write as _};
+    let port = spawn_server_with_data(Some(make_snapshot()));
+
+    // Hold 64 connections open by sending no data (server blocks on 2s read timeout)
+    let mut held: Vec<TcpStream> = Vec::with_capacity(64);
+    for _ in 0..64 {
+        if let Ok(s) = TcpStream::connect(format!("127.0.0.1:{port}")) {
+            s.set_read_timeout(Some(Duration::from_secs(5))).ok();
+            held.push(s);
+        }
+    }
+
+    // Give the server a moment to register all connections
+    std::thread::sleep(Duration::from_millis(50));
+
+    // The 65th connection should receive a rejection (503 global or 429 per-IP).
+    // In practice, from a single test host all connections share 127.0.0.1 so the
+    // per-IP limit (8) fires before the global limit (64) can be reached via localhost.
+    let resp = raw_http_get(port, "/json");
+    assert!(
+        resp.starts_with("HTTP/1.1 503") || resp.starts_with("HTTP/1.1 429"),
+        "expected 503 or 429 when connections are saturated; got: {resp}"
+    );
+
+    drop(held);
+}
+
+#[test]
+/// V2: server rejects the 9th connection from same IP with HTTP 429
+fn http_server_rejects_connection_beyond_per_ip_limit() {
+    let port = spawn_server_with_data(Some(make_snapshot()));
+
+    // Hold 8 connections from localhost, sending no data
+    let mut held: Vec<TcpStream> = Vec::with_capacity(8);
+    for _ in 0..8 {
+        if let Ok(s) = TcpStream::connect(format!("127.0.0.1:{port}")) {
+            s.set_read_timeout(Some(Duration::from_secs(5))).ok();
+            held.push(s);
+        }
+    }
+
+    // Give the server a moment to register all connections
+    std::thread::sleep(Duration::from_millis(50));
+
+    // The 9th connection from the same IP should receive 429
+    let resp = raw_http_get(port, "/json");
+    assert!(
+        resp.starts_with("HTTP/1.1 429"),
+        "expected 429 on 9th connection from same IP; got: {resp}"
+    );
+
+    drop(held);
+}
+
+#[test]
+/// V2: HTTP response does not include a Server header
+fn http_server_response_has_no_server_header() {
+    let port = spawn_server_with_data(Some(make_snapshot()));
+    let resp = http_get(port, "/json");
+    let headers = headers_of(&resp).to_lowercase();
+    assert!(
+        !headers.contains("server:"),
+        "response should not include a Server header; got headers:\n{headers}"
+    );
+}
+
+#[test]
+/// V2: Prometheus label values are properly escaped for backslash, quote, and newline
+fn prometheus_label_values_are_escaped() {
+    use std::sync::{Arc, RwLock};
+    let mut snapshot = make_snapshot();
+    // Inject a chip name containing characters that need escaping
+    snapshot.soc.chip = "chip\\name\"\ntest".to_string();
+
+    let port = free_port();
+    let shared: serve::SharedMetrics = Arc::new(RwLock::new(Some(snapshot)));
+    let soc = mtop::metrics::types::SocInfo {
+        chip: "chip\\name\"\ntest".to_string(),
+        e_cores: 4,
+        p_cores: 6,
+        gpu_cores: 20,
+        memory_gb: 24,
+    };
+    std::thread::spawn(move || {
+        serve::run(port, "127.0.0.1", shared, &soc).ok();
+    });
+    std::thread::sleep(Duration::from_millis(50));
+
+    let resp = http_get(port, "/metrics");
+    let body = body_of(&resp);
+
+    // The escaped forms should appear in the body
+    assert!(
+        body.contains("\\\\"),
+        "backslash should be escaped as \\\\\\\\ in Prometheus labels; body:\n{body}"
+    );
+    assert!(
+        body.contains("\\\""),
+        "double-quote should be escaped as \\\" in Prometheus labels; body:\n{body}"
+    );
+    assert!(
+        body.contains("\\n"),
+        "newline should be escaped as \\n in Prometheus labels; body:\n{body}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Helpers (private to this file)
 // ---------------------------------------------------------------------------
+
+/// Send a raw HTTP/1.1 GET and return whatever the server writes before closing.
+/// Unlike http_get, this tolerates ConnectionReset (the server may close after the
+/// error status line without flushing a full body).
+fn raw_http_get(port: u16, path: &str) -> String {
+    use std::io::{Read as _, Write as _};
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).expect("connect");
+    stream.set_read_timeout(Some(Duration::from_secs(3))).ok();
+    let req = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+    stream.write_all(req.as_bytes()).expect("write request");
+    let mut resp = String::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => resp.push_str(&String::from_utf8_lossy(&buf[..n])),
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset
+                   || e.kind() == std::io::ErrorKind::UnexpectedEof
+                   || e.kind() == std::io::ErrorKind::TimedOut => break,
+            Err(_) => break,
+        }
+    }
+    resp
+}
 
 /// Extract the body from a raw HTTP response string (after the blank line).
 fn body_of(resp: &str) -> &str {

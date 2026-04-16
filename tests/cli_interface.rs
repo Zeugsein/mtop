@@ -166,7 +166,7 @@ fn color_flag_applied_to_tui() {
 }
 
 // ---------------------------------------------------------------------------
-// FR-6: --temp-unit option (PARTIAL — accepts any string, no validation)
+// FR-6: --temp-unit option
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -384,4 +384,21 @@ fn pipe_samples_0_exits_on_signal() {
     let status = child.wait().expect("wait failed");
     // SIGTERM kill may give non-zero exit, but it should not hang
     let _ = status;
+}
+
+// ---------------------------------------------------------------------------
+// FR-4: pipe --samples N exits with code 0 after N samples
+// ---------------------------------------------------------------------------
+
+#[test]
+/// FR-4: `mtop pipe --samples 2` exits with code 0 and emits exactly 2 NDJSON lines
+fn pipe_exits_zero_after_n_samples() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_mtop"))
+        .args(["pipe", "--samples", "2"])
+        .output()
+        .expect("failed to run mtop");
+    assert!(output.status.success(), "pipe --samples 2 should exit with code 0");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<_> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(lines.len(), 2, "expected exactly 2 NDJSON lines");
 }

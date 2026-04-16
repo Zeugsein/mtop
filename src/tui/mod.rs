@@ -82,6 +82,56 @@ pub fn render_dashboard_with_state(
     text
 }
 
+/// Test helper: render the CPU panel in compact mode (show_detail=false) to a string.
+pub fn render_cpu_panel_compact_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let state = AppState {
+        snapshot,
+        show_detail: false,
+        theme_idx,
+        ..AppState::default()
+    };
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_cpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Test helper: render the CPU panel in expanded mode (show_detail=true) to a string.
+pub fn render_cpu_panel_expanded_to_string(width: u16, height: u16, snapshot: MetricsSnapshot, theme_idx: usize) -> String {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let state = AppState {
+        snapshot,
+        show_detail: true,
+        theme_idx,
+        ..AppState::default()
+    };
+    let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
+    terminal.draw(|f| panels::draw_cpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            text.push_str(buf[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    text
+}
+
 use dashboard::draw_dashboard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
