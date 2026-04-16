@@ -132,6 +132,90 @@ pub fn render_cpu_panel_expanded_to_string(width: u16, height: u16, snapshot: Me
     text
 }
 
+/// Run the interactive story browser in the current terminal.
+/// Stories: cpu panel (compact/expanded) × (dark/light themes).
+/// Navigate: n/→ next, p/← prev, q quit.
+pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::{event::{self, Event, KeyCode}, terminal, ExecutableCommand};
+    use ratatui::backend::CrosstermBackend;
+    use ratatui::Terminal;
+    use std::io::stdout;
+    use crate::metrics::MetricsSnapshot;
+
+    // Build fixture snapshot (same as insta tests)
+    let mut snapshot = MetricsSnapshot::default();
+    snapshot.cpu.total_usage = 0.42;
+    snapshot.cpu.e_cluster.freq_mhz = 1200;
+    snapshot.cpu.p_cluster.freq_mhz = 3400;
+    snapshot.temperature.cpu_avg_c = 55.0;
+    snapshot.temperature.available = true;
+    snapshot.power.cpu_w = 8.5;
+
+    let dark_idx = 0usize;
+    let light_idx = theme::THEMES.iter().position(|t| t.name == "solarized-light").unwrap_or(0);
+
+    let stories: &[(&str, bool, usize)] = &[
+        ("cpu compact — dark",    false, dark_idx),
+        ("cpu compact — light",   false, light_idx),
+        ("cpu expanded — dark",   true,  dark_idx),
+        ("cpu expanded — light",  true,  light_idx),
+    ];
+
+    let total = stories.len();
+    let mut current = 0usize;
+
+    terminal::enable_raw_mode()?;
+    stdout().execute(terminal::EnterAlternateScreen)?;
+
+    let backend = CrosstermBackend::new(stdout());
+    let mut terminal = Terminal::new(backend)?;
+
+    loop {
+        let (name, show_detail, theme_idx) = stories[current];
+        let th = &theme::THEMES[theme_idx];
+        let state = AppState {
+            snapshot: snapshot.clone(),
+            show_detail,
+            theme_idx,
+            ..AppState::default()
+        };
+
+        terminal.draw(|f| {
+            let full = f.area();
+            // Header bar (1 row)
+            let header_area = ratatui::layout::Rect::new(full.x, full.y, full.width, 1);
+            let panel_area  = ratatui::layout::Rect::new(full.x, full.y + 1, full.width, full.height.saturating_sub(1));
+
+            let header_text = format!(
+                " story {}/{} — {}  [n/→] next  [p/←] prev  [q] quit",
+                current + 1, total, name
+            );
+            f.render_widget(
+                ratatui::widgets::Paragraph::new(header_text)
+                    .style(ratatui::style::Style::default().fg(th.muted)),
+                header_area,
+            );
+
+            panels::draw_cpu_panel_v2(f, panel_area, &state.snapshot, &state, th);
+        })?;
+
+        if event::poll(std::time::Duration::from_millis(200))? {
+            if let Event::Key(key) = event::read()? {
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Char('Q') => break,
+                    KeyCode::Char('n') | KeyCode::Right => current = (current + 1) % total,
+                    KeyCode::Char('p') | KeyCode::Left  => current = (current + total - 1) % total,
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    terminal::disable_raw_mode()?;
+    stdout().execute(terminal::LeaveAlternateScreen)?;
+    Ok(())
+}
+
 use dashboard::draw_dashboard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

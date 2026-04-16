@@ -88,7 +88,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     // E-cluster header
     if core_start_y < inner.y + inner.height {
         f.render_widget(
-            Paragraph::new(format!("e-cluster: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz))
+            Paragraph::new(format!("e-cpu: {:.0}% @ {}MHz", s.cpu.e_cluster.usage * 100.0, s.cpu.e_cluster.freq_mhz))
                 .style(Style::default().fg(theme.cpu_accent)),
             Rect::new(inner.x, core_start_y, inner.width, 1),
         );
@@ -100,16 +100,11 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         if y >= inner.y + inner.height { break; }
 
         let norm = usage.clamp(0.0, 1.0);
-        let filled = (bar_width as f32 * norm) as usize;
-        let empty = bar_width.saturating_sub(filled);
-        let color = gradient::value_to_color(norm as f64, theme);
-
-        let line = Line::from(vec![
-            Span::styled(format!("core {:>2} ",i), Style::default().fg(theme.muted)),
-            Span::styled("▓".repeat(filled), Style::default().fg(color)),
-            Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
-            Span::styled(format!(" {:>5.1}%", usage * 100.0), Style::default().fg(theme.fg)),
-        ]);
+        let pct_label = format!("{:>5.1}%", usage * 100.0);
+        let prefix = Span::styled(format!("core {:>2} ", i), Style::default().fg(theme.muted));
+        let mut spans = vec![prefix];
+        spans.extend(gauge::render_gauge_bar(norm as f64, 1.0, bar_width, &pct_label, theme));
+        let line = Line::from(spans);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 
@@ -117,7 +112,7 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
     let p_header_y = core_start_y + 1 + e_count as u16 + 1;
     if p_header_y < inner.y + inner.height {
         f.render_widget(
-            Paragraph::new(format!("p-cluster: {:.0}% @ {}MHz", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz))
+            Paragraph::new(format!("p-cpu: {:.0}% @ {}MHz", s.cpu.p_cluster.usage * 100.0, s.cpu.p_cluster.freq_mhz))
                 .style(Style::default().fg(theme.cpu_accent)),
             Rect::new(inner.x, p_header_y, inner.width, 1),
         );
@@ -127,16 +122,11 @@ fn draw_cpu_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &App
         if y >= inner.y + inner.height { break; }
 
         let norm = usage.clamp(0.0, 1.0);
-        let filled = (bar_width as f32 * norm) as usize;
-        let empty = bar_width.saturating_sub(filled);
-        let color = gradient::value_to_color(norm as f64, theme);
-
-        let line = Line::from(vec![
-            Span::styled(format!("core {:>2} ",e_count + i), Style::default().fg(theme.muted)),
-            Span::styled("▓".repeat(filled), Style::default().fg(color)),
-            Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
-            Span::styled(format!(" {:>5.1}%", usage * 100.0), Style::default().fg(theme.fg)),
-        ]);
+        let pct_label = format!("{:>5.1}%", usage * 100.0);
+        let prefix = Span::styled(format!("core {:>2} ", e_count + i), Style::default().fg(theme.muted));
+        let mut spans = vec![prefix];
+        spans.extend(gauge::render_gauge_bar(norm as f64, 1.0, bar_width, &pct_label, theme));
+        let line = Line::from(spans);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 }
@@ -786,21 +776,16 @@ fn draw_power_expanded(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &A
     let bar_width = inner.width.saturating_sub(18) as usize;
     let max_component = components.iter().map(|(_, w, _)| *w).fold(0.0f32, f32::max).max(0.01);
 
-    for (i, (name, watts, color)) in components.iter().enumerate() {
+    for (i, (name, watts, _color)) in components.iter().enumerate() {
         let y = breakdown_y + 1 + i as u16;
         if y >= inner.y + inner.height { break; }
 
         let norm = (*watts / max_component).clamp(0.0, 1.0);
-        let filled = (bar_width as f32 * norm) as usize;
-        let empty = bar_width.saturating_sub(filled);
-
-        // F4: use {:.1}W precision matching non-expanded
-        let line = Line::from(vec![
-            Span::styled(format!("{:<7}", name), Style::default().fg(*color)),
-            Span::styled("▓".repeat(filled), Style::default().fg(*color)),
-            Span::styled("░".repeat(empty), Style::default().fg(theme.border)),
-            Span::styled(format!(" {:.1}W", watts), Style::default().fg(theme.fg)),
-        ]);
+        let watt_label = format!("{:.1}W", watts);
+        let name_prefix = Span::styled(format!("{:<7}", name), Style::default().fg(theme.fg));
+        let mut spans = vec![name_prefix];
+        spans.extend(gauge::render_gauge_bar(norm as f64, 1.0, bar_width, &watt_label, theme));
+        let line = Line::from(spans);
         f.render_widget(Paragraph::new(line), Rect::new(inner.x, y, inner.width, 1));
     }
 
