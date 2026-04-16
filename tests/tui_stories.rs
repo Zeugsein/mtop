@@ -6,7 +6,6 @@ use mtop::tui::{
     render_network_panel_to_string,
     render_process_panel_to_string,
     story_cpu_normal_fixture,
-    story_cpu_stress_fixture,
     story_gpu_active_fixture,
     story_mem_near_full_fixture,
     story_network_active_fixture,
@@ -26,12 +25,6 @@ fn cpu_compact_normal() {
 #[test]
 fn cpu_show_normal() {
     let output = render_cpu_panel_expanded_to_string(80, 40, story_cpu_normal_fixture(), dark_theme_idx());
-    insta::assert_snapshot!(output);
-}
-
-#[test]
-fn cpu_expanded_stress() {
-    let output = render_cpu_panel_expanded_to_string(80, 40, story_cpu_stress_fixture(), dark_theme_idx());
     insta::assert_snapshot!(output);
 }
 

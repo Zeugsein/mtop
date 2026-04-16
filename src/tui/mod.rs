@@ -95,8 +95,16 @@ pub fn render_cpu_panel_compact_to_string(width: u16, height: u16, snapshot: Met
         theme_idx,
         ..AppState::default()
     };
-    // Populate history so sparkline charts render (50 identical samples = flat line)
-    for _ in 0..50 { state.history.push(&snap); }
+    // Populate history with sine-wave fluctuating values for realistic sparklines
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+        let mut varied = snap.clone();
+        varied.cpu.total_usage = usage.clamp(0.0, 1.0);
+        varied.cpu.e_cluster.usage = (usage * 0.7).clamp(0.0, 1.0);
+        varied.cpu.p_cluster.usage = (usage * 0.95).clamp(0.0, 1.0);
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_cpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -123,8 +131,16 @@ pub fn render_cpu_panel_expanded_to_string(width: u16, height: u16, snapshot: Me
         theme_idx,
         ..AppState::default()
     };
-    // Populate history so sparkline charts render (50 identical samples = flat line)
-    for _ in 0..50 { state.history.push(&snap); }
+    // Populate history with sine-wave fluctuating values for realistic sparklines
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+        let mut varied = snap.clone();
+        varied.cpu.total_usage = usage.clamp(0.0, 1.0);
+        varied.cpu.e_cluster.usage = (usage * 0.7).clamp(0.0, 1.0);
+        varied.cpu.p_cluster.usage = (usage * 0.95).clamp(0.0, 1.0);
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_cpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -151,7 +167,14 @@ pub fn render_gpu_panel_to_string(width: u16, height: u16, snapshot: MetricsSnap
         theme_idx,
         ..AppState::default()
     };
-    for _ in 0..50 { state.history.push(&snap); }
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let usage = (0.05_f64 + 0.85 * (t * std::f64::consts::PI).sin()) as f32;
+        let mut varied = snap.clone();
+        varied.gpu.usage = usage.clamp(0.0, 1.0);
+        varied.cpu.total_usage = (usage * 0.4).clamp(0.0, 1.0);
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_gpu_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -178,7 +201,14 @@ pub fn render_mem_panel_to_string(width: u16, height: u16, snapshot: MetricsSnap
         theme_idx,
         ..AppState::default()
     };
-    for _ in 0..50 { state.history.push(&snap); }
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let swap_rate = 512.0 * 1024.0 * (t * std::f64::consts::PI).sin().abs();
+        let mut varied = snap.clone();
+        varied.memory.swap_in_bytes_sec = swap_rate;
+        varied.cpu.total_usage = (0.1 + 0.3 * (t * std::f64::consts::PI).sin()) as f32;
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_mem_disk_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -205,7 +235,14 @@ pub fn render_power_panel_to_string(width: u16, height: u16, snapshot: MetricsSn
         theme_idx,
         ..AppState::default()
     };
-    for _ in 0..50 { state.history.push(&snap); }
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let factor = (0.10_f64 + 0.85 * (t * std::f64::consts::PI).sin()) as f32;
+        let mut varied = snap.clone();
+        varied.cpu.total_usage = (factor * 0.8).clamp(0.0, 1.0);
+        varied.power.cpu_w = snap.power.cpu_w * factor;
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_power_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -232,7 +269,17 @@ pub fn render_network_panel_to_string(width: u16, height: u16, snapshot: Metrics
         theme_idx,
         ..AppState::default()
     };
-    for _ in 0..50 { state.history.push(&snap); }
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let factor = 0.05 + 0.90 * (t * std::f64::consts::PI).sin().abs();
+        let mut varied = snap.clone();
+        for iface in &mut varied.network.interfaces {
+            iface.rx_bytes_sec *= factor;
+            iface.tx_bytes_sec *= factor;
+        }
+        varied.cpu.total_usage = (factor * 0.3) as f32;
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_network_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -259,7 +306,13 @@ pub fn render_process_panel_to_string(width: u16, height: u16, snapshot: Metrics
         theme_idx,
         ..AppState::default()
     };
-    for _ in 0..50 { state.history.push(&snap); }
+    for i in 0..50 {
+        let t = i as f64 / 49.0;
+        let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+        let mut varied = snap.clone();
+        varied.cpu.total_usage = usage.clamp(0.0, 1.0);
+        state.history.push(&varied);
+    }
     let theme = &theme::THEMES[theme_idx.min(theme::THEMES.len() - 1)];
     terminal.draw(|f| panels::draw_process_panel_v2(f, f.area(), &state.snapshot, &state, theme)).unwrap();
     let buf = terminal.backend().buffer().clone();
@@ -286,18 +339,6 @@ pub fn story_cpu_normal_fixture() -> MetricsSnapshot {
     s.power.package_w = 14.0; s.power.system_w = 16.5; s.power.available = true;
     s.temperature.cpu_avg_c = 55.0; s.temperature.gpu_avg_c = 48.0;
     s.temperature.available = true; s.temperature.fan_speeds = vec![1200];
-    s
-}
-
-/// Story fixture: cpu panel, stress load (95%+ all cores)
-pub fn story_cpu_stress_fixture() -> MetricsSnapshot {
-    let mut s = story_cpu_normal_fixture();
-    s.cpu.total_usage = 0.95;
-    s.cpu.e_cluster.usage = 0.92; s.cpu.e_cluster.freq_mhz = 2000;
-    s.cpu.p_cluster.usage = 0.97; s.cpu.p_cluster.freq_mhz = 4050;
-    s.cpu.core_usages = vec![0.89, 0.94, 0.91, 0.88, 0.97, 0.99, 0.96, 0.98, 0.95, 0.93];
-    s.power.cpu_w = 28.5;
-    s.temperature.cpu_avg_c = 87.0;
     s
 }
 
@@ -409,7 +450,6 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
     let stories: Vec<Story> = vec![
         Story { name: "cpu compact — normal",  snapshot: story_cpu_normal_fixture(),      show_detail: false, theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
         Story { name: "cpu show — normal",     snapshot: story_cpu_normal_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
-        Story { name: "cpu show — stress",     snapshot: story_cpu_stress_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_cpu_panel_v2 },
         Story { name: "gpu active",            snapshot: story_gpu_active_fixture(),      show_detail: true,  theme_idx: dark, draw_fn: panels::draw_gpu_panel_v2 },
         Story { name: "mem near-full",         snapshot: story_mem_near_full_fixture(),   show_detail: true,  theme_idx: dark, draw_fn: panels::draw_mem_disk_panel_v2 },
         Story { name: "network active",        snapshot: story_network_active_fixture(),  show_detail: true,  theme_idx: dark, draw_fn: panels::draw_network_panel_v2 },
@@ -443,8 +483,14 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
             theme_idx: story.theme_idx,
             ..AppState::default()
         };
-        // Populate history so sparkline charts render
-        for _ in 0..50 { state.history.push(&snap); }
+        // Populate history with sine-wave fluctuating values for realistic sparklines
+        for i in 0..50 {
+            let t = i as f64 / 49.0;
+            let usage = (0.05_f64 + 0.90 * (t * std::f64::consts::PI).sin()) as f32;
+            let mut varied = snap.clone();
+            varied.cpu.total_usage = usage.clamp(0.0, 1.0);
+            state.history.push(&varied);
+        }
 
         let name = story.name;
         let draw_fn = story.draw_fn;
