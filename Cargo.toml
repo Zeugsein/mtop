@@ -11,6 +11,10 @@ repository = "https://github.com/Zeugsein/mtop"
 name = "mtop"
 path = "src/main.rs"
 
+[[bin]]
+name = "stories"
+path = "src/bin/stories.rs"
+
 [lib]
 name = "mtop"
 path = "src/lib.rs"

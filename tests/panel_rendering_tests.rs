@@ -255,7 +255,7 @@ fn expanded_cpu_contains_cluster_labels() {
         120, 40, empty_snapshot(), false, Some(PanelId::Cpu), SortMode::default(),
     );
     assert!(text.contains("cpu"), "expanded CPU panel should contain 'cpu' title");
-    assert!(text.contains("e-cluster") || text.contains("p-cluster"), "expanded CPU should contain cluster labels");
+    assert!(text.contains("e-cpu") || text.contains("p-cpu"), "expanded CPU should contain cluster labels");
 }
 
 #[test]
