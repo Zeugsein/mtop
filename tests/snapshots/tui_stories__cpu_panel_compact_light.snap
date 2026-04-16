@@ -1,6 +1,6 @@
 ---
 source: tests/tui_stories.rs
-assertion_line: 33
+assertion_line: 49
 expression: output
 ---
 ╭ ¹cpu  42.0% @ 3400MHz  8.5W  55°C ───────────────────────────────────────────╮
@@ -13,5 +13,5 @@ expression: output
 │                                                                              │
 │                                                                              │
 │                                                                              │
-│  E: 0% @ 1200MHz  P: 0% @ 3400MHz                                            │
+│  E: 24% @ 1200MHz  P: 67% @ 3400MHz                                          │
 ╰──────────────────────────────────────────────────────────────────────────────╯

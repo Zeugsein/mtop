@@ -142,14 +142,31 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::stdout;
     use crate::metrics::MetricsSnapshot;
 
-    // Build fixture snapshot (same as insta tests)
+    // Build fixture snapshot (same as insta tests) — realistic M3 Pro-like data
     let mut snapshot = MetricsSnapshot::default();
+    snapshot.soc.chip = "Apple M3 Pro".to_string();
+    snapshot.soc.e_cores = 4;
+    snapshot.soc.p_cores = 6;
+    snapshot.soc.gpu_cores = 18;
+    snapshot.soc.memory_gb = 18;
     snapshot.cpu.total_usage = 0.42;
     snapshot.cpu.e_cluster.freq_mhz = 1200;
+    snapshot.cpu.e_cluster.usage = 0.24;
     snapshot.cpu.p_cluster.freq_mhz = 3400;
-    snapshot.temperature.cpu_avg_c = 55.0;
-    snapshot.temperature.available = true;
+    snapshot.cpu.p_cluster.usage = 0.67;
+    // 4 e-cores + 6 p-cores
+    snapshot.cpu.core_usages = vec![0.12, 0.45, 0.08, 0.31, 0.78, 0.55, 0.92, 0.43, 0.61, 0.39];
     snapshot.power.cpu_w = 8.5;
+    snapshot.power.gpu_w = 3.2;
+    snapshot.power.ane_w = 0.8;
+    snapshot.power.dram_w = 1.5;
+    snapshot.power.package_w = 14.0;
+    snapshot.power.system_w = 16.5;
+    snapshot.power.available = true;
+    snapshot.temperature.cpu_avg_c = 55.0;
+    snapshot.temperature.gpu_avg_c = 48.0;
+    snapshot.temperature.available = true;
+    snapshot.temperature.fan_speeds = vec![1200];
 
     let dark_idx = 0usize;
     let light_idx = theme::THEMES.iter().position(|t| t.name == "solarized-light").unwrap_or(0);
@@ -166,6 +183,14 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
 
     terminal::enable_raw_mode()?;
     stdout().execute(terminal::EnterAlternateScreen)?;
+
+    // Panic hook: restore terminal on crash (mirrors run())
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = terminal::disable_raw_mode();
+        let _ = std::io::stdout().execute(terminal::LeaveAlternateScreen);
+        original_hook(info);
+    }));
 
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
