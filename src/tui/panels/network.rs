@@ -78,13 +78,12 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     let tier_idx = state.history.net_tier_idx;
     let scale = NET_TIERS[tier_idx].0;
 
-    // Minimum baseline value: ensures at least 1 braille dot renders at zero
-    let baseline_floor = scale * 0.035;
-
     // Helper to render graph growing upward (bottom-to-top) with muted baseline for near-zero values
     let render_graph_upward = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
-        // Clamp data so zero values produce 1 dot (baseline)
+        // Threshold: the smallest value that produces a single visible braille dot at this height.
+        // Values below this render as 1 muted dot; at or above render normally.
+        let baseline_floor = scale / (height * 4).max(1) as f64;
         let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
         let graph = braille::render_braille_graph(&clamped, scale, area.width as usize, height, theme);
 
@@ -100,7 +99,6 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
             let gradient_color = crate::tui::gradient::value_to_color(y_frac, theme);
 
             let spans: Vec<Span> = row.iter().enumerate().map(|(col, &(ch, _))| {
-                // Each braille column maps to 2 data points; out-of-bounds → muted (no data yet)
                 let orig_l = visible_orig.get(col * 2).copied().unwrap_or(0.0);
                 let orig_r = visible_orig.get(col * 2 + 1).copied().unwrap_or(0.0);
                 let is_baseline = orig_l < baseline_floor * 2.0 && orig_r < baseline_floor * 2.0;
@@ -116,6 +114,7 @@ pub(crate) fn draw_network_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapsh
     // Helper to render graph growing downward (top-to-bottom, mirrored) with baseline color
     let render_graph_downward = |f: &mut Frame, area: Rect, data: &[f64]| {
         let height = area.height as usize;
+        let baseline_floor = scale / (height * 4).max(1) as f64;
         let clamped: Vec<f64> = data.iter().map(|&v| v.max(baseline_floor)).collect();
         let graph = braille::render_braille_graph_down(&clamped, scale, area.width as usize, height, theme);
 
