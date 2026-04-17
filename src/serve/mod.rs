@@ -16,6 +16,7 @@ pub type SharedMetrics = Arc<RwLock<Option<MetricsSnapshot>>>;
 const MAX_CONNECTIONS: usize = 64;
 const MAX_PER_IP: usize = 8;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     port: u16,
     bind: &str,
@@ -97,6 +98,7 @@ pub fn run(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_request(
     mut stream: TcpStream,
     shared: &SharedMetrics,
@@ -134,14 +136,9 @@ fn process_request(
         let compare_against = if lengths_match { provided_bytes } else { dummy };
         let ok = compare_against.ct_eq(expected_bytes).unwrap_u8() == 1 && lengths_match;
         if !ok {
-            let body = b"";
             let _ = stream.write_all(
-                format!(
-                    "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                )
-                .as_bytes(),
+                b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
             );
-            let _ = body; // suppress unused warning
             return;
         }
     }

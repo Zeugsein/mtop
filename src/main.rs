@@ -22,10 +22,7 @@ fn is_loopback(addr: &str) -> bool {
 
 /// Parse env var as a truthy boolean (1, true, yes).
 fn env_bool(key: &str) -> bool {
-    match std::env::var(key).unwrap_or_default().to_lowercase().as_str() {
-        "1" | "true" | "yes" => true,
-        _ => false,
-    }
+    matches!(std::env::var(key).unwrap_or_default().to_lowercase().as_str(), "1" | "true" | "yes")
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -178,10 +175,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Order: MTOP_SERVE_TOKEN env var → auto-generate if require_token → None (open mode)
 fn resolve_token(require_token: bool) -> Result<Option<String>, Box<dyn std::error::Error>> {
     // Step 2: check if already set
-    if let Ok(t) = std::env::var("MTOP_SERVE_TOKEN") {
-        if !t.is_empty() {
-            return Ok(Some(t));
-        }
+    if let Ok(t) = std::env::var("MTOP_SERVE_TOKEN") && !t.is_empty() {
+        return Ok(Some(t));
     }
 
     // Step 3: auto-generate if required
