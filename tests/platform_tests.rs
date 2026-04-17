@@ -28,7 +28,13 @@ fn http_server_limits_concurrent_connections() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -90,7 +96,13 @@ fn prometheus_label_escapes_backslash() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -133,7 +145,13 @@ fn prometheus_label_escapes_double_quote() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -176,7 +194,13 @@ fn prometheus_label_escapes_newline() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -219,7 +243,13 @@ fn prometheus_label_normal_values_unchanged() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -266,7 +296,13 @@ fn prometheus_all_metrics_have_mtop_prefix() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -319,7 +355,13 @@ fn json_endpoint_includes_processes_field() {
     };
 
     std::thread::spawn(move || {
-        mtop::serve::run(port, "127.0.0.1", shared, &soc).ok();
+        let last_request = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        ));
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 

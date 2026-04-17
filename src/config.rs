@@ -21,6 +21,57 @@ impl Default for Config {
     }
 }
 
+fn mtop_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".mtop")
+}
+
+/// Load .env files into the process environment.
+/// Checks $CWD/.env first, then ~/.mtop/.env.
+/// Only sets a var if it is not already set (process env and $CWD/.env take precedence).
+/// Silently skips missing files; warns on parse errors.
+pub fn load_dotenv() {
+    let sources: Vec<PathBuf> = vec![
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(".env"),
+        mtop_dir().join(".env"),
+    ];
+
+    for path in &sources {
+        let contents = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => continue, // missing file — silently skip
+        };
+
+        for (lineno, line) in contents.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            match line.split_once('=') {
+                Some((key, value)) => {
+                    let key = key.trim();
+                    let value = value.trim();
+                    if std::env::var(key).is_err() {
+                        // Safety: only called at program start, single-threaded
+                        #[allow(deprecated)]
+                        unsafe { std::env::set_var(key, value) };
+                    }
+                }
+                None => {
+                    eprintln!(
+                        "mtop: warning: {}:{}: cannot parse line: {:?}",
+                        path.display(),
+                        lineno + 1,
+                        line
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn config_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".config").join("mtop").join("config.toml")
