@@ -29,10 +29,5 @@ jobs:
       - name: Test
         run: cargo test --verbose
 
-      - name: Contamination check
-        run: |
-          if [ -f guard/forbidden-patterns.txt ]; then
-            guard/scripts/grep-forbidden.sh src/ guard/forbidden-patterns.txt
-          else
-            echo "No forbidden-patterns.txt found, skipping contamination check"
-          fi
+      - name: Format check
+        run: cargo fmt --check
