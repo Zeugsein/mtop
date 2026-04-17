@@ -34,7 +34,7 @@ fn http_server_limits_concurrent_connections() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -102,7 +102,7 @@ fn prometheus_label_escapes_backslash() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -151,7 +151,7 @@ fn prometheus_label_escapes_double_quote() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -200,7 +200,7 @@ fn prometheus_label_escapes_newline() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -249,7 +249,7 @@ fn prometheus_label_normal_values_unchanged() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -302,7 +302,7 @@ fn prometheus_all_metrics_have_mtop_prefix() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -361,7 +361,7 @@ fn json_endpoint_includes_processes_field() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 

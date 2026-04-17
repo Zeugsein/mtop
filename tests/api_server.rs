@@ -35,7 +35,7 @@ fn spawn_server_with_data(snapshot: Option<MetricsSnapshot>) -> u16 {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     // Give the server a moment to bind
     std::thread::sleep(Duration::from_millis(50));
@@ -462,7 +462,7 @@ fn prometheus_label_values_are_escaped() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -525,7 +525,7 @@ fn external_bind_accepted_with_opt_in() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "0.0.0.0", shared, &soc, last_request, None).ok();
+        serve::run(port, "0.0.0.0", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -554,7 +554,7 @@ fn ipv6_loopback_accepted() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "::1", shared, &soc, last_request, None).ok();
+        serve::run(port, "::1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
     let ok = std::net::TcpStream::connect(format!("[::1]:{port}")).is_ok();
@@ -593,7 +593,7 @@ fn prometheus_interface_name_labels_are_escaped() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, None).ok();
+        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -638,7 +638,12 @@ fn idle_stop_skips_sampling() {
 fn lease_extension_on_request() {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    let last_request = Arc::new(AtomicU64::new(0));
+    let last_request = Arc::new(AtomicU64::new(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    ));
     let port = free_port();
     let shared: serve::SharedMetrics = Arc::new(RwLock::new(Some(make_snapshot())));
     let soc = mtop::metrics::types::SocInfo {
@@ -650,7 +655,7 @@ fn lease_extension_on_request() {
     };
     let last_request_serve = Arc::clone(&last_request);
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request_serve, None).ok();
+        serve::run(port, "127.0.0.1", shared, &soc, last_request_serve, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -690,7 +695,7 @@ fn spawn_server_with_token(token: Option<String>) -> u16 {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, token).ok();
+        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), token).ok();
     });
     std::thread::sleep(Duration::from_millis(50));
     port
