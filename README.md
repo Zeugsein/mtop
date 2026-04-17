@@ -71,11 +71,14 @@ Each panel can be expanded to fill its column, showing additional detail (per-co
 | `1`-`6`      | Select panel (CPU, GPU, Mem, Net, Power, Process) |
 | `e` / `Enter`| Toggle expand/collapse selected panel  |
 | `s`          | Cycle process sort mode                |
-| `w`          | Cycle process sort (reverse)           |
+| `w`          | Save current theme, interval, and sort to config |
 | `c`          | Cycle color theme forward              |
 | `C`          | Cycle color theme backward             |
 | `j` / `Down` | Scroll process list down               |
 | `k` / `Up`   | Scroll process list up                 |
+| `t`          | Send SIGTERM to selected process       |
+| `f`          | Filter process list by name            |
+| `y` / `n`    | Confirm / cancel pending signal        |
 | `+` / `-`    | Increase / decrease sample interval    |
 | `.`          | Toggle detail mode                     |
 | `h` / `?`    | Toggle help overlay                    |
