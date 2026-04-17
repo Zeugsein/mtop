@@ -65,6 +65,9 @@ fn make_snapshot() -> MetricsSnapshot {
     s.soc.chip = "Apple M4 Pro".into();
     s.memory.ram_total = 25_769_803_776; // 24 GB
     s.memory.ram_used = 8_589_934_592;   // 8 GB
+    s.gpu.available = true;
+    s.power.available = true;
+    s.temperature.available = true;
     s
 }
 

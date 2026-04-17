@@ -273,34 +273,61 @@ fn to_prometheus(m: &MetricsSnapshot, soc: &SocInfo) -> String {
     out.push_str(&format!("mtop_cpu_freq_mhz{{{l},cluster=\"performance\"}} {}\n", m.cpu.p_cluster.freq_mhz));
     out.push('\n');
 
-    // GPU
-    out.push_str("# HELP mtop_gpu_usage_ratio GPU utilization ratio (0-1)\n");
-    out.push_str("# TYPE mtop_gpu_usage_ratio gauge\n");
-    out.push_str(&format!("mtop_gpu_usage_ratio{{{l}}} {}\n", m.gpu.usage));
-    out.push('\n');
+    // Per-core CPU usage
+    if !m.cpu.core_usages.is_empty() {
+        out.push_str("# HELP mtop_cpu_core_usage_ratio Per-core CPU utilization ratio (0-1)\n");
+        out.push_str("# TYPE mtop_cpu_core_usage_ratio gauge\n");
+        for (i, &usage) in m.cpu.core_usages.iter().enumerate() {
+            out.push_str(&format!("mtop_cpu_core_usage_ratio{{{l},core=\"{i}\"}} {usage}\n"));
+        }
+        out.push('\n');
+    }
 
-    out.push_str("# HELP mtop_gpu_freq_mhz GPU frequency in MHz\n");
-    out.push_str("# TYPE mtop_gpu_freq_mhz gauge\n");
-    out.push_str(&format!("mtop_gpu_freq_mhz{{{l}}} {}\n", m.gpu.freq_mhz));
-    out.push('\n');
+    // GPU (availability-gated)
+    if m.gpu.available {
+        out.push_str("# HELP mtop_gpu_usage_ratio GPU utilization ratio (0-1)\n");
+        out.push_str("# TYPE mtop_gpu_usage_ratio gauge\n");
+        out.push_str(&format!("mtop_gpu_usage_ratio{{{l}}} {}\n", m.gpu.usage));
+        out.push('\n');
 
-    // Power
-    out.push_str("# HELP mtop_power_watts Power consumption in watts\n");
-    out.push_str("# TYPE mtop_power_watts gauge\n");
-    out.push_str(&format!("mtop_power_watts{{{l},component=\"cpu\"}} {}\n", m.power.cpu_w));
-    out.push_str(&format!("mtop_power_watts{{{l},component=\"gpu\"}} {}\n", m.power.gpu_w));
-    out.push_str(&format!("mtop_power_watts{{{l},component=\"ane\"}} {}\n", m.power.ane_w));
-    out.push_str(&format!("mtop_power_watts{{{l},component=\"dram\"}} {}\n", m.power.dram_w));
-    out.push_str(&format!("mtop_power_watts{{{l},component=\"package\"}} {}\n", m.power.package_w));
-    out.push_str(&format!("mtop_power_watts{{{l},component=\"system\"}} {}\n", m.power.system_w));
-    out.push('\n');
+        out.push_str("# HELP mtop_gpu_freq_mhz GPU frequency in MHz\n");
+        out.push_str("# TYPE mtop_gpu_freq_mhz gauge\n");
+        out.push_str(&format!("mtop_gpu_freq_mhz{{{l}}} {}\n", m.gpu.freq_mhz));
+        out.push('\n');
+    }
 
-    // Temperature
-    out.push_str("# HELP mtop_temperature_celsius Temperature in degrees Celsius\n");
-    out.push_str("# TYPE mtop_temperature_celsius gauge\n");
-    out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"cpu_avg\"}} {}\n", m.temperature.cpu_avg_c));
-    out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"gpu_avg\"}} {}\n", m.temperature.gpu_avg_c));
-    out.push('\n');
+    // Power (availability-gated)
+    if m.power.available {
+        out.push_str("# HELP mtop_power_watts Power consumption in watts\n");
+        out.push_str("# TYPE mtop_power_watts gauge\n");
+        out.push_str(&format!("mtop_power_watts{{{l},component=\"cpu\"}} {}\n", m.power.cpu_w));
+        out.push_str(&format!("mtop_power_watts{{{l},component=\"gpu\"}} {}\n", m.power.gpu_w));
+        out.push_str(&format!("mtop_power_watts{{{l},component=\"ane\"}} {}\n", m.power.ane_w));
+        out.push_str(&format!("mtop_power_watts{{{l},component=\"dram\"}} {}\n", m.power.dram_w));
+        out.push_str(&format!("mtop_power_watts{{{l},component=\"package\"}} {}\n", m.power.package_w));
+        out.push_str(&format!("mtop_power_watts{{{l},component=\"system\"}} {}\n", m.power.system_w));
+        out.push('\n');
+    }
+
+    // Temperature (availability-gated)
+    if m.temperature.available {
+        out.push_str("# HELP mtop_temperature_celsius Temperature in degrees Celsius\n");
+        out.push_str("# TYPE mtop_temperature_celsius gauge\n");
+        out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"cpu_avg\"}} {}\n", m.temperature.cpu_avg_c));
+        out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"gpu_avg\"}} {}\n", m.temperature.gpu_avg_c));
+        out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"ssd_avg\"}} {}\n", m.temperature.ssd_avg_c));
+        out.push_str(&format!("mtop_temperature_celsius{{{l},sensor=\"battery_avg\"}} {}\n", m.temperature.battery_avg_c));
+        out.push('\n');
+
+        if !m.temperature.fan_speeds.is_empty() {
+            out.push_str("# HELP mtop_fan_speed_rpm Fan speed in RPM\n");
+            out.push_str("# TYPE mtop_fan_speed_rpm gauge\n");
+            for (i, &rpm) in m.temperature.fan_speeds.iter().enumerate() {
+                out.push_str(&format!("mtop_fan_speed_rpm{{{l},fan=\"{i}\"}} {rpm}\n"));
+            }
+            out.push('\n');
+        }
+    }
 
     // Memory
     out.push_str("# HELP mtop_memory_bytes Memory in bytes\n");
@@ -309,9 +336,27 @@ fn to_prometheus(m: &MetricsSnapshot, soc: &SocInfo) -> String {
     out.push_str(&format!("mtop_memory_bytes{{{l},type=\"ram_used\"}} {}\n", m.memory.ram_used));
     out.push_str(&format!("mtop_memory_bytes{{{l},type=\"swap_total\"}} {}\n", m.memory.swap_total));
     out.push_str(&format!("mtop_memory_bytes{{{l},type=\"swap_used\"}} {}\n", m.memory.swap_used));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"wired\"}} {}\n", m.memory.wired));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"app\"}} {}\n", m.memory.app));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"compressed\"}} {}\n", m.memory.compressed));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"cached\"}} {}\n", m.memory.cached));
+    out.push_str(&format!("mtop_memory_bytes{{{l},type=\"free\"}} {}\n", m.memory.free));
     out.push('\n');
 
-    // Network
+    // Memory swap rates
+    out.push_str("# HELP mtop_memory_swap_bytes_per_second Memory swap I/O in bytes per second\n");
+    out.push_str("# TYPE mtop_memory_swap_bytes_per_second gauge\n");
+    out.push_str(&format!("mtop_memory_swap_bytes_per_second{{{l},direction=\"in\"}} {}\n", m.memory.swap_in_bytes_sec));
+    out.push_str(&format!("mtop_memory_swap_bytes_per_second{{{l},direction=\"out\"}} {}\n", m.memory.swap_out_bytes_sec));
+    out.push('\n');
+
+    // Memory pressure level
+    out.push_str("# HELP mtop_memory_pressure_level Memory pressure level (1=normal, 2=warning, 4=critical)\n");
+    out.push_str("# TYPE mtop_memory_pressure_level gauge\n");
+    out.push_str(&format!("mtop_memory_pressure_level{{{l}}} {}\n", m.memory.pressure_level));
+    out.push('\n');
+
+    // Network bytes/sec
     out.push_str("# HELP mtop_network_bytes_per_second Network throughput in bytes per second\n");
     out.push_str("# TYPE mtop_network_bytes_per_second gauge\n");
     for iface in &m.network.interfaces {
@@ -326,6 +371,88 @@ fn to_prometheus(m: &MetricsSnapshot, soc: &SocInfo) -> String {
         ));
     }
     out.push('\n');
+
+    // Network packet rates
+    out.push_str("# HELP mtop_network_packets_per_second Network packet rate in packets per second\n");
+    out.push_str("# TYPE mtop_network_packets_per_second gauge\n");
+    for iface in &m.network.interfaces {
+        let iname = escape_label_value(&iface.name);
+        out.push_str(&format!(
+            "mtop_network_packets_per_second{{{l},interface=\"{iname}\",direction=\"rx\"}} {}\n",
+            iface.packets_in_sec
+        ));
+        out.push_str(&format!(
+            "mtop_network_packets_per_second{{{l},interface=\"{iname}\",direction=\"tx\"}} {}\n",
+            iface.packets_out_sec
+        ));
+    }
+    out.push('\n');
+
+    // Network cumulative bytes
+    out.push_str("# HELP mtop_network_bytes_total Cumulative network bytes transferred\n");
+    out.push_str("# TYPE mtop_network_bytes_total counter\n");
+    for iface in &m.network.interfaces {
+        let iname = escape_label_value(&iface.name);
+        out.push_str(&format!(
+            "mtop_network_bytes_total{{{l},interface=\"{iname}\",direction=\"rx\"}} {}\n",
+            iface.rx_bytes_total
+        ));
+        out.push_str(&format!(
+            "mtop_network_bytes_total{{{l},interface=\"{iname}\",direction=\"tx\"}} {}\n",
+            iface.tx_bytes_total
+        ));
+    }
+    out.push('\n');
+
+    // Network link speed
+    out.push_str("# HELP mtop_network_baudrate_bps Network interface link speed in bits per second\n");
+    out.push_str("# TYPE mtop_network_baudrate_bps gauge\n");
+    for iface in &m.network.interfaces {
+        let iname = escape_label_value(&iface.name);
+        out.push_str(&format!(
+            "mtop_network_baudrate_bps{{{l},interface=\"{iname}\"}} {}\n",
+            iface.baudrate
+        ));
+    }
+    out.push('\n');
+
+    // Disk I/O rates
+    out.push_str("# HELP mtop_disk_bytes_per_second Disk I/O throughput in bytes per second\n");
+    out.push_str("# TYPE mtop_disk_bytes_per_second gauge\n");
+    out.push_str(&format!("mtop_disk_bytes_per_second{{{l},direction=\"read\"}} {}\n", m.disk.read_bytes_sec));
+    out.push_str(&format!("mtop_disk_bytes_per_second{{{l},direction=\"write\"}} {}\n", m.disk.write_bytes_sec));
+    out.push('\n');
+
+    // Disk capacity
+    out.push_str("# HELP mtop_disk_bytes Disk capacity in bytes\n");
+    out.push_str("# TYPE mtop_disk_bytes gauge\n");
+    out.push_str(&format!("mtop_disk_bytes{{{l},type=\"total\"}} {}\n", m.disk.total_bytes));
+    out.push_str(&format!("mtop_disk_bytes{{{l},type=\"used\"}} {}\n", m.disk.used_bytes));
+    out.push('\n');
+
+    // Battery presence (always emitted)
+    out.push_str("# HELP mtop_battery_present Whether a battery is present (1=yes, 0=no)\n");
+    out.push_str("# TYPE mtop_battery_present gauge\n");
+    out.push_str(&format!("mtop_battery_present{{{l}}} {}\n", if m.battery.is_present { 1 } else { 0 }));
+    out.push('\n');
+
+    // Battery state (only when present)
+    if m.battery.is_present {
+        out.push_str("# HELP mtop_battery_charge_ratio Battery charge level (0-1)\n");
+        out.push_str("# TYPE mtop_battery_charge_ratio gauge\n");
+        out.push_str(&format!("mtop_battery_charge_ratio{{{l}}} {}\n", m.battery.charge_pct / 100.0));
+        out.push('\n');
+
+        out.push_str("# HELP mtop_battery_charging Whether the battery is charging (1=yes, 0=no)\n");
+        out.push_str("# TYPE mtop_battery_charging gauge\n");
+        out.push_str(&format!("mtop_battery_charging{{{l}}} {}\n", if m.battery.is_charging { 1 } else { 0 }));
+        out.push('\n');
+
+        out.push_str("# HELP mtop_battery_on_ac Whether the system is on AC power (1=yes, 0=no)\n");
+        out.push_str("# TYPE mtop_battery_on_ac gauge\n");
+        out.push_str(&format!("mtop_battery_on_ac{{{l}}} {}\n", if m.battery.is_on_ac { 1 } else { 0 }));
+        out.push('\n');
+    }
 
     out
 }
