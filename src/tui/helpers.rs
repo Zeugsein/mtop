@@ -124,22 +124,6 @@ pub fn format_baudrate(baudrate: u64) -> String {
     }
 }
 
-/// Color for temperature based on thresholds.
-pub fn temp_color(temp_c: f32, warn_threshold: f32, crit_threshold: f32) -> ratatui::style::Color {
-    if temp_c >= crit_threshold {
-        ratatui::style::Color::Red
-    } else if temp_c >= warn_threshold {
-        ratatui::style::Color::Yellow
-    } else {
-        ratatui::style::Color::Green
-    }
-}
-
-// Thermal thresholds (compile-time constants)
-pub const CPU_TEMP_WARN: f32 = 80.0;
-pub const CPU_TEMP_CRIT: f32 = 95.0;
-pub const GPU_TEMP_WARN: f32 = 85.0;
-pub const GPU_TEMP_CRIT: f32 = 100.0;
 
 pub fn sort_indices(indices: &mut [usize], procs: &[crate::metrics::ProcessInfo], mode: crate::metrics::SortMode, max_cpu: f32, max_mem: u64, max_power: f32) {
     use crate::metrics::SortMode;
