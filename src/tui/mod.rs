@@ -563,14 +563,12 @@ pub fn run_stories() -> Result<(), Box<dyn std::error::Error>> {
             draw_fn(f, panel_area, &state.snapshot, &state, th);
         })?;
 
-        if event::poll(std::time::Duration::from_millis(200))? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Char('Q') => break,
-                    KeyCode::Char('n') | KeyCode::Right => current = (current + 1) % total,
-                    KeyCode::Char('p') | KeyCode::Left  => current = (current + total - 1) % total,
-                    _ => {}
-                }
+        if event::poll(std::time::Duration::from_millis(200))? && let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Char('Q') => break,
+                KeyCode::Char('n') | KeyCode::Right => current = (current + 1) % total,
+                KeyCode::Char('p') | KeyCode::Left  => current = (current + total - 1) % total,
+                _ => {}
             }
         }
     }
