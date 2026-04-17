@@ -1,10 +1,15 @@
 use crate::metrics::{MetricsSnapshot, SocInfo};
+use parking_lot::{Condvar, Mutex as PLMutex};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{IpAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 use subtle::ConstantTimeEq;
+
+type CollectNow = Arc<(PLMutex<bool>, Condvar)>;
+type CollectDone = Arc<(PLMutex<u64>, Condvar)>;
 
 pub type SharedMetrics = Arc<RwLock<Option<MetricsSnapshot>>>;
 
@@ -17,6 +22,9 @@ pub fn run(
     shared: SharedMetrics,
     soc: &SocInfo,
     last_request: Arc<AtomicU64>,
+    idle_timeout_secs: u64,
+    collect_now: CollectNow,
+    collect_done: CollectDone,
     token: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let addr = format!("{bind}:{port}");
@@ -67,9 +75,11 @@ pub fn run(
                 let active = Arc::clone(&active);
                 let per_ip = Arc::clone(&per_ip);
                 let last_request = Arc::clone(&last_request);
+                let cn = Arc::clone(&collect_now);
+                let cd = Arc::clone(&collect_done);
                 let token = Arc::clone(&token);
                 std::thread::spawn(move || {
-                    process_request(stream, &shared, &soc, &last_request, &token);
+                    process_request(stream, &shared, &soc, &last_request, idle_timeout_secs, &cn, &cd, &token);
                     active.fetch_sub(1, Ordering::Release);
                     let mut counts = per_ip.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(c) = counts.get_mut(&peer_ip) {
@@ -92,16 +102,18 @@ fn process_request(
     shared: &SharedMetrics,
     soc: &SocInfo,
     last_request: &Arc<AtomicU64>,
+    idle_timeout_secs: u64,
+    collect_now: &CollectNow,
+    collect_done: &CollectDone,
     token: &Arc<Option<String>>,
 ) {
-    // Update last-request timestamp (S4)
-    last_request.store(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs(),
-        Ordering::Relaxed,
-    );
+    // Atomically swap last-request timestamp; detect idle→active transition (S4)
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let old_last = last_request.swap(now_secs, Ordering::Relaxed);
+    let was_idle = now_secs.saturating_sub(old_last) > idle_timeout_secs;
 
     let (path, auth_header) = match read_path_and_auth(&mut stream) {
         Some(p) => p,
@@ -131,6 +143,26 @@ fn process_request(
             );
             let _ = body; // suppress unused warning
             return;
+        }
+    }
+
+    // ADR-0014: idle-resume — signal main loop to collect immediately, wait for fresh data
+    if was_idle {
+        let gen_before = *collect_done.0.lock();
+
+        // Signal main loop
+        {
+            let mut flag = collect_now.0.lock();
+            *flag = true;
+            collect_now.1.notify_one();
+        }
+
+        // Wait for a fresh collection (generation increments) with 5s timeout
+        let mut coll_gen = collect_done.0.lock();
+        while *coll_gen <= gen_before {
+            if collect_done.1.wait_for(&mut coll_gen, Duration::from_millis(5000)).timed_out() {
+                break;
+            }
         }
     }
 

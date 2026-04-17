@@ -2,8 +2,10 @@ use clap::Parser;
 use mtop::cli::{Cli, Command};
 use mtop::metrics::Sampler;
 use mtop::{config, serve, tui};
+use parking_lot::{Condvar, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 fn is_loopback(addr: &str) -> bool {
     if addr.starts_with("127.") {
@@ -100,23 +102,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .as_secs(),
             ));
 
+            // ADR-0014: parking_lot::Condvar pairs for idle-resume signaling
+            // collect_now: serve → main ("collect immediately")
+            // collect_done: main → serve ("fresh data ready", generation counter)
+            let collect_now: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
+            let collect_done: Arc<(Mutex<u64>, Condvar)> = Arc::new((Mutex::new(0u64), Condvar::new()));
+
             let shared_http = Arc::clone(&shared);
             let last_request_serve = Arc::clone(&last_request);
+            let cn_serve = Arc::clone(&collect_now);
+            let cd_serve = Arc::clone(&collect_done);
             std::thread::spawn(move || {
-                if let Err(e) = serve::run(port, &bind, shared_http, &soc, last_request_serve, token) {
+                if let Err(e) = serve::run(port, &bind, shared_http, &soc, last_request_serve, idle_timeout_secs, cn_serve, cd_serve, token) {
                     eprintln!("server error: {e}");
                 }
             });
 
             loop {
-                // SHALL-52-S4-4: idle check — skip sampling when idle
+                // SHALL-52-S4-4: idle check — park on condvar when idle
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs();
                 let last = last_request.load(Ordering::Relaxed);
                 if now.saturating_sub(last) > idle_timeout_secs {
-                    std::thread::sleep(std::time::Duration::from_millis(interval as u64));
+                    // Park until collect_now signal or interval timeout
+                    let mut flag = collect_now.0.lock();
+                    if !*flag {
+                        collect_now.1.wait_for(&mut flag, Duration::from_millis(interval as u64));
+                    }
+                    if *flag {
+                        // Serve thread requested immediate collection on idle-resume
+                        *flag = false;
+                        drop(flag);
+                        match sampler.sample(100) {
+                            Ok(s) => {
+                                if let Ok(mut guard) = shared.write() {
+                                    *guard = Some(s);
+                                }
+                                let mut coll_gen = collect_done.0.lock();
+                                *coll_gen += 1;
+                                collect_done.1.notify_all();
+                            }
+                            Err(e) => eprintln!("sampling error (idle-resume): {e}"),
+                        }
+                    }
                     continue;
                 }
 

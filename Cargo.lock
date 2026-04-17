@@ -857,6 +857,7 @@ dependencies = [
  "crossterm",
  "insta",
  "libc",
+ "parking_lot",
  "ratatui",
  "serde",
  "serde_json",
