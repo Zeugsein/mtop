@@ -104,8 +104,8 @@ pub(crate) fn prepare_power_components(power: &PowerMetrics, temperature: &Therm
         PowerComponent { name: "GPU", watts: power.gpu_w },
         PowerComponent { name: "ANE", watts: power.ane_w },
         PowerComponent { name: "DRAM", watts: power.dram_w },
-        PowerComponent { name: "System", watts: power.system_w },
-        PowerComponent { name: "Package", watts: power.package_w },
+        PowerComponent { name: "system", watts: power.system_w },
+        PowerComponent { name: "package", watts: power.package_w },
     ];
     (components, temperature.fan_speeds.clone())
 }

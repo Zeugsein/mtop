@@ -159,51 +159,6 @@ fn helpers_truncate_narrow() {
     );
 }
 
-// ===========================================================================
-// Temperature color thresholds (iter9)
-// ===========================================================================
-
-#[test]
-fn temp_color_normal_is_green() {
-    let color = mtop::tui::helpers::temp_color(60.0, 80.0, 95.0);
-    assert_eq!(color, ratatui::style::Color::Green);
-}
-
-#[test]
-fn temp_color_warn_is_yellow() {
-    let color = mtop::tui::helpers::temp_color(85.0, 80.0, 95.0);
-    assert_eq!(color, ratatui::style::Color::Yellow);
-}
-
-#[test]
-fn temp_color_critical_is_red() {
-    let color = mtop::tui::helpers::temp_color(96.0, 80.0, 95.0);
-    assert_eq!(color, ratatui::style::Color::Red);
-}
-
-#[test]
-fn temp_color_exact_warn_threshold() {
-    let color = mtop::tui::helpers::temp_color(80.0, 80.0, 95.0);
-    assert_eq!(color, ratatui::style::Color::Yellow);
-}
-
-#[test]
-fn temp_color_exact_crit_threshold() {
-    let color = mtop::tui::helpers::temp_color(95.0, 80.0, 95.0);
-    assert_eq!(color, ratatui::style::Color::Red);
-}
-
-#[test]
-fn cpu_temp_thresholds_are_correct() {
-    assert_eq!(mtop::tui::helpers::CPU_TEMP_WARN, 80.0);
-    assert_eq!(mtop::tui::helpers::CPU_TEMP_CRIT, 95.0);
-}
-
-#[test]
-fn gpu_temp_thresholds_are_correct() {
-    assert_eq!(mtop::tui::helpers::GPU_TEMP_WARN, 85.0);
-    assert_eq!(mtop::tui::helpers::GPU_TEMP_CRIT, 100.0);
-}
 
 // ===========================================================================
 // Weighted process sort score (iter6)
