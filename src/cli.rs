@@ -52,6 +52,18 @@ pub enum Command {
         /// Address to bind to
         #[arg(short, long, default_value = "127.0.0.1")]
         bind: String,
+
+        /// Allow binding to external (non-loopback) interfaces (security risk)
+        #[arg(long, default_value_t = false)]
+        allow_external_bind: bool,
+
+        /// Stop sampling when no requests have arrived for this many seconds (default: 30)
+        #[arg(long, default_value_t = 30)]
+        serve_idle_timeout: u64,
+
+        /// Require a bearer token for all requests (auto-generates if MTOP_SERVE_TOKEN is unset)
+        #[arg(long, default_value_t = false)]
+        require_token: bool,
     },
 
     /// Print debug/diagnostic information

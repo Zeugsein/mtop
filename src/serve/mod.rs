@@ -2,15 +2,23 @@ use crate::metrics::{MetricsSnapshot, SocInfo};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{IpAddr, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use subtle::ConstantTimeEq;
 
 pub type SharedMetrics = Arc<RwLock<Option<MetricsSnapshot>>>;
 
 const MAX_CONNECTIONS: usize = 64;
 const MAX_PER_IP: usize = 8;
 
-pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(
+    port: u16,
+    bind: &str,
+    shared: SharedMetrics,
+    soc: &SocInfo,
+    last_request: Arc<AtomicU64>,
+    token: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let addr = format!("{bind}:{port}");
     let listener = TcpListener::bind(&addr)?;
     eprintln!("mtop serve listening on http://{addr}");
@@ -20,6 +28,7 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
     let soc = soc.clone();
     let active = Arc::new(AtomicUsize::new(0));
     let per_ip: Arc<Mutex<HashMap<IpAddr, usize>>> = Arc::new(Mutex::new(HashMap::new()));
+    let token = Arc::new(token);
 
     for stream in listener.incoming() {
         match stream {
@@ -57,8 +66,10 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
                 let soc = soc.clone();
                 let active = Arc::clone(&active);
                 let per_ip = Arc::clone(&per_ip);
+                let last_request = Arc::clone(&last_request);
+                let token = Arc::clone(&token);
                 std::thread::spawn(move || {
-                    process_request(stream, &shared, &soc);
+                    process_request(stream, &shared, &soc, &last_request, &token);
                     active.fetch_sub(1, Ordering::Release);
                     let mut counts = per_ip.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(c) = counts.get_mut(&peer_ip) {
@@ -76,11 +87,52 @@ pub fn run(port: u16, bind: &str, shared: SharedMetrics, soc: &SocInfo) -> Resul
     Ok(())
 }
 
-fn process_request(mut stream: TcpStream, shared: &SharedMetrics, soc: &SocInfo) {
-    let path = match read_path(&mut stream) {
+fn process_request(
+    mut stream: TcpStream,
+    shared: &SharedMetrics,
+    soc: &SocInfo,
+    last_request: &Arc<AtomicU64>,
+    token: &Arc<Option<String>>,
+) {
+    // Update last-request timestamp (S4)
+    last_request.store(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+        Ordering::Relaxed,
+    );
+
+    let (path, auth_header) = match read_path_and_auth(&mut stream) {
         Some(p) => p,
         None => return,
     };
+
+    // Bearer token check (S5)
+    if let Some(ref expected) = **token {
+        let provided = auth_header
+            .as_deref()
+            .and_then(|h| h.strip_prefix("Bearer "))
+            .unwrap_or("");
+        let expected_bytes = expected.as_bytes();
+        let provided_bytes = provided.as_bytes();
+        // Constant-time compare; if lengths differ pad to avoid short-circuit
+        let lengths_match = provided_bytes.len() == expected_bytes.len();
+        let dummy = expected_bytes; // same length as expected for dummy compare
+        let compare_against = if lengths_match { provided_bytes } else { dummy };
+        let ok = compare_against.ct_eq(expected_bytes).unwrap_u8() == 1 && lengths_match;
+        if !ok {
+            let body = b"";
+            let _ = stream.write_all(
+                format!(
+                    "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                )
+                .as_bytes(),
+            );
+            let _ = body; // suppress unused warning
+            return;
+        }
+    }
 
     let metrics = match shared.read() {
         Ok(guard) => guard.clone(),
@@ -116,24 +168,41 @@ fn process_request(mut stream: TcpStream, shared: &SharedMetrics, soc: &SocInfo)
     }
 }
 
-/// Read the HTTP request path from the stream.
+/// Read the HTTP request path and Authorization header from the stream.
 /// NOTE: Single-read design is an accepted residual Slowloris risk.
 /// Primary defense is the per-IP connection limit (MAX_PER_IP) + 2s timeout.
 /// A slow sender can hold one connection for up to 2s before timeout fires.
 /// With MAX_PER_IP=8, an attacker can occupy at most 8 slots per IP.
-fn read_path(stream: &mut TcpStream) -> Option<String> {
+fn read_path_and_auth(stream: &mut TcpStream) -> Option<(String, Option<String>)> {
     stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok()?;
     stream.set_write_timeout(Some(std::time::Duration::from_secs(2))).ok()?;
-    let mut buf = [0u8; 2048];
+    let mut buf = [0u8; 4096];
     let n = stream.read(&mut buf).ok()?;
     let text = std::str::from_utf8(&buf[..n]).ok()?;
-    let path = text.lines().next()?.split_whitespace().nth(1)?;
-    Some(path.split('?').next().unwrap_or(path).to_string())
+    let mut lines = text.lines();
+    let request_line = lines.next()?;
+    let path = request_line.split_whitespace().nth(1)?;
+    let path = path.split('?').next().unwrap_or(path).to_string();
+
+    // Scan remaining lines for Authorization header
+    let mut auth: Option<String> = None;
+    for line in lines {
+        if line.is_empty() {
+            break; // end of headers
+        }
+        let lower = line.to_lowercase();
+        if lower.starts_with("authorization:") {
+            auth = Some(line[14..].trim().to_string());
+        }
+    }
+
+    Some((path, auth))
 }
 
 fn write_response(stream: &mut TcpStream, status: u16, content_type: &str, body: &str) {
     let status_text = match status {
         200 => "OK",
+        401 => "Unauthorized",
         404 => "Not Found",
         429 => "Too Many Requests",
         503 => "Service Unavailable",
