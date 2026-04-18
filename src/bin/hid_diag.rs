@@ -15,11 +15,22 @@ const K_HID_USAGE_APPLE_VENDOR_TEMP_SENSOR: i32 = 0x0005;
 #[link(name = "IOKit", kind = "framework")]
 unsafe extern "C" {
     fn IOHIDEventSystemClientCreate(allocator: *const libc::c_void) -> *const libc::c_void;
-    fn IOHIDEventSystemClientSetMatching(client: *const libc::c_void, matching: *const libc::c_void) -> i32;
+    fn IOHIDEventSystemClientSetMatching(
+        client: *const libc::c_void,
+        matching: *const libc::c_void,
+    ) -> i32;
     fn IOHIDEventSystemClientCopyServices(client: *const libc::c_void) -> *const libc::c_void;
-    fn IOHIDServiceClientCopyEvent(service: *const libc::c_void, event_type: i64, sub_type: i32, options: i64) -> *const libc::c_void;
+    fn IOHIDServiceClientCopyEvent(
+        service: *const libc::c_void,
+        event_type: i64,
+        sub_type: i32,
+        options: i64,
+    ) -> *const libc::c_void;
     fn IOHIDEventGetFloatValue(event: *const libc::c_void, field: i64) -> f64;
-    fn IOHIDServiceClientCopyProperty(service: *const libc::c_void, key: *const libc::c_void) -> *const libc::c_void;
+    fn IOHIDServiceClientCopyProperty(
+        service: *const libc::c_void,
+        key: *const libc::c_void,
+    ) -> *const libc::c_void;
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
@@ -30,12 +41,32 @@ unsafe extern "C" {
     fn CFRelease(cf: *const libc::c_void);
     fn CFArrayGetCount(array: *const libc::c_void) -> i64;
     fn CFArrayGetValueAtIndex(array: *const libc::c_void, idx: i64) -> *const libc::c_void;
-    fn CFStringCreateWithCString(alloc: *const libc::c_void, c_str: *const i8, encoding: u32) -> *const libc::c_void;
+    fn CFStringCreateWithCString(
+        alloc: *const libc::c_void,
+        c_str: *const i8,
+        encoding: u32,
+    ) -> *const libc::c_void;
     fn CFStringGetCStringPtr(the_string: *const libc::c_void, encoding: u32) -> *const i8;
-    fn CFStringGetCString(the_string: *const libc::c_void, buffer: *mut i8, buffer_size: i64, encoding: u32) -> bool;
+    fn CFStringGetCString(
+        the_string: *const libc::c_void,
+        buffer: *mut i8,
+        buffer_size: i64,
+        encoding: u32,
+    ) -> bool;
     fn CFStringGetLength(the_string: *const libc::c_void) -> i64;
-    fn CFDictionaryCreate(allocator: *const libc::c_void, keys: *const *const libc::c_void, values: *const *const libc::c_void, num_values: i64, key_callbacks: *const libc::c_void, value_callbacks: *const libc::c_void) -> *const libc::c_void;
-    fn CFNumberCreate(allocator: *const libc::c_void, the_type: i64, value_ptr: *const libc::c_void) -> *const libc::c_void;
+    fn CFDictionaryCreate(
+        allocator: *const libc::c_void,
+        keys: *const *const libc::c_void,
+        values: *const *const libc::c_void,
+        num_values: i64,
+        key_callbacks: *const libc::c_void,
+        value_callbacks: *const libc::c_void,
+    ) -> *const libc::c_void;
+    fn CFNumberCreate(
+        allocator: *const libc::c_void,
+        the_type: i64,
+        value_ptr: *const libc::c_void,
+    ) -> *const libc::c_void;
 }
 
 unsafe fn cfstr(s: &str) -> *const libc::c_void {
@@ -50,10 +81,19 @@ unsafe fn from_cfstr(cf: *const libc::c_void) -> String {
     }
     let len = CFStringGetLength(cf);
     let buf_size = (len * 4 + 1) as usize;
-    if buf_size > 512 { return "<too long>".into(); }
+    if buf_size > 512 {
+        return "<too long>".into();
+    }
     let mut buf = vec![0i8; buf_size];
-    if CFStringGetCString(cf, buf.as_mut_ptr(), buf_size as i64, K_CF_STRING_ENCODING_UTF8) {
-        std::ffi::CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
+    if CFStringGetCString(
+        cf,
+        buf.as_mut_ptr(),
+        buf_size as i64,
+        K_CF_STRING_ENCODING_UTF8,
+    ) {
+        std::ffi::CStr::from_ptr(buf.as_ptr())
+            .to_string_lossy()
+            .into_owned()
     } else {
         "<cfstr decode failed>".into()
     }
@@ -67,12 +107,18 @@ struct Row {
 
 unsafe fn collect_services(services: *const libc::c_void, with_product: bool) -> Vec<Row> {
     let count = CFArrayGetCount(services);
-    let product_key = if with_product { cfstr("Product") } else { std::ptr::null() };
+    let product_key = if with_product {
+        cfstr("Product")
+    } else {
+        std::ptr::null()
+    };
     let mut rows = Vec::new();
 
     for i in 0..count {
         let sc = CFArrayGetValueAtIndex(services, i);
-        if sc.is_null() { continue; }
+        if sc.is_null() {
+            continue;
+        }
 
         let ev = IOHIDServiceClientCopyEvent(sc, 15, 0, 0);
         let temp = if !ev.is_null() {
@@ -139,7 +185,10 @@ unsafe fn run() {
     // Phase 1: no filter
     println!("\n--- Phase 1: no filter ---");
     let client_all = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
-    if client_all.is_null() { println!("CLIENT CREATE FAILED"); return; }
+    if client_all.is_null() {
+        println!("CLIENT CREATE FAILED");
+        return;
+    }
     let services_all = IOHIDEventSystemClientCopyServices(client_all);
     if services_all.is_null() {
         println!("CopyServices (no filter) returned null");
@@ -147,25 +196,52 @@ unsafe fn run() {
         let total = CFArrayGetCount(services_all);
         let rows = collect_services(services_all, true);
         let with_temp: Vec<_> = rows.iter().filter(|r| r.temp.is_some()).collect();
-        println!("{} services total, {} with temp events:", total, with_temp.len());
+        println!(
+            "{} services total, {} with temp events:",
+            total,
+            with_temp.len()
+        );
         print_table(&rows, true);
         CFRelease(services_all);
     }
     CFRelease(client_all);
 
     // Phase 2: Apple Vendor temperature sensor filter
-    println!("\n--- Phase 2: SetMatching filter (PrimaryUsagePage=0xff00, PrimaryUsage=0x0005) ---");
+    println!(
+        "\n--- Phase 2: SetMatching filter (PrimaryUsagePage=0xff00, PrimaryUsage=0x0005) ---"
+    );
     let client = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
-    if client.is_null() { println!("CLIENT CREATE FAILED"); return; }
+    if client.is_null() {
+        println!("CLIENT CREATE FAILED");
+        return;
+    }
 
     let key_page = cfstr("PrimaryUsagePage");
     let key_usage = cfstr("PrimaryUsage");
-    let val_page = CFNumberCreate(kCFAllocatorDefault, K_CF_NUMBER_SINT32_TYPE, &K_HID_PAGE_APPLE_VENDOR as *const i32 as *const libc::c_void);
-    let val_usage = CFNumberCreate(kCFAllocatorDefault, K_CF_NUMBER_SINT32_TYPE, &K_HID_USAGE_APPLE_VENDOR_TEMP_SENSOR as *const i32 as *const libc::c_void);
+    let val_page = CFNumberCreate(
+        kCFAllocatorDefault,
+        K_CF_NUMBER_SINT32_TYPE,
+        &K_HID_PAGE_APPLE_VENDOR as *const i32 as *const libc::c_void,
+    );
+    let val_usage = CFNumberCreate(
+        kCFAllocatorDefault,
+        K_CF_NUMBER_SINT32_TYPE,
+        &K_HID_USAGE_APPLE_VENDOR_TEMP_SENSOR as *const i32 as *const libc::c_void,
+    );
     let keys: [*const libc::c_void; 2] = [key_page, key_usage];
     let vals: [*const libc::c_void; 2] = [val_page, val_usage];
-    let dict = CFDictionaryCreate(kCFAllocatorDefault, keys.as_ptr(), vals.as_ptr(), 2, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFRelease(key_page); CFRelease(key_usage); CFRelease(val_page); CFRelease(val_usage);
+    let dict = CFDictionaryCreate(
+        kCFAllocatorDefault,
+        keys.as_ptr(),
+        vals.as_ptr(),
+        2,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks,
+    );
+    CFRelease(key_page);
+    CFRelease(key_usage);
+    CFRelease(val_page);
+    CFRelease(val_usage);
 
     if dict.is_null() {
         println!("CFDictionaryCreate FAILED");
@@ -187,7 +263,11 @@ unsafe fn run() {
     let total = CFArrayGetCount(services);
     let rows = collect_services(services, true);
     let with_temp: Vec<_> = rows.iter().filter(|r| r.temp.is_some()).collect();
-    println!("{} filtered services, {} with temp events:", total, with_temp.len());
+    println!(
+        "{} filtered services, {} with temp events:",
+        total,
+        with_temp.len()
+    );
     print_table(&rows, false);
 
     CFRelease(services);

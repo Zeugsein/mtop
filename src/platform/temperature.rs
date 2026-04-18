@@ -16,11 +16,15 @@ impl TemperatureState {
     pub fn new() -> Option<Self> {
         // Try SMC first (works on most Apple Silicon + Intel Macs)
         if let Some(conn) = smc_open() {
-            return Some(Self { source: TempSource::Smc(conn) });
+            return Some(Self {
+                source: TempSource::Smc(conn),
+            });
         }
         // SMC unavailable — try IOHIDEventSystem (works on M4 Pro etc)
         if hid_read_temperatures().is_some() {
-            return Some(Self { source: TempSource::Hid });
+            return Some(Self {
+                source: TempSource::Hid,
+            });
         }
         None
     }
@@ -28,14 +32,10 @@ impl TemperatureState {
     /// Collect temperature metrics. SMC source falls back to HID if no temps found.
     pub fn collect(&self) -> ThermalMetrics {
         match self.source {
-            TempSource::Smc(conn) => {
-                read_smc_temperatures(conn)
-                    .or_else(hid_read_temperatures)
-                    .unwrap_or_default()
-            }
-            TempSource::Hid => {
-                hid_read_temperatures().unwrap_or_default()
-            }
+            TempSource::Smc(conn) => read_smc_temperatures(conn)
+                .or_else(hid_read_temperatures)
+                .unwrap_or_default(),
+            TempSource::Hid => hid_read_temperatures().unwrap_or_default(),
         }
     }
 
@@ -62,40 +62,47 @@ pub fn collect_temperature() -> ThermalMetrics {
 }
 
 fn read_smc_temperatures(conn: u32) -> Option<ThermalMetrics> {
-    let (cpu_keys_dyn, gpu_keys_dyn, ssd_keys_dyn, battery_keys_dyn) = smc_enumerate_temp_keys(conn);
+    let (cpu_keys_dyn, gpu_keys_dyn, ssd_keys_dyn, battery_keys_dyn) =
+        smc_enumerate_temp_keys(conn);
 
     let cpu_temps: Vec<f32> = if !cpu_keys_dyn.is_empty() {
-        cpu_keys_dyn.iter()
+        cpu_keys_dyn
+            .iter()
             .filter_map(|k| smc_read_temp(conn, k))
             .filter(|&t| t > 0.0 && t < 130.0)
             .collect()
     } else {
         let cpu_keys = ["Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02"];
-        cpu_keys.iter()
+        cpu_keys
+            .iter()
             .filter_map(|k| smc_read_temp(conn, k))
             .filter(|&t| t > 0.0 && t < 130.0)
             .collect()
     };
 
     let gpu_temps: Vec<f32> = if !gpu_keys_dyn.is_empty() {
-        gpu_keys_dyn.iter()
+        gpu_keys_dyn
+            .iter()
             .filter_map(|k| smc_read_temp(conn, k))
             .filter(|&t| t > 0.0 && t < 130.0)
             .collect()
     } else {
         let gpu_keys = ["TG0P", "TG0D", "TG1D", "Tg05", "Tg0f", "Tg0j"];
-        gpu_keys.iter()
+        gpu_keys
+            .iter()
             .filter_map(|k| smc_read_temp(conn, k))
             .filter(|&t| t > 0.0 && t < 130.0)
             .collect()
     };
 
-    let ssd_temps: Vec<f32> = ssd_keys_dyn.iter()
+    let ssd_temps: Vec<f32> = ssd_keys_dyn
+        .iter()
         .filter_map(|k| smc_read_temp(conn, k))
         .filter(|&t| t > 0.0 && t < 130.0)
         .collect();
 
-    let battery_temps: Vec<f32> = battery_keys_dyn.iter()
+    let battery_temps: Vec<f32> = battery_keys_dyn
+        .iter()
         .filter_map(|k| smc_read_temp(conn, k))
         .filter(|&t| t > 0.0 && t < 130.0)
         .collect();
@@ -153,9 +160,14 @@ fn read_fan_speeds(conn: u32) -> Vec<u32> {
 }
 
 fn smc_read_fan_rpm(conn: u32, key: &str) -> Option<u32> {
-    if key.len() != 4 { return None; }
+    if key.len() != 4 {
+        return None;
+    }
     let key_bytes: [u8; 4] = [
-        key.as_bytes()[0], key.as_bytes()[1], key.as_bytes()[2], key.as_bytes()[3],
+        key.as_bytes()[0],
+        key.as_bytes()[1],
+        key.as_bytes()[2],
+        key.as_bytes()[3],
     ];
     // SAFETY: SmcKeyData is repr(C) with compile-time size/offset assertions.
     // smc_call communicates with the SMC driver via IOConnectCallStructMethod.
@@ -277,7 +289,10 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
         }
 
         Some(u32::from_be_bytes([
-            output.bytes[0], output.bytes[1], output.bytes[2], output.bytes[3],
+            output.bytes[0],
+            output.bytes[1],
+            output.bytes[2],
+            output.bytes[3],
         ]))
     }
 }
@@ -310,15 +325,17 @@ fn hid_read_temperatures() -> Option<ThermalMetrics> {
 
         for i in 0..count {
             let service = CFArrayGetValueAtIndex(services, i);
-            if service.is_null() { continue; }
+            if service.is_null() {
+                continue;
+            }
 
             let event = IOHIDServiceClientCopyEvent(
-                service,
-                15, // kIOHIDEventTypeTemperature
-                0,
-                0,
+                service, 15, // kIOHIDEventTypeTemperature
+                0, 0,
             );
-            if event.is_null() { continue; }
+            if event.is_null() {
+                continue;
+            }
 
             let temp = IOHIDEventGetFloatValue(event, 15 << 16); // kIOHIDEventFieldTemperatureLevel
             CFRelease(event);
@@ -475,7 +492,12 @@ fn smc_read_temp(conn: u32, key: &str) -> Option<f32> {
             }
             "flt " => {
                 // 32-bit float (little-endian — Apple SMC stores flt in LE)
-                let bytes = [output.bytes[0], output.bytes[1], output.bytes[2], output.bytes[3]];
+                let bytes = [
+                    output.bytes[0],
+                    output.bytes[1],
+                    output.bytes[2],
+                    output.bytes[3],
+                ];
                 Some(f32::from_le_bytes(bytes))
             }
             "fpe2" => {
@@ -550,13 +572,13 @@ struct SmcKeyData {
     p_limit_data: [u8; 16], // offset 10, size 16
     // 2 bytes alignment padding here (key_info has u32 fields → 4-byte alignment, 26→28)
     key_info: SmcKeyInfoData, // offset 28, size 12
-    result: u8,             // offset 40, size 1
-    status: u8,             // offset 41, size 1
-    data8: u8,              // offset 42, size 1
+    result: u8,               // offset 40, size 1
+    status: u8,               // offset 41, size 1
+    data8: u8,                // offset 42, size 1
     // 1 byte alignment padding here (data32 needs 4-byte alignment, 43→44)
-    data32: u32,            // offset 44, size 4
-    bytes: [u8; 32],        // offset 48, size 32
-}                           // total: 80 bytes
+    data32: u32,     // offset 44, size 4
+    bytes: [u8; 32], // offset 48, size 32
+} // total: 80 bytes
 
 impl SmcKeyData {
     fn zeroed() -> Self {
@@ -568,7 +590,11 @@ impl SmcKeyData {
 #[link(name = "IOKit", kind = "framework")]
 unsafe extern "C" {
     fn IOServiceMatching(name: *const i8) -> *mut libc::c_void;
-    fn IOServiceGetMatchingServices(main_port: u32, matching: *mut libc::c_void, existing: *mut u32) -> i32;
+    fn IOServiceGetMatchingServices(
+        main_port: u32,
+        matching: *mut libc::c_void,
+        existing: *mut u32,
+    ) -> i32;
     fn IOIteratorNext(iterator: u32) -> u32;
     fn IORegistryEntryGetName(entry: u32, name: *mut i8) -> i32;
     fn IOServiceOpen(service: u32, owning_task: u32, conn_type: u32, connection: *mut u32) -> i32;

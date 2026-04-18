@@ -12,7 +12,13 @@ const GAUGE_CHAR: &str = "■";
 /// The bar is `width` characters wide, filled proportionally to `value / max`.
 /// Filled portion is gradient-colored (green→red); unfilled is muted.
 /// An optional label (e.g. "12.4/16.0 GB") is appended after the bar.
-pub fn render_gauge_bar<'a>(value: f64, max: f64, width: usize, label: &'a str, theme: &Theme) -> Vec<Span<'a>> {
+pub fn render_gauge_bar<'a>(
+    value: f64,
+    max: f64,
+    width: usize,
+    label: &'a str,
+    theme: &Theme,
+) -> Vec<Span<'a>> {
     if width == 0 {
         return vec![];
     }
@@ -106,10 +112,7 @@ pub fn render_compact_gauge(fraction: f64, width: usize, theme: &Theme) -> Vec<S
     }
 
     // Percentage last (RIGHT)
-    spans.push(Span::styled(
-        pct_str,
-        Style::default().fg(fill_color),
-    ));
+    spans.push(Span::styled(pct_str, Style::default().fg(fill_color)));
 
     spans
 }

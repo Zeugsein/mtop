@@ -1,5 +1,5 @@
 use crate::metrics::PowerMetrics;
-use crate::platform::ioreport_ffi::{self, CFDictionaryRef, CFArrayRef, IOReportFns, CFRelease};
+use crate::platform::ioreport_ffi::{self, CFArrayRef, CFDictionaryRef, CFRelease, IOReportFns};
 
 /// Stateful power collector. Stores IOReport subscription, previous sample,
 /// and timestamp to compute deltas without internal sleeps.
@@ -71,7 +71,8 @@ impl PowerState {
         };
 
         unsafe {
-            let new_sample = (fns.create_samples)(self.subscription, self.channel, std::ptr::null());
+            let new_sample =
+                (fns.create_samples)(self.subscription, self.channel, std::ptr::null());
             if new_sample.is_null() {
                 return PowerMetrics::default();
             }
@@ -116,7 +117,11 @@ pub fn collect_power() -> PowerMetrics {
     PowerMetrics::default()
 }
 
-unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_ms: f64) -> Option<PowerMetrics> {
+unsafe fn parse_power_delta(
+    fns: &IOReportFns,
+    delta: CFDictionaryRef,
+    duration_ms: f64,
+) -> Option<PowerMetrics> {
     let items_key = unsafe { ioreport_ffi::cfstring("IOReportChannels") };
     let items = unsafe { ioreport_ffi::CFDictionaryGetValue(delta, items_key as *const _) };
     unsafe { CFRelease(items_key as *const _) };
@@ -177,7 +182,9 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
         //   "ANE0 Energy", "DRAM0 Energy"
         // Use contains() to match all variants reliably.
         let name_upper = name_str.to_uppercase();
-        if (name_upper.contains("CPU") || name_upper.contains("ECPU") || name_upper.contains("PCPU"))
+        if (name_upper.contains("CPU")
+            || name_upper.contains("ECPU")
+            || name_upper.contains("PCPU"))
             && name_upper.contains("ENERGY")
         {
             cpu_joules += joules;
@@ -192,7 +199,10 @@ unsafe fn parse_power_delta(fns: &IOReportFns, delta: CFDictionaryRef, duration_
 
     let duration_s = duration_ms / 1000.0;
     if duration_s < 1e-6 {
-        return Some(PowerMetrics { available: true, ..Default::default() });
+        return Some(PowerMetrics {
+            available: true,
+            ..Default::default()
+        });
     }
 
     let cpu_w = (cpu_joules / duration_s) as f32;

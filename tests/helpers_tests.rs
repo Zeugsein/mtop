@@ -101,13 +101,14 @@ fn truncate_width_one() {
 // Display-width-aware truncation and padding (iter19)
 // ===========================================================================
 
-use mtop::tui::helpers::{truncate_by_display_width, pad_to_display_width};
+use mtop::tui::helpers::{pad_to_display_width, truncate_by_display_width};
 
 #[test]
 fn helpers_truncate_cjk() {
     let input = "测试Process";
     let result = truncate_by_display_width(input, 8);
-    let result_width: usize = result.chars()
+    let result_width: usize = result
+        .chars()
         .map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(0))
         .sum();
     assert!(
@@ -124,7 +125,8 @@ fn helpers_truncate_cjk() {
 fn helpers_pad_cjk() {
     let input = "测试";
     let result = pad_to_display_width(input, 8);
-    let result_width: usize = result.chars()
+    let result_width: usize = result
+        .chars()
         .map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(0))
         .sum();
     assert_eq!(
@@ -140,13 +142,17 @@ fn helpers_pad_cjk() {
 #[test]
 fn helpers_truncate_exact() {
     let result = truncate_by_display_width("hello", 5);
-    assert_eq!(result, "hello", "Exact-width string should be returned unchanged");
+    assert_eq!(
+        result, "hello",
+        "Exact-width string should be returned unchanged"
+    );
 }
 
 #[test]
 fn helpers_truncate_narrow() {
     let result = truncate_by_display_width("hello_world", 3);
-    let result_width: usize = result.chars()
+    let result_width: usize = result
+        .chars()
         .map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(0))
         .sum();
     assert!(
@@ -159,7 +165,6 @@ fn helpers_truncate_narrow() {
     );
 }
 
-
 // ===========================================================================
 // Weighted process sort score (iter6)
 // ===========================================================================
@@ -167,8 +172,8 @@ fn helpers_truncate_narrow() {
 #[test]
 /// weighted_score: 90% CPU-only process ranks above 30% CPU + 30% memory process
 fn weighted_score_high_cpu_ranks_above_split_load() {
-    use mtop::platform::process::weighted_score;
     use mtop::metrics::types::ProcessInfo;
+    use mtop::platform::process::weighted_score;
 
     let high_cpu = ProcessInfo {
         pid: 1,
@@ -210,8 +215,8 @@ fn weighted_score_high_cpu_ranks_above_split_load() {
 /// weighted_score: broad load across 3 dimensions outranks a single-dimension spike
 /// below the 0.9 spike-bonus threshold.
 fn weighted_score_multi_dimension_beats_sub_threshold_spike() {
-    use mtop::platform::process::weighted_score;
     use mtop::metrics::types::ProcessInfo;
+    use mtop::platform::process::weighted_score;
 
     let single_spike = ProcessInfo {
         pid: 10,
@@ -252,8 +257,8 @@ fn weighted_score_multi_dimension_beats_sub_threshold_spike() {
 #[test]
 /// weighted_score returns exactly 0.0 when all process metrics are zero
 fn weighted_score_all_zeros_returns_zero() {
-    use mtop::platform::process::weighted_score;
     use mtop::metrics::types::ProcessInfo;
+    use mtop::platform::process::weighted_score;
 
     let idle = ProcessInfo {
         pid: 99,
@@ -275,8 +280,8 @@ fn weighted_score_all_zeros_returns_zero() {
 #[test]
 /// weighted_score does not divide by zero when max_power is 0.0
 fn weighted_score_max_power_zero_is_finite() {
-    use mtop::platform::process::weighted_score;
     use mtop::metrics::types::ProcessInfo;
+    use mtop::platform::process::weighted_score;
 
     let proc = ProcessInfo {
         pid: 42,
@@ -291,6 +296,12 @@ fn weighted_score_max_power_zero_is_finite() {
 
     let score = weighted_score(&proc, 1.0, 1_024_000_000, 0.0);
 
-    assert!(score.is_finite(), "score must be finite even when max_power is 0.0; got {score}");
-    assert!(!score.is_nan(), "score must not be NaN when max_power is 0.0");
+    assert!(
+        score.is_finite(),
+        "score must be finite even when max_power is 0.0; got {score}"
+    );
+    assert!(
+        !score.is_nan(),
+        "score must not be NaN when max_power is 0.0"
+    );
 }

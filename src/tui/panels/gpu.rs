@@ -1,12 +1,18 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::metrics::MetricsSnapshot;
-use crate::tui::{AppState, theme, gradient, layout};
 use super::cpu::render_graph_with_baseline;
+use crate::metrics::MetricsSnapshot;
+use crate::tui::{AppState, gradient, layout, theme};
 
 /// GPU panel: Type A layout (75% multi-row braille graph + 25% orphan metrics)
-pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+pub(crate) fn draw_gpu_panel_v2(
+    f: &mut Frame,
+    area: Rect,
+    s: &MetricsSnapshot,
+    state: &AppState,
+    theme: &theme::Theme,
+) {
     let gpu_pct = s.gpu.usage * 100.0;
     let temp_color = gradient::temp_to_color(s.temperature.gpu_avg_c, theme);
     let temp_str = if s.temperature.available {
@@ -19,13 +25,25 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
 
     // I45-F1: removed gpu_idle suppression — always show info
     let mut title_spans = vec![
-        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[1]), Style::default().fg(theme.muted)),
+        Span::styled(
+            format!(" {}", theme::PANEL_SUPERSCRIPTS[1]),
+            Style::default().fg(theme.muted),
+        ),
         Span::styled("gpu ", Style::default().fg(theme.fg).bold()),
         Span::styled(format!("{:.1}%", gpu_pct), Style::default().fg(theme.fg)),
-        Span::styled(format!(" @ {}MHz", s.gpu.freq_mhz), Style::default().fg(theme.muted)),
-        Span::styled(format!("  {:.1}W", s.power.gpu_w), Style::default().fg(theme.muted)),
+        Span::styled(
+            format!(" @ {}MHz", s.gpu.freq_mhz),
+            Style::default().fg(theme.muted),
+        ),
+        Span::styled(
+            format!("  {:.1}W", s.power.gpu_w),
+            Style::default().fg(theme.muted),
+        ),
     ];
-    title_spans.push(Span::styled(format!("  {}", temp_str), Style::default().fg(temp_color)));
+    title_spans.push(Span::styled(
+        format!("  {}", temp_str),
+        Style::default().fg(temp_color),
+    ));
     title_spans.push(Span::raw(" "));
 
     let block = Block::default()
@@ -38,14 +56,24 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
     f.render_widget(block, area);
 
     // 1-char padding left/right, no top padding (UAT-07)
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+    let inner = Rect::new(
+        raw_inner.x + 1,
+        raw_inner.y,
+        raw_inner.width.saturating_sub(2),
+        raw_inner.height,
+    );
 
     if inner.height < 2 || inner.width == 0 {
         return;
     }
 
     // Reserve last row for bottom info
-    let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+    let content_area = Rect::new(
+        inner.x,
+        inner.y,
+        inner.width,
+        inner.height.saturating_sub(1),
+    );
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
     if state.show_detail {
@@ -63,10 +91,15 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
             format!("ANE  {:.1}W", s.power.ane_w),
             format!("DRAM {:.1}W", s.power.dram_w),
             String::new(),
-            format!("VRAM {:.1}/{:.0}GB", s.memory.ram_used as f64 / gb, s.memory.ram_total as f64 / gb),
+            format!(
+                "VRAM {:.1}/{:.0}GB",
+                s.memory.ram_used as f64 / gb,
+                s.memory.ram_total as f64 / gb
+            ),
         ];
 
-        let content_lines = metrics.iter().filter(|m| !m.is_empty()).count() + metrics.iter().filter(|m| m.is_empty()).count();
+        let content_lines = metrics.iter().filter(|m| !m.is_empty()).count()
+            + metrics.iter().filter(|m| m.is_empty()).count();
         let content_lines = content_lines.min(detail_area.height as usize);
         let y_offset = (detail_area.height as usize).saturating_sub(content_lines) / 2;
 
@@ -89,7 +122,6 @@ pub(crate) fn draw_gpu_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, 
             let sparkline_data: Vec<f64> = state.history.gpu_usage.iter().copied().collect();
             render_graph_with_baseline(f, content_area, &sparkline_data, 1.0, theme);
         }
-
     }
 
     // Bottom info inside panel

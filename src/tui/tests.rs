@@ -1,7 +1,7 @@
 use super::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::backend::TestBackend;
 use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 
 // =========================================================================
 // W0: AppState Default
@@ -22,22 +22,39 @@ fn appstate_default_has_sensible_values() {
 // W1: Extracted pure logic (prepare.rs)
 // =========================================================================
 
-use crate::metrics::{ProcessInfo, NetInterface, MemoryMetrics, PowerMetrics, ThermalMetrics, SortMode as SM};
 use super::prepare::*;
+use crate::metrics::{
+    MemoryMetrics, NetInterface, PowerMetrics, ProcessInfo, SortMode as SM, ThermalMetrics,
+};
 
 fn make_test_procs() -> Vec<ProcessInfo> {
     vec![
         ProcessInfo {
-            pid: 1, name: "alpha".to_string(), cpu_pct: 10.0, mem_bytes: 100 * 1024 * 1024,
-            power_w: 1.0, user: "root".to_string(), ..Default::default()
+            pid: 1,
+            name: "alpha".to_string(),
+            cpu_pct: 10.0,
+            mem_bytes: 100 * 1024 * 1024,
+            power_w: 1.0,
+            user: "root".to_string(),
+            ..Default::default()
         },
         ProcessInfo {
-            pid: 2, name: "beta".to_string(), cpu_pct: 50.0, mem_bytes: 2u64 * 1024 * 1024 * 1024,
-            power_w: 5.0, user: "lume".to_string(), ..Default::default()
+            pid: 2,
+            name: "beta".to_string(),
+            cpu_pct: 50.0,
+            mem_bytes: 2u64 * 1024 * 1024 * 1024,
+            power_w: 5.0,
+            user: "lume".to_string(),
+            ..Default::default()
         },
         ProcessInfo {
-            pid: 3, name: "gamma".to_string(), cpu_pct: 30.0, mem_bytes: 500 * 1024 * 1024,
-            power_w: 3.0, user: "lume".to_string(), ..Default::default()
+            pid: 3,
+            name: "gamma".to_string(),
+            cpu_pct: 30.0,
+            mem_bytes: 500 * 1024 * 1024,
+            power_w: 3.0,
+            user: "lume".to_string(),
+            ..Default::default()
         },
     ]
 }
@@ -47,7 +64,7 @@ fn prepare_process_rows_sort_by_cpu() {
     let procs = make_test_procs();
     let rows = prepare_process_rows(&procs, SM::Cpu, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows[0].name, "beta");  // 50% CPU
+    assert_eq!(rows[0].name, "beta"); // 50% CPU
     assert_eq!(rows[1].name, "gamma"); // 30% CPU
     assert_eq!(rows[2].name, "alpha"); // 10% CPU
 }
@@ -65,7 +82,7 @@ fn prepare_process_rows_sort_by_name() {
 fn prepare_process_rows_sort_by_memory() {
     let procs = make_test_procs();
     let rows = prepare_process_rows(&procs, SM::Memory, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
-    assert_eq!(rows[0].name, "beta");  // 2 GB
+    assert_eq!(rows[0].name, "beta"); // 2 GB
     assert_eq!(rows[1].name, "gamma"); // 500 MB
     assert_eq!(rows[2].name, "alpha"); // 100 MB
 }
@@ -74,7 +91,7 @@ fn prepare_process_rows_sort_by_memory() {
 fn prepare_process_rows_sort_by_power() {
     let procs = make_test_procs();
     let rows = prepare_process_rows(&procs, SM::Power, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
-    assert_eq!(rows[0].name, "beta");  // 5W
+    assert_eq!(rows[0].name, "beta"); // 5W
     assert_eq!(rows[1].name, "gamma"); // 3W
     assert_eq!(rows[2].name, "alpha"); // 1W
 }
@@ -92,7 +109,15 @@ fn prepare_process_rows_sort_by_pid() {
 fn prepare_process_rows_sort_by_weighted_score() {
     let procs = make_test_procs();
     // WeightedScore combines cpu, mem, power — beta dominates all three
-    let rows = prepare_process_rows(&procs, SM::WeightedScore, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
+    let rows = prepare_process_rows(
+        &procs,
+        SM::WeightedScore,
+        0,
+        10,
+        50.0,
+        2 * 1024 * 1024 * 1024,
+        5.0,
+    );
     assert_eq!(rows[0].name, "beta"); // highest across all dimensions
 }
 
@@ -116,26 +141,64 @@ fn prepare_process_rows_mem_display_gb() {
     let procs = make_test_procs();
     let rows = prepare_process_rows(&procs, SM::Pid, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
     // beta has 2 GB
-    assert!(rows[1].mem_display.contains("G"), "2 GB should display as G: {}", rows[1].mem_display);
+    assert!(
+        rows[1].mem_display.contains("G"),
+        "2 GB should display as G: {}",
+        rows[1].mem_display
+    );
     // alpha has 100 MB
-    assert!(rows[0].mem_display.contains("M"), "100 MB should display as M: {}", rows[0].mem_display);
+    assert!(
+        rows[0].mem_display.contains("M"),
+        "100 MB should display as M: {}",
+        rows[0].mem_display
+    );
 }
 
 #[test]
 fn prepare_process_rows_cpu_norm() {
     let procs = make_test_procs();
     let rows = prepare_process_rows(&procs, SM::Cpu, 0, 10, 50.0, 2 * 1024 * 1024 * 1024, 5.0);
-    assert!((rows[0].cpu_norm - 1.0).abs() < 0.01, "beta (50/50) should be ~1.0");
-    assert!((rows[2].cpu_norm - 0.2).abs() < 0.01, "alpha (10/50) should be ~0.2");
+    assert!(
+        (rows[0].cpu_norm - 1.0).abs() < 0.01,
+        "beta (50/50) should be ~1.0"
+    );
+    assert!(
+        (rows[2].cpu_norm - 0.2).abs() < 0.01,
+        "alpha (10/50) should be ~0.2"
+    );
 }
 
 #[test]
 fn prepare_network_rows_filters_infrastructure() {
     let ifaces = vec![
-        NetInterface { name: "en0".to_string(), iface_type: "Ethernet".to_string(), rx_bytes_sec: 100.0, tx_bytes_sec: 200.0, ..Default::default() },
-        NetInterface { name: "bridge0".to_string(), iface_type: "Bridge".to_string(), rx_bytes_sec: 10.0, tx_bytes_sec: 20.0, ..Default::default() },
-        NetInterface { name: "awdl0".to_string(), iface_type: "AirDrop".to_string(), rx_bytes_sec: 5.0, tx_bytes_sec: 5.0, ..Default::default() },
-        NetInterface { name: "en1".to_string(), iface_type: "Wi-Fi".to_string(), rx_bytes_sec: 500.0, tx_bytes_sec: 600.0, ..Default::default() },
+        NetInterface {
+            name: "en0".to_string(),
+            iface_type: "Ethernet".to_string(),
+            rx_bytes_sec: 100.0,
+            tx_bytes_sec: 200.0,
+            ..Default::default()
+        },
+        NetInterface {
+            name: "bridge0".to_string(),
+            iface_type: "Bridge".to_string(),
+            rx_bytes_sec: 10.0,
+            tx_bytes_sec: 20.0,
+            ..Default::default()
+        },
+        NetInterface {
+            name: "awdl0".to_string(),
+            iface_type: "AirDrop".to_string(),
+            rx_bytes_sec: 5.0,
+            tx_bytes_sec: 5.0,
+            ..Default::default()
+        },
+        NetInterface {
+            name: "en1".to_string(),
+            iface_type: "Wi-Fi".to_string(),
+            rx_bytes_sec: 500.0,
+            tx_bytes_sec: 600.0,
+            ..Default::default()
+        },
     ];
     let rows = prepare_network_rows(&ifaces);
     assert_eq!(rows.len(), 2);
@@ -145,8 +208,18 @@ fn prepare_network_rows_filters_infrastructure() {
 #[test]
 fn prepare_network_rows_sorted_by_total_traffic() {
     let ifaces = vec![
-        NetInterface { name: "en0".to_string(), rx_bytes_sec: 100.0, tx_bytes_sec: 200.0, ..Default::default() },
-        NetInterface { name: "en1".to_string(), rx_bytes_sec: 500.0, tx_bytes_sec: 600.0, ..Default::default() },
+        NetInterface {
+            name: "en0".to_string(),
+            rx_bytes_sec: 100.0,
+            tx_bytes_sec: 200.0,
+            ..Default::default()
+        },
+        NetInterface {
+            name: "en1".to_string(),
+            rx_bytes_sec: 500.0,
+            tx_bytes_sec: 600.0,
+            ..Default::default()
+        },
     ];
     let rows = prepare_network_rows(&ifaces);
     assert_eq!(rows[0].name, "en1"); // 1100 total
@@ -170,15 +243,32 @@ fn prepare_memory_pressure_fractions() {
         ..Default::default()
     };
     let p = prepare_memory_pressure(&mem, 16.0);
-    assert!((p.wired_frac - 0.25).abs() < 0.01, "wired 4/16 = 0.25: {}", p.wired_frac);
-    assert!((p.app_frac - 0.375).abs() < 0.01, "app 6/16 = 0.375: {}", p.app_frac);
-    assert!((p.compressed_frac - 0.125).abs() < 0.01, "compressed 2/16 = 0.125: {}", p.compressed_frac);
+    assert!(
+        (p.wired_frac - 0.25).abs() < 0.01,
+        "wired 4/16 = 0.25: {}",
+        p.wired_frac
+    );
+    assert!(
+        (p.app_frac - 0.375).abs() < 0.01,
+        "app 6/16 = 0.375: {}",
+        p.app_frac
+    );
+    assert!(
+        (p.compressed_frac - 0.125).abs() < 0.01,
+        "compressed 2/16 = 0.125: {}",
+        p.compressed_frac
+    );
     assert!(p.wired_frac + p.app_frac + p.compressed_frac <= 1.0);
 }
 
 #[test]
 fn prepare_memory_pressure_zero_total() {
-    let mem = MemoryMetrics { wired: 1024, app: 2048, compressed: 512, ..Default::default() };
+    let mem = MemoryMetrics {
+        wired: 1024,
+        app: 2048,
+        compressed: 512,
+        ..Default::default()
+    };
     let p = prepare_memory_pressure(&mem, 0.0);
     // Should clamp to 1.0 max, not panic
     assert!(p.wired_frac <= 1.0);
@@ -188,8 +278,19 @@ fn prepare_memory_pressure_zero_total() {
 
 #[test]
 fn prepare_power_components_has_six_entries() {
-    let power = PowerMetrics { cpu_w: 5.0, gpu_w: 3.0, ane_w: 0.5, dram_w: 1.0, system_w: 2.0, package_w: 10.0, available: true };
-    let thermal = ThermalMetrics { fan_speeds: vec![2000, 3000], ..Default::default() };
+    let power = PowerMetrics {
+        cpu_w: 5.0,
+        gpu_w: 3.0,
+        ane_w: 0.5,
+        dram_w: 1.0,
+        system_w: 2.0,
+        package_w: 10.0,
+        available: true,
+    };
+    let thermal = ThermalMetrics {
+        fan_speeds: vec![2000, 3000],
+        ..Default::default()
+    };
     let (components, fans) = prepare_power_components(&power, &thermal);
     assert_eq!(components.len(), 6);
     assert_eq!(components[0].name, "CPU");
@@ -237,30 +338,54 @@ fn render_expanded_panel_at_size(panel: PanelId, width: u16, height: u16) {
 }
 
 #[test]
-fn expanded_cpu_80x24() { render_expanded_panel_at_size(PanelId::Cpu, 80, 24); }
+fn expanded_cpu_80x24() {
+    render_expanded_panel_at_size(PanelId::Cpu, 80, 24);
+}
 #[test]
-fn expanded_gpu_80x24() { render_expanded_panel_at_size(PanelId::Gpu, 80, 24); }
+fn expanded_gpu_80x24() {
+    render_expanded_panel_at_size(PanelId::Gpu, 80, 24);
+}
 #[test]
-fn expanded_memdisk_80x24() { render_expanded_panel_at_size(PanelId::MemDisk, 80, 24); }
+fn expanded_memdisk_80x24() {
+    render_expanded_panel_at_size(PanelId::MemDisk, 80, 24);
+}
 #[test]
-fn expanded_network_80x24() { render_expanded_panel_at_size(PanelId::Network, 80, 24); }
+fn expanded_network_80x24() {
+    render_expanded_panel_at_size(PanelId::Network, 80, 24);
+}
 #[test]
-fn expanded_power_80x24() { render_expanded_panel_at_size(PanelId::Power, 80, 24); }
+fn expanded_power_80x24() {
+    render_expanded_panel_at_size(PanelId::Power, 80, 24);
+}
 #[test]
-fn expanded_process_80x24() { render_expanded_panel_at_size(PanelId::Process, 80, 24); }
+fn expanded_process_80x24() {
+    render_expanded_panel_at_size(PanelId::Process, 80, 24);
+}
 
 #[test]
-fn expanded_cpu_120x40() { render_expanded_panel_at_size(PanelId::Cpu, 120, 40); }
+fn expanded_cpu_120x40() {
+    render_expanded_panel_at_size(PanelId::Cpu, 120, 40);
+}
 #[test]
-fn expanded_gpu_120x40() { render_expanded_panel_at_size(PanelId::Gpu, 120, 40); }
+fn expanded_gpu_120x40() {
+    render_expanded_panel_at_size(PanelId::Gpu, 120, 40);
+}
 #[test]
-fn expanded_memdisk_120x40() { render_expanded_panel_at_size(PanelId::MemDisk, 120, 40); }
+fn expanded_memdisk_120x40() {
+    render_expanded_panel_at_size(PanelId::MemDisk, 120, 40);
+}
 #[test]
-fn expanded_network_120x40() { render_expanded_panel_at_size(PanelId::Network, 120, 40); }
+fn expanded_network_120x40() {
+    render_expanded_panel_at_size(PanelId::Network, 120, 40);
+}
 #[test]
-fn expanded_power_120x40() { render_expanded_panel_at_size(PanelId::Power, 120, 40); }
+fn expanded_power_120x40() {
+    render_expanded_panel_at_size(PanelId::Power, 120, 40);
+}
 #[test]
-fn expanded_process_120x40() { render_expanded_panel_at_size(PanelId::Process, 120, 40); }
+fn expanded_process_120x40() {
+    render_expanded_panel_at_size(PanelId::Process, 120, 40);
+}
 
 fn buffer_text(terminal: &Terminal<TestBackend>) -> String {
     let buf = terminal.backend().buffer();
@@ -312,7 +437,10 @@ fn dashboard_contains_process_text() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("proc"), "Dashboard should contain 'proc' text");
+    assert!(
+        text.contains("proc"),
+        "Dashboard should contain 'proc' text"
+    );
 }
 
 #[test]
@@ -322,7 +450,10 @@ fn dashboard_contains_footer() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("help"), "Dashboard should contain footer with help keybinding");
+    assert!(
+        text.contains("help"),
+        "Dashboard should contain footer with help keybinding"
+    );
 }
 
 #[test]
@@ -332,7 +463,10 @@ fn dashboard_contains_mtop_header() {
     let state = AppState::default();
     terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
     let text = buffer_text(&terminal);
-    assert!(text.contains("mtop"), "Dashboard should contain 'mtop' in header");
+    assert!(
+        text.contains("mtop"),
+        "Dashboard should contain 'mtop' in header"
+    );
 }
 
 // =========================================================================
@@ -350,13 +484,19 @@ fn make_key_ctrl(code: KeyCode) -> KeyEvent {
 #[test]
 fn key_q_quits() {
     let mut state = AppState::default();
-    assert!(input::handle_key_event(make_key(KeyCode::Char('q')), &mut state));
+    assert!(input::handle_key_event(
+        make_key(KeyCode::Char('q')),
+        &mut state
+    ));
 }
 
 #[test]
 fn key_ctrl_c_quits() {
     let mut state = AppState::default();
-    assert!(input::handle_key_event(make_key_ctrl(KeyCode::Char('c')), &mut state));
+    assert!(input::handle_key_event(
+        make_key_ctrl(KeyCode::Char('c')),
+        &mut state
+    ));
 }
 
 #[test]
@@ -480,7 +620,7 @@ fn key_plus_caps_at_10000() {
 fn key_minus_decreases_interval() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Char('-')), &mut state);
-    assert_eq!(state.interval_ms, 750);  // 1000 → prev preset 750
+    assert_eq!(state.interval_ms, 750); // 1000 → prev preset 750
 }
 
 #[test]
@@ -614,7 +754,10 @@ fn key_arrow_up_scrolls_process() {
 fn key_arrow_up_at_zero_stays_zero() {
     let mut state = AppState::default();
     input::handle_key_event(make_key(KeyCode::Up), &mut state);
-    assert_eq!(state.process_scroll, 0, "Up at scroll=0 should saturate at 0");
+    assert_eq!(
+        state.process_scroll, 0,
+        "Up at scroll=0 should saturate at 0"
+    );
 }
 
 #[test]
@@ -651,8 +794,11 @@ fn theme_reverse_cycle_wraps_to_last() {
     let mut state = AppState::default();
     state.theme_idx = 0;
     input::handle_key_event(make_key(KeyCode::Char('C')), &mut state);
-    assert_eq!(state.theme_idx, theme::THEMES.len() - 1,
-        "reverse cycling from 0 should wrap to last theme");
+    assert_eq!(
+        state.theme_idx,
+        theme::THEMES.len() - 1,
+        "reverse cycling from 0 should wrap to last theme"
+    );
 }
 
 /// Reverse cycle from index 5 decrements to 4. (ref: SHALL-AD-02b)

@@ -23,7 +23,8 @@ fn theme_all_have_nondefault_process_accent() {
         assert!(
             matches!(t.process_accent, Color::Rgb(_, _, _)),
             "theme '{}': process_accent must be Rgb, got {:?}",
-            t.name, t.process_accent
+            t.name,
+            t.process_accent
         );
         if let Color::Rgb(r, g, b) = t.process_accent {
             assert!(
@@ -46,10 +47,16 @@ fn theme_panel_accents_are_distinct() {
             ("mem", format!("{:?}", t.mem_accent)),
             ("process", format!("{:?}", t.process_accent)),
         ];
-        assert_ne!(accents[0].1, accents[2].1,
-            "theme '{}': cpu_accent must differ from mem_accent", t.name);
-        assert_ne!(accents[0].1, accents[3].1,
-            "theme '{}': cpu_accent must differ from process_accent", t.name);
+        assert_ne!(
+            accents[0].1, accents[2].1,
+            "theme '{}': cpu_accent must differ from mem_accent",
+            t.name
+        );
+        assert_ne!(
+            accents[0].1, accents[3].1,
+            "theme '{}': cpu_accent must differ from process_accent",
+            t.name
+        );
     }
 }
 
@@ -68,9 +75,18 @@ fn baseline_color_dark_theme_brightens_muted() {
     let nord = THEMES.iter().find(|t| t.name == "nord").unwrap();
     let baseline = theme::baseline_color(nord);
     if let (Color::Rgb(mr, mg, mb), Color::Rgb(br, bg, bb)) = (nord.muted, baseline) {
-        assert!(br > mr || br == 255, "nord baseline R ({br}) should be > muted R ({mr})");
-        assert!(bg > mg || bg == 255, "nord baseline G ({bg}) should be > muted G ({mg})");
-        assert!(bb > mb || bb == 255, "nord baseline B ({bb}) should be > muted B ({mb})");
+        assert!(
+            br > mr || br == 255,
+            "nord baseline R ({br}) should be > muted R ({mr})"
+        );
+        assert!(
+            bg > mg || bg == 255,
+            "nord baseline G ({bg}) should be > muted G ({mg})"
+        );
+        assert!(
+            bb > mb || bb == 255,
+            "nord baseline B ({bb}) should be > muted B ({mb})"
+        );
     } else {
         panic!("expected Rgb colors");
     }
@@ -84,9 +100,18 @@ fn baseline_color_light_theme_darkens_muted() {
     let sol_light = THEMES.iter().find(|t| t.name == "solarized-light").unwrap();
     let baseline = theme::baseline_color(sol_light);
     if let (Color::Rgb(mr, mg, mb), Color::Rgb(br, bg, bb)) = (sol_light.muted, baseline) {
-        assert!(br < mr || mr == 0, "solarized-light baseline R ({br}) should be < muted R ({mr})");
-        assert!(bg < mg || mg == 0, "solarized-light baseline G ({bg}) should be < muted G ({mg})");
-        assert!(bb < mb || mb == 0, "solarized-light baseline B ({bb}) should be < muted B ({mb})");
+        assert!(
+            br < mr || mr == 0,
+            "solarized-light baseline R ({br}) should be < muted R ({mr})"
+        );
+        assert!(
+            bg < mg || mg == 0,
+            "solarized-light baseline G ({bg}) should be < muted G ({mg})"
+        );
+        assert!(
+            bb < mb || mb == 0,
+            "solarized-light baseline B ({bb}) should be < muted B ({mb})"
+        );
     } else {
         panic!("expected Rgb colors");
     }
@@ -100,9 +125,18 @@ fn baseline_color_gruvbox_visible_boost() {
     let gruvbox = THEMES.iter().find(|t| t.name == "gruvbox").unwrap();
     let baseline = theme::baseline_color(gruvbox);
     if let (Color::Rgb(mr, mg, mb), Color::Rgb(br, bg, bb)) = (gruvbox.muted, baseline) {
-        assert!(br > mr || br == 255, "gruvbox baseline R ({br}) should be > muted R ({mr})");
-        assert!(bg > mg || bg == 255, "gruvbox baseline G ({bg}) should be > muted G ({mg})");
-        assert!(bb > mb || bb == 255, "gruvbox baseline B ({bb}) should be > muted B ({mb})");
+        assert!(
+            br > mr || br == 255,
+            "gruvbox baseline R ({br}) should be > muted R ({mr})"
+        );
+        assert!(
+            bg > mg || bg == 255,
+            "gruvbox baseline G ({bg}) should be > muted G ({mg})"
+        );
+        assert!(
+            bb > mb || bb == 255,
+            "gruvbox baseline B ({bb}) should be > muted B ({mb})"
+        );
     } else {
         panic!("expected Rgb colors");
     }
@@ -116,8 +150,11 @@ fn baseline_color_channels_cap_at_255() {
     for t in THEMES.iter() {
         let baseline = theme::baseline_color(t);
         if let Color::Rgb(r, g, b) = baseline {
-            assert!(r <= 255 && g <= 255 && b <= 255,
-                "theme '{}': baseline_color channels must not exceed 255", t.name);
+            assert!(
+                r <= 255 && g <= 255 && b <= 255,
+                "theme '{}': baseline_color channels must not exceed 255",
+                t.name
+            );
         }
     }
 }
@@ -137,7 +174,11 @@ fn memory_usage_fraction_from_bytes() {
     let ram_total = 48 * 1024 * 1024 * 1024u64;
 
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    snapshot.memory = MemoryMetrics {
+        ram_total,
+        ram_used,
+        ..Default::default()
+    };
     let mut history = MetricsHistory::new();
     history.push(&snapshot);
 
@@ -157,7 +198,11 @@ fn memory_usage_clamps_when_exceeds_total() {
     let ram_used = ram_total + 1024 * 1024 * 1024;
 
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    snapshot.memory = MemoryMetrics {
+        ram_total,
+        ram_used,
+        ..Default::default()
+    };
     let mut history = MetricsHistory::new();
     history.push(&snapshot);
 
@@ -176,7 +221,11 @@ fn memory_usage_zero_when_unused() {
     let ram_used = 0u64;
 
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    snapshot.memory = MemoryMetrics {
+        ram_total,
+        ram_used,
+        ..Default::default()
+    };
     let mut history = MetricsHistory::new();
     history.push(&snapshot);
 
@@ -192,7 +241,7 @@ fn memory_usage_zero_when_unused() {
 // =========================================================================
 
 fn push_net_sample(history: &mut mtop::metrics::types::MetricsHistory, bytes_sec: f64) {
-    use mtop::metrics::types::{MetricsSnapshot, NetworkMetrics, NetInterface};
+    use mtop::metrics::types::{MetricsSnapshot, NetInterface, NetworkMetrics};
     let mut snapshot = MetricsSnapshot::default();
     snapshot.network = NetworkMetrics {
         interfaces: vec![NetInterface {
@@ -215,7 +264,10 @@ fn net_tier_upgrade_after_hold() {
 
     // Immediate upgrade on first sample exceeding current tier
     push_net_sample(&mut history, 1_500_000.0);
-    assert_eq!(history.net_tier_idx, 1, "should upgrade to tier 1 immediately on spike");
+    assert_eq!(
+        history.net_tier_idx, 1,
+        "should upgrade to tier 1 immediately on spike"
+    );
 }
 
 /// Network tier downgrades after a full buffer window of below-threshold samples.
@@ -235,10 +287,16 @@ fn net_tier_downgrade_after_full_buffer_window() {
     for _ in 0..254 {
         push_net_sample(&mut history, 0.0);
     }
-    assert_eq!(history.net_tier_idx, 1, "should still be tier 1 before full window");
+    assert_eq!(
+        history.net_tier_idx, 1,
+        "should still be tier 1 before full window"
+    );
 
     push_net_sample(&mut history, 0.0);
-    assert_eq!(history.net_tier_idx, 0, "should downgrade to tier 0 after full window");
+    assert_eq!(
+        history.net_tier_idx, 0,
+        "should downgrade to tier 0 after full window"
+    );
 }
 
 /// A traffic spike above threshold resets the downgrade hold counter.
@@ -260,16 +318,25 @@ fn net_tier_downgrade_interrupted_by_spike() {
 
     // Spike interrupts — resets hold counter
     push_net_sample(&mut history, 1_500_000.0);
-    assert_eq!(history.net_tier_hold, 0, "hold should reset when sample exceeds threshold");
+    assert_eq!(
+        history.net_tier_hold, 0,
+        "hold should reset when sample exceeds threshold"
+    );
     assert_eq!(history.net_tier_idx, 1, "should remain tier 1");
 
     // After interrupt, need full flush + hold again
     for _ in 0..254 {
         push_net_sample(&mut history, 0.0);
     }
-    assert_eq!(history.net_tier_idx, 1, "still tier 1 before full window after interrupt");
+    assert_eq!(
+        history.net_tier_idx, 1,
+        "still tier 1 before full window after interrupt"
+    );
     push_net_sample(&mut history, 0.0);
-    assert_eq!(history.net_tier_idx, 0, "now tier 0 after full window post-interrupt");
+    assert_eq!(
+        history.net_tier_idx, 0,
+        "now tier 0 after full window post-interrupt"
+    );
 }
 
 /// Downgrade threshold is 10% of current tier ceiling.
@@ -291,7 +358,10 @@ fn net_tier_downgrade_threshold_is_10_percent() {
     }
     assert_eq!(history.net_tier_idx, 1, "not yet downgraded at 254");
     push_net_sample(&mut history, 400_000.0);
-    assert_eq!(history.net_tier_idx, 0, "should downgrade: 400K < 10% of 5M");
+    assert_eq!(
+        history.net_tier_idx, 0,
+        "should downgrade: 400K < 10% of 5M"
+    );
 
     // Values above 10% must NOT trigger downgrade
     let mut history2 = MetricsHistory::new();
@@ -301,7 +371,10 @@ fn net_tier_downgrade_threshold_is_10_percent() {
     for _ in 0..256 {
         push_net_sample(&mut history2, 2_000_000.0);
     }
-    assert_eq!(history2.net_tier_idx, 1, "should NOT downgrade: 2M > 10% of 5M");
+    assert_eq!(
+        history2.net_tier_idx, 1,
+        "should NOT downgrade: 2M > 10% of 5M"
+    );
 }
 
 // =========================================================================
@@ -314,7 +387,10 @@ fn battery_gauge_full_charge() {
     use mtop::metrics::types::{BatteryMetrics, MetricsSnapshot};
     let mut snapshot = MetricsSnapshot::default();
     snapshot.battery = BatteryMetrics {
-        is_present: true, charge_pct: 100.0, is_charging: false, is_on_ac: false,
+        is_present: true,
+        charge_pct: 100.0,
+        is_charging: false,
+        is_on_ac: false,
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
     assert!(text.contains("100%"), "should show 100% for full battery");
@@ -326,7 +402,10 @@ fn battery_gauge_empty() {
     use mtop::metrics::types::{BatteryMetrics, MetricsSnapshot};
     let mut snapshot = MetricsSnapshot::default();
     snapshot.battery = BatteryMetrics {
-        is_present: true, charge_pct: 0.0, is_charging: false, is_on_ac: false,
+        is_present: true,
+        charge_pct: 0.0,
+        is_charging: false,
+        is_on_ac: false,
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
     assert!(text.contains("0%"), "should show 0% for empty battery");
@@ -338,7 +417,10 @@ fn battery_gauge_half() {
     use mtop::metrics::types::{BatteryMetrics, MetricsSnapshot};
     let mut snapshot = MetricsSnapshot::default();
     snapshot.battery = BatteryMetrics {
-        is_present: true, charge_pct: 50.0, is_charging: false, is_on_ac: false,
+        is_present: true,
+        charge_pct: 50.0,
+        is_charging: false,
+        is_on_ac: false,
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
     assert!(text.contains("50%"), "should show 50%");
@@ -350,10 +432,16 @@ fn battery_gauge_no_battery_shows_ac() {
     use mtop::metrics::types::{BatteryMetrics, MetricsSnapshot};
     let mut snapshot = MetricsSnapshot::default();
     snapshot.battery = BatteryMetrics {
-        is_present: false, charge_pct: 0.0, is_charging: false, is_on_ac: false,
+        is_present: false,
+        charge_pct: 0.0,
+        is_charging: false,
+        is_on_ac: false,
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
-    assert!(text.contains("AC"), "should show AC when no battery present");
+    assert!(
+        text.contains("AC"),
+        "should show AC when no battery present"
+    );
 }
 
 /// Charging state shows lightning bolt and percentage. (ref: SHALL-26-02e)
@@ -362,11 +450,17 @@ fn battery_gauge_charging_indicator() {
     use mtop::metrics::types::{BatteryMetrics, MetricsSnapshot};
     let mut snapshot = MetricsSnapshot::default();
     snapshot.battery = BatteryMetrics {
-        is_present: true, charge_pct: 75.0, is_charging: true, is_on_ac: true,
+        is_present: true,
+        charge_pct: 75.0,
+        is_charging: true,
+        is_on_ac: true,
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
     assert!(text.contains("75%"), "should show 75%");
-    assert!(text.contains("\u{26a1}"), "should show lightning bolt when charging");
+    assert!(
+        text.contains("\u{26a1}"),
+        "should show lightning bolt when charging"
+    );
 }
 
 /// Battery percentage appears at most once in the header row (not duplicated). (ref: SHALL-26-02f)
@@ -376,13 +470,19 @@ fn battery_gauge_no_duplicate_percentage() {
     for pct in [0.0, 25.0, 50.0, 75.0, 100.0] {
         let mut snapshot = MetricsSnapshot::default();
         snapshot.battery = BatteryMetrics {
-            is_present: true, charge_pct: pct, is_charging: false, is_on_ac: false,
+            is_present: true,
+            charge_pct: pct,
+            is_charging: false,
+            is_on_ac: false,
         };
         let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
         let header_line = text.lines().next().unwrap_or("");
         let pct_str = format!("{:.0}%", pct);
         let count = header_line.matches(&pct_str).count();
-        assert!(count <= 1, "at {pct}%: '{pct_str}' appears {count} times in header, expected at most 1");
+        assert!(
+            count <= 1,
+            "at {pct}%: '{pct_str}' appears {count} times in header, expected at most 1"
+        );
     }
 }
 
@@ -394,9 +494,17 @@ fn battery_gauge_no_duplicate_percentage() {
 #[test]
 fn battery_charge_pct_clamps_above_100() {
     use mtop::metrics::types::BatteryMetrics;
-    let bat = BatteryMetrics { is_present: true, charge_pct: 103.0, is_charging: false, is_on_ac: false };
+    let bat = BatteryMetrics {
+        is_present: true,
+        charge_pct: 103.0,
+        is_charging: false,
+        is_on_ac: false,
+    };
     let filled = (bat.charge_pct.min(100.0) / 100.0 * 6.0).round() as usize;
-    assert_eq!(filled, 6, "clamped charge_pct should produce at most 6 filled cells");
+    assert_eq!(
+        filled, 6,
+        "clamped charge_pct should produce at most 6 filled cells"
+    );
 }
 
 /// Default BatteryMetrics has is_present=false and charge_pct=0. (ref: SHALL-05-06)
@@ -418,13 +526,27 @@ fn battery_default_not_present() {
 fn gpu_detail_omits_cores_label() {
     use mtop::metrics::types::{GpuMetrics, MetricsSnapshot, PowerMetrics, SocInfo};
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.gpu = GpuMetrics { freq_mhz: 1000, usage: 0.5, power_w: 5.0, available: true };
-    snapshot.power = PowerMetrics { gpu_w: 5.0, available: true, ..Default::default() };
-    snapshot.soc = SocInfo { gpu_cores: 20, ..Default::default() };
+    snapshot.gpu = GpuMetrics {
+        freq_mhz: 1000,
+        usage: 0.5,
+        power_w: 5.0,
+        available: true,
+    };
+    snapshot.power = PowerMetrics {
+        gpu_w: 5.0,
+        available: true,
+        ..Default::default()
+    };
+    snapshot.soc = SocInfo {
+        gpu_cores: 20,
+        ..Default::default()
+    };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
     let core_count = text.matches("cores").count();
-    assert!(core_count <= 1,
-        "\"cores\" should appear at most once (bottom row only), found {core_count} times");
+    assert!(
+        core_count <= 1,
+        "\"cores\" should appear at most once (bottom row only), found {core_count} times"
+    );
 }
 
 // =========================================================================
@@ -449,7 +571,10 @@ fn memory_hide_mode_shows_swap_and_disk() {
         ..Default::default()
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
-    assert!(text.contains("swap:"), "hide mode with swap should show 'swap:'");
+    assert!(
+        text.contains("swap:"),
+        "hide mode with swap should show 'swap:'"
+    );
     assert!(text.contains("disk:"), "hide mode should show 'disk:'");
 }
 
@@ -471,7 +596,10 @@ fn memory_hide_mode_omits_swap_when_zero() {
         ..Default::default()
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
-    assert!(!text.contains("swap:"), "hide mode without swap should not show 'swap:'");
+    assert!(
+        !text.contains("swap:"),
+        "hide mode without swap should not show 'swap:'"
+    );
     assert!(text.contains("disk:"), "hide mode should show 'disk:'");
 }
 
@@ -488,7 +616,10 @@ fn memory_show_mode_includes_swap() {
         ..Default::default()
     };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
-    assert!(text.contains("swap:"), "show mode with swap should show 'swap:'");
+    assert!(
+        text.contains("swap:"),
+        "show mode with swap should show 'swap:'"
+    );
 }
 
 // =========================================================================

@@ -26,7 +26,10 @@ pub fn truncate_by_display_width(s: &str, max_width: usize) -> String {
 
 /// Pad a string to a target display width with trailing spaces (CJK-aware).
 pub fn pad_to_display_width(s: &str, target_width: usize) -> String {
-    let current: usize = s.chars().map(|c| UnicodeWidthChar::width(c).unwrap_or(0)).sum();
+    let current: usize = s
+        .chars()
+        .map(|c| UnicodeWidthChar::width(c).unwrap_or(0))
+        .sum();
     if current >= target_width {
         s.to_string()
     } else {
@@ -98,7 +101,9 @@ pub fn truncate_with_ellipsis(name: &str, max_width: usize) -> String {
 }
 
 pub fn is_infrastructure_interface(name: &str) -> bool {
-    const INFRA_PREFIXES: &[&str] = &["bridge", "awdl", "llw", "gif", "stf", "XHC", "ap", "utun", "ipsec"];
+    const INFRA_PREFIXES: &[&str] = &[
+        "bridge", "awdl", "llw", "gif", "stf", "XHC", "ap", "utun", "ipsec",
+    ];
     INFRA_PREFIXES.iter().any(|prefix| name.starts_with(prefix))
 }
 
@@ -124,8 +129,14 @@ pub fn format_baudrate(baudrate: u64) -> String {
     }
 }
 
-
-pub fn sort_indices(indices: &mut [usize], procs: &[crate::metrics::ProcessInfo], mode: crate::metrics::SortMode, max_cpu: f32, max_mem: u64, max_power: f32) {
+pub fn sort_indices(
+    indices: &mut [usize],
+    procs: &[crate::metrics::ProcessInfo],
+    mode: crate::metrics::SortMode,
+    max_cpu: f32,
+    max_mem: u64,
+    max_power: f32,
+) {
     use crate::metrics::SortMode;
     use crate::platform::process::weighted_score;
     match mode {
@@ -137,19 +148,34 @@ pub fn sort_indices(indices: &mut [usize], procs: &[crate::metrics::ProcessInfo]
             });
         }
         SortMode::Cpu => {
-            indices.sort_by(|&a, &b| procs[b].cpu_pct.partial_cmp(&procs[a].cpu_pct).unwrap_or(std::cmp::Ordering::Equal));
+            indices.sort_by(|&a, &b| {
+                procs[b]
+                    .cpu_pct
+                    .partial_cmp(&procs[a].cpu_pct)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         }
         SortMode::Memory => {
             indices.sort_by(|&a, &b| procs[b].mem_bytes.cmp(&procs[a].mem_bytes));
         }
         SortMode::Power => {
-            indices.sort_by(|&a, &b| procs[b].power_w.partial_cmp(&procs[a].power_w).unwrap_or(std::cmp::Ordering::Equal));
+            indices.sort_by(|&a, &b| {
+                procs[b]
+                    .power_w
+                    .partial_cmp(&procs[a].power_w)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         }
         SortMode::Pid => {
             indices.sort_by(|&a, &b| procs[a].pid.cmp(&procs[b].pid));
         }
         SortMode::Name => {
-            indices.sort_by(|&a, &b| procs[a].name.to_lowercase().cmp(&procs[b].name.to_lowercase()));
+            indices.sort_by(|&a, &b| {
+                procs[a]
+                    .name
+                    .to_lowercase()
+                    .cmp(&procs[b].name.to_lowercase())
+            });
         }
     }
 }

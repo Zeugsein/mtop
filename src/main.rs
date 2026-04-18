@@ -22,7 +22,13 @@ fn is_loopback(addr: &str) -> bool {
 
 /// Parse env var as a truthy boolean (1, true, yes).
 fn env_bool(key: &str) -> bool {
-    matches!(std::env::var(key).unwrap_or_default().to_lowercase().as_str(), "1" | "true" | "yes")
+    matches!(
+        std::env::var(key)
+            .unwrap_or_default()
+            .to_lowercase()
+            .as_str(),
+        "1" | "true" | "yes"
+    )
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,8 +79,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // SHALL-52-S2-3: reject external bind unless opted in
             if !is_loopback(&bind) && !allow_external_bind {
                 eprintln!("error: mtop serve refuses to bind to {bind} (external interface)");
-                eprintln!("       metrics are exposed without authentication — this is a security risk");
-                eprintln!("       to opt in explicitly: --allow-external-bind  |  MTOP_ALLOW_EXTERNAL_BIND=1  |  .env: MTOP_ALLOW_EXTERNAL_BIND=1");
+                eprintln!(
+                    "       metrics are exposed without authentication — this is a security risk"
+                );
+                eprintln!(
+                    "       to opt in explicitly: --allow-external-bind  |  MTOP_ALLOW_EXTERNAL_BIND=1  |  .env: MTOP_ALLOW_EXTERNAL_BIND=1"
+                );
                 std::process::exit(1);
             }
 
@@ -84,7 +94,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // SHALL-52-S5-5: warn when external bind + open mode
             if allow_external_bind && token.is_none() {
                 eprintln!("warning: mtop serve is bound to {bind} without authentication");
-                eprintln!("         consider setting a token: use --require-token (auto-generates) or set MTOP_SERVE_TOKEN");
+                eprintln!(
+                    "         consider setting a token: use --require-token (auto-generates) or set MTOP_SERVE_TOKEN"
+                );
             }
 
             let mut sampler = Sampler::new()?;
@@ -102,15 +114,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // ADR-0014: parking_lot::Condvar pairs for idle-resume signaling
             // collect_now: serve → main ("collect immediately")
             // collect_done: main → serve ("fresh data ready", generation counter)
-            let collect_now: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
-            let collect_done: Arc<(Mutex<u64>, Condvar)> = Arc::new((Mutex::new(0u64), Condvar::new()));
+            let collect_now: Arc<(Mutex<bool>, Condvar)> =
+                Arc::new((Mutex::new(false), Condvar::new()));
+            let collect_done: Arc<(Mutex<u64>, Condvar)> =
+                Arc::new((Mutex::new(0u64), Condvar::new()));
 
             let shared_http = Arc::clone(&shared);
             let last_request_serve = Arc::clone(&last_request);
             let cn_serve = Arc::clone(&collect_now);
             let cd_serve = Arc::clone(&collect_done);
             std::thread::spawn(move || {
-                if let Err(e) = serve::run(port, &bind, shared_http, &soc, last_request_serve, idle_timeout_secs, cn_serve, cd_serve, token) {
+                if let Err(e) = serve::run(
+                    port,
+                    &bind,
+                    shared_http,
+                    &soc,
+                    last_request_serve,
+                    idle_timeout_secs,
+                    cn_serve,
+                    cd_serve,
+                    token,
+                ) {
                     eprintln!("server error: {e}");
                 }
             });
@@ -126,7 +150,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Park until collect_now signal or interval timeout
                     let mut flag = collect_now.0.lock();
                     if !*flag {
-                        collect_now.1.wait_for(&mut flag, Duration::from_millis(interval as u64));
+                        collect_now
+                            .1
+                            .wait_for(&mut flag, Duration::from_millis(interval as u64));
                     }
                     if *flag {
                         // Serve thread requested immediate collection on idle-resume
@@ -175,7 +201,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Order: MTOP_SERVE_TOKEN env var → auto-generate if require_token → None (open mode)
 fn resolve_token(require_token: bool) -> Result<Option<String>, Box<dyn std::error::Error>> {
     // Step 2: check if already set
-    if let Ok(t) = std::env::var("MTOP_SERVE_TOKEN") && !t.is_empty() {
+    if let Ok(t) = std::env::var("MTOP_SERVE_TOKEN")
+        && !t.is_empty()
+    {
         return Ok(Some(t));
     }
 
@@ -190,7 +218,9 @@ fn resolve_token(require_token: bool) -> Result<Option<String>, Box<dyn std::err
 
         // Set in process environment for serve::run to use
         #[allow(deprecated)]
-        unsafe { std::env::set_var("MTOP_SERVE_TOKEN", &token) };
+        unsafe {
+            std::env::set_var("MTOP_SERVE_TOKEN", &token)
+        };
 
         return Ok(Some(token));
     }

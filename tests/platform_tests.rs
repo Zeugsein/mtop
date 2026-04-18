@@ -34,7 +34,18 @@ fn http_server_limits_concurrent_connections() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -102,7 +113,18 @@ fn prometheus_label_escapes_backslash() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -151,7 +173,18 @@ fn prometheus_label_escapes_double_quote() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -200,7 +233,18 @@ fn prometheus_label_escapes_newline() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -249,7 +293,18 @@ fn prometheus_label_normal_values_unchanged() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -302,7 +357,18 @@ fn prometheus_all_metrics_have_mtop_prefix() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -361,7 +427,18 @@ fn json_endpoint_includes_processes_field() {
                 .unwrap_or_default()
                 .as_secs(),
         ));
-        mtop::serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        mtop::serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -375,7 +452,10 @@ fn json_endpoint_includes_processes_field() {
     let body = resp.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or(&resp);
     let json: serde_json::Value = serde_json::from_str(body).expect("valid JSON");
 
-    assert!(json.get("processes").is_some(), "JSON body should include 'processes' field");
+    assert!(
+        json.get("processes").is_some(),
+        "JSON body should include 'processes' field"
+    );
     assert!(json["processes"].is_array(), "processes should be an array");
 }
 
@@ -408,8 +488,8 @@ fn pipe_output_includes_processes_field() {
 
 #[test]
 fn gpu_uses_correct_ioreport_group_name() {
-    let source = std::fs::read_to_string("src/platform/gpu.rs")
-        .expect("failed to read src/platform/gpu.rs");
+    let source =
+        std::fs::read_to_string("src/platform/gpu.rs").expect("failed to read src/platform/gpu.rs");
     assert!(
         source.contains(r#""GPU Stats""#),
         "I3-C3: gpu.rs must use 'GPU Stats' group name, not 'GPU'"
@@ -422,8 +502,8 @@ fn gpu_uses_correct_ioreport_group_name() {
 
 #[test]
 fn gpu_iterates_delta_channels_not_top_level() {
-    let source = std::fs::read_to_string("src/platform/gpu.rs")
-        .expect("failed to read src/platform/gpu.rs");
+    let source =
+        std::fs::read_to_string("src/platform/gpu.rs").expect("failed to read src/platform/gpu.rs");
     assert!(
         source.contains("IOReportChannels"),
         "I3-C2: gpu.rs must extract IOReportChannels array from delta"
@@ -465,8 +545,7 @@ fn power_uses_correct_channel_matching() {
     let source = std::fs::read_to_string("src/platform/power.rs")
         .expect("failed to read src/platform/power.rs");
     assert!(
-        source.contains("CPU Energy")
-            || (source.contains("cpu") && source.contains("energy")),
+        source.contains("CPU Energy") || (source.contains("cpu") && source.contains("energy")),
         "I3-C5: power.rs must match CPU energy channels"
     );
 }
@@ -503,8 +582,8 @@ fn debug_info_enumerates_sensors() {
 
 #[test]
 fn server_uses_short_read_timeout() {
-    let source = std::fs::read_to_string("src/serve/mod.rs")
-        .expect("failed to read src/serve/mod.rs");
+    let source =
+        std::fs::read_to_string("src/serve/mod.rs").expect("failed to read src/serve/mod.rs");
     assert!(
         !source.contains("from_secs(5)"),
         "I3-S1: serve must not use 5-second read timeout"
@@ -517,8 +596,8 @@ fn server_uses_short_read_timeout() {
 
 #[test]
 fn server_has_per_ip_connection_limit() {
-    let source = std::fs::read_to_string("src/serve/mod.rs")
-        .expect("failed to read src/serve/mod.rs");
+    let source =
+        std::fs::read_to_string("src/serve/mod.rs").expect("failed to read src/serve/mod.rs");
     assert!(
         source.contains("peer_addr") || source.contains("SocketAddr"),
         "I3-S2: serve must track connections by IP address"
@@ -527,8 +606,8 @@ fn server_has_per_ip_connection_limit() {
 
 #[test]
 fn tui_handles_sensor_unavailable() {
-    let mut tui_source = std::fs::read_to_string("src/tui/mod.rs")
-        .expect("failed to read src/tui/mod.rs");
+    let mut tui_source =
+        std::fs::read_to_string("src/tui/mod.rs").expect("failed to read src/tui/mod.rs");
     for panel in &["cpu", "gpu", "power"] {
         if let Ok(s) = std::fs::read_to_string(format!("src/tui/panels/{panel}.rs")) {
             tui_source.push_str(&s);

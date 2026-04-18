@@ -1,8 +1,8 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::tui::{AppState, theme, gradient, layout, expanded};
 use crate::tui::panels::*;
+use crate::tui::{AppState, expanded, gradient, layout, theme};
 
 pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
     let theme = &theme::THEMES[state.theme_idx];
@@ -32,9 +32,10 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
 
     // Header: centered "timestamp — mtop — chip info"
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let chip_info = format!("{} ({}E+{}P+{}GPU {}GB)",
-        s.soc.chip, s.soc.e_cores, s.soc.p_cores,
-        s.soc.gpu_cores, s.soc.memory_gb);
+    let chip_info = format!(
+        "{} ({}E+{}P+{}GPU {}GB)",
+        s.soc.chip, s.soc.e_cores, s.soc.p_cores, s.soc.gpu_cores, s.soc.memory_gb
+    );
     let header_text = format!("{} \u{2014} mtop \u{2014} {}", timestamp, chip_info);
     let avail = page.header.width as usize;
     // All header text uses muted styling (UAT-09)
@@ -94,7 +95,11 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
                 _ => (100, 200, 100),
             };
             for i in 0..filled {
-                let t = if filled > 1 { i as f64 / (filled - 1) as f64 } else { 1.0 };
+                let t = if filled > 1 {
+                    i as f64 / (filled - 1) as f64
+                } else {
+                    1.0
+                };
                 // Lighter (t=0) to darker (t=1): scale brightness from 1.3x down to 0.8x
                 let scale = 1.3 - 0.5 * t;
                 let r = (br as f64 * scale).round().min(255.0) as u8;
@@ -106,10 +111,16 @@ pub(crate) fn draw_dashboard(f: &mut Frame, state: &AppState) {
                 ));
             }
         }
-        spans.push(Span::styled(format!("{:.0}% ", bat.charge_pct), Style::default().fg(base_color)));
+        spans.push(Span::styled(
+            format!("{:.0}% ", bat.charge_pct),
+            Style::default().fg(base_color),
+        ));
         spans
     };
-    let bat_width: u16 = bat_spans.iter().map(|s| unicode_width::UnicodeWidthStr::width(&*s.content) as u16).sum();
+    let bat_width: u16 = bat_spans
+        .iter()
+        .map(|s| unicode_width::UnicodeWidthStr::width(&*s.content) as u16)
+        .sum();
     if page.header.width > bat_width {
         let bat_x = page.header.x + page.header.width - bat_width;
         f.render_widget(
@@ -180,7 +191,10 @@ fn draw_help_overlay(f: &mut Frame, area: Rect, theme: &theme::Theme) {
     f.render_widget(Clear, overlay_area);
 
     let block = Block::default()
-        .title(Line::from(Span::styled(" mtop \u{2014} keyboard shortcuts ", Style::default().fg(theme.accent).bold())))
+        .title(Line::from(Span::styled(
+            " mtop \u{2014} keyboard shortcuts ",
+            Style::default().fg(theme.accent).bold(),
+        )))
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(Style::default().fg(theme.fg))
@@ -210,6 +224,9 @@ fn draw_help_overlay(f: &mut Frame, area: Rect, theme: &theme::Theme) {
             Span::styled(format!("  {:<14}", key), Style::default().fg(theme.accent)),
             Span::styled(*desc, Style::default().fg(theme.fg)),
         ]);
-        f.render_widget(Paragraph::new(line), Rect::new(inner.x, row_y, inner.width, 1));
+        f.render_widget(
+            Paragraph::new(line),
+            Rect::new(inner.x, row_y, inner.width, 1),
+        );
     }
 }

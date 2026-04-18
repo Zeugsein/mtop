@@ -7,10 +7,22 @@ pub type CFDictionaryRef = *const libc::c_void;
 pub type CFArrayRef = *const libc::c_void;
 
 // Function pointer types for IOReport
-pub type FnCopyChannelsInGroup = unsafe extern "C" fn(CFStringRef, CFStringRef, u64, u64, u64) -> CFDictionaryRef;
-pub type FnCreateSubscription = unsafe extern "C" fn(*const libc::c_void, CFDictionaryRef, *mut CFDictionaryRef, u64, *const libc::c_void) -> *const libc::c_void;
-pub type FnCreateSamples = unsafe extern "C" fn(*const libc::c_void, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
-pub type FnCreateSamplesDelta = unsafe extern "C" fn(CFDictionaryRef, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
+pub type FnCopyChannelsInGroup =
+    unsafe extern "C" fn(CFStringRef, CFStringRef, u64, u64, u64) -> CFDictionaryRef;
+pub type FnCreateSubscription = unsafe extern "C" fn(
+    *const libc::c_void,
+    CFDictionaryRef,
+    *mut CFDictionaryRef,
+    u64,
+    *const libc::c_void,
+) -> *const libc::c_void;
+pub type FnCreateSamples = unsafe extern "C" fn(
+    *const libc::c_void,
+    CFDictionaryRef,
+    *const libc::c_void,
+) -> CFDictionaryRef;
+pub type FnCreateSamplesDelta =
+    unsafe extern "C" fn(CFDictionaryRef, CFDictionaryRef, *const libc::c_void) -> CFDictionaryRef;
 pub type FnChannelGetChannelName = unsafe extern "C" fn(CFDictionaryRef) -> CFStringRef;
 pub type FnSimpleGetIntegerValue = unsafe extern "C" fn(CFDictionaryRef, *mut i32) -> i64;
 pub type FnStateGetCount = unsafe extern "C" fn(CFDictionaryRef) -> i32;
@@ -64,7 +76,9 @@ fn load_ioreport() -> Option<IOReportFns> {
         macro_rules! sym {
             ($name:literal, $ty:ty) => {{
                 let p = libc::dlsym(handle, $name.as_ptr() as *const i8);
-                if p.is_null() { return None; }
+                if p.is_null() {
+                    return None;
+                }
                 std::mem::transmute::<*mut libc::c_void, $ty>(p)
             }};
         }
@@ -74,11 +88,20 @@ fn load_ioreport() -> Option<IOReportFns> {
             create_subscription: sym!(b"IOReportCreateSubscription\0", FnCreateSubscription),
             create_samples: sym!(b"IOReportCreateSamples\0", FnCreateSamples),
             create_samples_delta: sym!(b"IOReportCreateSamplesDelta\0", FnCreateSamplesDelta),
-            channel_get_channel_name: sym!(b"IOReportChannelGetChannelName\0", FnChannelGetChannelName),
-            simple_get_integer_value: sym!(b"IOReportSimpleGetIntegerValue\0", FnSimpleGetIntegerValue),
+            channel_get_channel_name: sym!(
+                b"IOReportChannelGetChannelName\0",
+                FnChannelGetChannelName
+            ),
+            simple_get_integer_value: sym!(
+                b"IOReportSimpleGetIntegerValue\0",
+                FnSimpleGetIntegerValue
+            ),
             state_get_count: sym!(b"IOReportStateGetCount\0", FnStateGetCount),
             state_get_residency: sym!(b"IOReportStateGetResidency\0", FnStateGetResidency),
-            state_get_name_for_index: sym!(b"IOReportStateGetNameForIndex\0", FnStateGetNameForIndex),
+            state_get_name_for_index: sym!(
+                b"IOReportStateGetNameForIndex\0",
+                FnStateGetNameForIndex
+            ),
             channel_get_unit_label: sym!(b"IOReportChannelGetUnitLabel\0", FnChannelGetUnitLabel),
         })
     }
@@ -124,8 +147,16 @@ unsafe extern "C" {
     ) -> CFStringRef;
     pub fn CFStringGetLength(cf: CFStringRef) -> i64;
     pub fn CFStringGetMaximumSizeForEncoding(length: i64, encoding: u32) -> i64;
-    pub fn CFStringGetCString(cf: CFStringRef, buffer: *mut i8, max_size: i64, encoding: u32) -> bool;
-    pub fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void) -> *const libc::c_void;
+    pub fn CFStringGetCString(
+        cf: CFStringRef,
+        buffer: *mut i8,
+        max_size: i64,
+        encoding: u32,
+    ) -> bool;
+    pub fn CFDictionaryGetValue(
+        dict: CFDictionaryRef,
+        key: *const libc::c_void,
+    ) -> *const libc::c_void;
     pub fn CFArrayGetCount(array: CFArrayRef) -> i64;
     pub fn CFArrayGetValueAtIndex(array: CFArrayRef, idx: i64) -> *const libc::c_void;
     pub fn CFRelease(cf: *const libc::c_void);

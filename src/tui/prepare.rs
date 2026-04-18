@@ -1,6 +1,8 @@
 //! Pure data-preparation functions extracted from draw_* for testability.
 
-use crate::metrics::{ProcessInfo, PowerMetrics, ThermalMetrics, NetInterface, MemoryMetrics, SortMode};
+use crate::metrics::{
+    MemoryMetrics, NetInterface, PowerMetrics, ProcessInfo, SortMode, ThermalMetrics,
+};
 
 use super::helpers::is_infrastructure_interface;
 
@@ -66,7 +68,8 @@ pub(crate) fn prepare_process_rows(
 
     let scroll = scroll.min(indices.len().saturating_sub(1));
 
-    indices.iter()
+    indices
+        .iter()
         .skip(scroll)
         .take(max_visible)
         .map(|&idx| {
@@ -98,21 +101,43 @@ pub(crate) fn prepare_process_rows(
 }
 
 /// Prepare power component breakdown list.
-pub(crate) fn prepare_power_components(power: &PowerMetrics, temperature: &ThermalMetrics) -> (Vec<PowerComponent>, Vec<u32>) {
+pub(crate) fn prepare_power_components(
+    power: &PowerMetrics,
+    temperature: &ThermalMetrics,
+) -> (Vec<PowerComponent>, Vec<u32>) {
     let components = vec![
-        PowerComponent { name: "CPU", watts: power.cpu_w },
-        PowerComponent { name: "GPU", watts: power.gpu_w },
-        PowerComponent { name: "ANE", watts: power.ane_w },
-        PowerComponent { name: "DRAM", watts: power.dram_w },
-        PowerComponent { name: "system", watts: power.system_w },
-        PowerComponent { name: "package", watts: power.package_w },
+        PowerComponent {
+            name: "CPU",
+            watts: power.cpu_w,
+        },
+        PowerComponent {
+            name: "GPU",
+            watts: power.gpu_w,
+        },
+        PowerComponent {
+            name: "ANE",
+            watts: power.ane_w,
+        },
+        PowerComponent {
+            name: "DRAM",
+            watts: power.dram_w,
+        },
+        PowerComponent {
+            name: "system",
+            watts: power.system_w,
+        },
+        PowerComponent {
+            name: "package",
+            watts: power.package_w,
+        },
     ];
     (components, temperature.fan_speeds.clone())
 }
 
 /// Prepare network rows: filter infrastructure, sort by total traffic descending.
 pub(crate) fn prepare_network_rows(interfaces: &[NetInterface]) -> Vec<NetworkRow> {
-    let mut rows: Vec<NetworkRow> = interfaces.iter()
+    let mut rows: Vec<NetworkRow> = interfaces
+        .iter()
         .filter(|i| !is_infrastructure_interface(&i.name))
         .map(|i| NetworkRow {
             name: i.name.clone(),
@@ -127,7 +152,9 @@ pub(crate) fn prepare_network_rows(interfaces: &[NetInterface]) -> Vec<NetworkRo
     rows.sort_by(|a, b| {
         let a_total = a.rx_bytes_sec + a.tx_bytes_sec;
         let b_total = b.rx_bytes_sec + b.tx_bytes_sec;
-        b_total.partial_cmp(&a_total).unwrap_or(std::cmp::Ordering::Equal)
+        b_total
+            .partial_cmp(&a_total)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
     rows

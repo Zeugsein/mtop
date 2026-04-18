@@ -1,7 +1,12 @@
 use crate::metrics::CpuMetrics;
 
 /// Read per-CPU utilization ticks via Mach host_processor_info
-pub fn collect_cpu(host: u32, prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p_cores: u32) -> CpuMetrics {
+pub fn collect_cpu(
+    host: u32,
+    prev_ticks: &mut Vec<(u64, u64)>,
+    e_cores: u32,
+    _p_cores: u32,
+) -> CpuMetrics {
     let mut metrics = CpuMetrics::default();
 
     unsafe {
@@ -41,7 +46,11 @@ pub fn collect_cpu(host: u32, prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p
                 let (prev_active, prev_total) = prev_ticks[i];
                 let d_active = active.saturating_sub(prev_active) as f32;
                 let d_total = total.saturating_sub(prev_total) as f32;
-                let usage = if d_total > 0.0 { d_active / d_total } else { 0.0 };
+                let usage = if d_total > 0.0 {
+                    d_active / d_total
+                } else {
+                    0.0
+                };
                 core_usages.push(usage);
             } else {
                 core_usages.push(0.0);
@@ -59,7 +68,11 @@ pub fn collect_cpu(host: u32, prev_ticks: &mut Vec<(u64, u64)>, e_cores: u32, _p
         };
         let p_usage: f32 = if e_count < core_usages.len() {
             let p_slice = &core_usages[e_count..];
-            if !p_slice.is_empty() { p_slice.iter().sum::<f32>() / p_slice.len() as f32 } else { 0.0 }
+            if !p_slice.is_empty() {
+                p_slice.iter().sum::<f32>() / p_slice.len() as f32
+            } else {
+                0.0
+            }
         } else {
             0.0
         };
@@ -132,7 +145,13 @@ pub fn sysctl_cpu_freq(perflevel: u32) -> u32 {
     let chip_name = std::ffi::CString::new("machdep.cpu.brand_string").unwrap_or_default();
     let mut size: libc::size_t = 0;
     unsafe {
-        libc::sysctlbyname(chip_name.as_ptr(), std::ptr::null_mut(), &mut size, std::ptr::null_mut(), 0);
+        libc::sysctlbyname(
+            chip_name.as_ptr(),
+            std::ptr::null_mut(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        );
         if size > 0 {
             let mut buf = vec![0u8; size];
             libc::sysctlbyname(
@@ -146,16 +165,32 @@ pub fn sysctl_cpu_freq(perflevel: u32) -> u32 {
             // Estimate nominal frequencies for known Apple Silicon chips
             if perflevel == 0 {
                 // P-cores
-                if name.contains("m4") { return 4400; }
-                if name.contains("m3") { return 4050; }
-                if name.contains("m2") { return 3490; }
-                if name.contains("m1") { return 3200; }
+                if name.contains("m4") {
+                    return 4400;
+                }
+                if name.contains("m3") {
+                    return 4050;
+                }
+                if name.contains("m2") {
+                    return 3490;
+                }
+                if name.contains("m1") {
+                    return 3200;
+                }
             } else {
                 // E-cores
-                if name.contains("m4") { return 2800; }
-                if name.contains("m3") { return 2750; }
-                if name.contains("m2") { return 2420; }
-                if name.contains("m1") { return 2064; }
+                if name.contains("m4") {
+                    return 2800;
+                }
+                if name.contains("m3") {
+                    return 2750;
+                }
+                if name.contains("m2") {
+                    return 2420;
+                }
+                if name.contains("m1") {
+                    return 2064;
+                }
             }
         }
     }

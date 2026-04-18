@@ -37,13 +37,21 @@ impl Sampler {
         &self.soc
     }
 
-    pub fn sample(&mut self, interval_ms: u32) -> Result<MetricsSnapshot, Box<dyn std::error::Error>> {
+    pub fn sample(
+        &mut self,
+        interval_ms: u32,
+    ) -> Result<MetricsSnapshot, Box<dyn std::error::Error>> {
         let interval = interval_ms.max(100);
 
         // Sleep for the interval
         std::thread::sleep(std::time::Duration::from_millis(interval as u64));
 
-        let mut cpu = platform::cpu::collect_cpu(self.host_port, &mut self.cpu_ticks, self.soc.e_cores, self.soc.p_cores);
+        let mut cpu = platform::cpu::collect_cpu(
+            self.host_port,
+            &mut self.cpu_ticks,
+            self.soc.e_cores,
+            self.soc.p_cores,
+        );
         let mut gpu = match &mut self.gpu_state {
             Some(state) => state.collect(),
             None => platform::gpu::collect_gpu(),
@@ -104,12 +112,30 @@ impl Sampler {
         out.push_str(&format!("Memory: {} GB\n", self.soc.memory_gb));
 
         out.push_str("\nSensor Status:\n");
-        out.push_str(&format!("  GPU (IOReport): {}\n",
-            if self.gpu_state.is_some() { "active" } else { "unavailable" }));
-        out.push_str(&format!("  Power (IOReport): {}\n",
-            if self.power_state.is_some() { "active" } else { "unavailable" }));
-        out.push_str(&format!("  Temperature (SMC): {}\n",
-            if self.temp_state.is_some() { "active" } else { "unavailable" }));
+        out.push_str(&format!(
+            "  GPU (IOReport): {}\n",
+            if self.gpu_state.is_some() {
+                "active"
+            } else {
+                "unavailable"
+            }
+        ));
+        out.push_str(&format!(
+            "  Power (IOReport): {}\n",
+            if self.power_state.is_some() {
+                "active"
+            } else {
+                "unavailable"
+            }
+        ));
+        out.push_str(&format!(
+            "  Temperature (SMC): {}\n",
+            if self.temp_state.is_some() {
+                "active"
+            } else {
+                "unavailable"
+            }
+        ));
 
         if platform::ioreport_ffi::get_ioreport().is_some() {
             out.push_str("\nIOReport Channels:\n");
@@ -119,13 +145,42 @@ impl Sampler {
 
         // Live SMC key enumeration
         if let Some(ref temp) = self.temp_state {
-            let (cpu_keys, gpu_keys, ssd_keys, battery_keys) = platform::temperature::smc_enumerate_temp_keys(temp.conn());
+            let (cpu_keys, gpu_keys, ssd_keys, battery_keys) =
+                platform::temperature::smc_enumerate_temp_keys(temp.conn());
             if !cpu_keys.is_empty() || !gpu_keys.is_empty() {
                 out.push_str("\nSMC Keys (discovered):\n");
-                out.push_str(&format!("  CPU: {}\n", if cpu_keys.is_empty() { "none".to_string() } else { cpu_keys.join(", ") }));
-                out.push_str(&format!("  GPU: {}\n", if gpu_keys.is_empty() { "none".to_string() } else { gpu_keys.join(", ") }));
-                out.push_str(&format!("  SSD: {}\n", if ssd_keys.is_empty() { "none".to_string() } else { ssd_keys.join(", ") }));
-                out.push_str(&format!("  Battery: {}\n", if battery_keys.is_empty() { "none".to_string() } else { battery_keys.join(", ") }));
+                out.push_str(&format!(
+                    "  CPU: {}\n",
+                    if cpu_keys.is_empty() {
+                        "none".to_string()
+                    } else {
+                        cpu_keys.join(", ")
+                    }
+                ));
+                out.push_str(&format!(
+                    "  GPU: {}\n",
+                    if gpu_keys.is_empty() {
+                        "none".to_string()
+                    } else {
+                        gpu_keys.join(", ")
+                    }
+                ));
+                out.push_str(&format!(
+                    "  SSD: {}\n",
+                    if ssd_keys.is_empty() {
+                        "none".to_string()
+                    } else {
+                        ssd_keys.join(", ")
+                    }
+                ));
+                out.push_str(&format!(
+                    "  Battery: {}\n",
+                    if battery_keys.is_empty() {
+                        "none".to_string()
+                    } else {
+                        battery_keys.join(", ")
+                    }
+                ));
             } else {
                 out.push_str("\nSMC Keys (static fallback):\n");
                 out.push_str("  CPU: Tp09, Tp0T, Tp01, Tp02, Te01, Te02\n");

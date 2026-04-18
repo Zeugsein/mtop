@@ -1,13 +1,12 @@
+use mtop::metrics::Sampler;
 /// Integration tests for metrics-collection spec requirements.
 /// Each test cites the FR requirement from:
 ///   openspec/changes/archive/2026-04-05-mvp-core/specs/metrics-collection/spec.md
 ///
 /// Tests marked #[ignore] are expected to fail against the current stub
 /// implementation and should be un-ignored once the feature is implemented.
-
 // Bring public API into scope via the crate lib root
 use mtop::metrics::types::{MetricsHistory, MetricsSnapshot};
-use mtop::metrics::Sampler;
 
 // ---------------------------------------------------------------------------
 // FR-1: CPU metrics collection
@@ -131,10 +130,7 @@ fn gpu_usage_is_nonzero_on_apple_silicon() {
         snapshot.gpu.usage
     );
     // On any active Apple Silicon system GPU is never permanently 0
-    assert!(
-        snapshot.gpu.usage >= 0.0,
-        "gpu.usage must be a valid ratio"
-    );
+    assert!(snapshot.gpu.usage >= 0.0, "gpu.usage must be a valid ratio");
 }
 
 #[test]
@@ -263,7 +259,10 @@ fn temperature_unavailable_does_not_crash() {
     // The important invariant: sample() must not panic or return Err.
     let mut sampler = Sampler::new().expect("sampler init");
     let result = sampler.sample(200);
-    assert!(result.is_ok(), "sample() should not crash when temperature is unavailable");
+    assert!(
+        result.is_ok(),
+        "sample() should not crash when temperature is unavailable"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -466,7 +465,11 @@ fn process_list_all_have_name() {
     let mut sampler = Sampler::new().expect("sampler init");
     let snapshot = sampler.sample(200).expect("sample");
     for p in &snapshot.processes {
-        assert!(!p.name.is_empty(), "process with pid {} has empty name", p.pid);
+        assert!(
+            !p.name.is_empty(),
+            "process with pid {} has empty name",
+            p.pid
+        );
     }
 }
 
@@ -529,7 +532,11 @@ fn soc_core_counts_nonzero() {
 fn soc_gpu_cores_nonzero() {
     let sampler = Sampler::new().expect("sampler init");
     let soc = sampler.soc_info();
-    assert!(soc.gpu_cores > 0, "gpu_cores should be > 0 on Apple Silicon; got {}", soc.gpu_cores);
+    assert!(
+        soc.gpu_cores > 0,
+        "gpu_cores should be > 0 on Apple Silicon; got {}",
+        soc.gpu_cores
+    );
 }
 
 #[test]
@@ -537,7 +544,11 @@ fn soc_gpu_cores_nonzero() {
 fn soc_memory_gb_nonzero() {
     let sampler = Sampler::new().expect("sampler init");
     let soc = sampler.soc_info();
-    assert!(soc.memory_gb > 0, "memory_gb should be > 0; got {}", soc.memory_gb);
+    assert!(
+        soc.memory_gb > 0,
+        "memory_gb should be > 0; got {}",
+        soc.memory_gb
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -550,7 +561,9 @@ fn interval_below_minimum_is_clamped() {
     let mut sampler = Sampler::new().expect("sampler init");
     let start = std::time::Instant::now();
     // Pass 10ms — should be clamped to 100ms by the implementation
-    let _ = sampler.sample(10).expect("sample with sub-minimum interval");
+    let _ = sampler
+        .sample(10)
+        .expect("sample with sub-minimum interval");
     let elapsed = start.elapsed().as_millis();
     // Should have waited at least ~100ms (allow generous margin for slow CI)
     assert!(
@@ -563,19 +576,26 @@ fn interval_below_minimum_is_clamped() {
 #[test]
 /// FR-10: default interval is 1000ms (documented in CLI and sampler)
 fn default_interval_is_1000ms() {
-    use mtop::Cli;
     use clap::Parser;
+    use mtop::Cli;
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.interval, None, "default interval should be None when not specified");
+    assert_eq!(
+        cli.interval, None,
+        "default interval should be None when not specified"
+    );
 }
 
 #[test]
 /// FR-10: custom interval via --interval flag is respected
 fn custom_interval_parsed_from_cli() {
-    use mtop::Cli;
     use clap::Parser;
+    use mtop::Cli;
     let cli = Cli::parse_from(["mtop", "--interval", "500"]);
-    assert_eq!(cli.interval, Some(500), "interval should be Some(500) when --interval 500 is passed");
+    assert_eq!(
+        cli.interval,
+        Some(500),
+        "interval should be Some(500) when --interval 500 is passed"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -591,7 +611,10 @@ fn sample_returns_ok_with_partial_sensors() {
     let mut sampler = Sampler::new().expect("sampler init");
     for _ in 0..3 {
         let result = sampler.sample(200);
-        assert!(result.is_ok(), "sample() must not fail due to unavailable sensors");
+        assert!(
+            result.is_ok(),
+            "sample() must not fail due to unavailable sensors"
+        );
     }
 }
 
@@ -625,7 +648,11 @@ fn metrics_history_caps_at_128() {
     for _ in 0..200 {
         history.push(&snapshot);
     }
-    assert_eq!(history.cpu_usage.len(), 128, "history should cap at 128 entries");
+    assert_eq!(
+        history.cpu_usage.len(),
+        128,
+        "history should cap at 128 entries"
+    );
     assert_eq!(history.gpu_usage.len(), 128);
     assert_eq!(history.cpu_power.len(), 128);
     assert_eq!(history.gpu_power.len(), 128);

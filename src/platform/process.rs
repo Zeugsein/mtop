@@ -120,7 +120,11 @@ fn list_all_pids() -> Vec<i32> {
 }
 
 /// Get process info via proc_pidinfo (PROC_PIDTASKINFO)
-fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> Option<ProcessInfo> {
+fn get_process_info(
+    pid: i32,
+    cpu_state: &mut ProcessCpuState,
+    now: Instant,
+) -> Option<ProcessInfo> {
     // SAFETY: ProcTaskInfo is repr(C) with no padding requirements beyond zeroed memory.
     let mut task_info: ProcTaskInfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<ProcTaskInfo>() as i32;
@@ -154,11 +158,12 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
 
     // Delta-based CPU%: compare cumulative task time against wall-clock elapsed
     let cur_mach_time = task_info.pti_total_user + task_info.pti_total_system;
-    let (cur_energy_nj, cur_io_read, cur_io_write) = read_process_rusage(pid)
-        .unwrap_or((0, 0, 0));
+    let (cur_energy_nj, cur_io_read, cur_io_write) = read_process_rusage(pid).unwrap_or((0, 0, 0));
 
     let (cpu_pct, power_w, io_read_bytes_sec, io_write_bytes_sec) =
-        if let Some(&(prev_mach_time, prev_energy, prev_io_r, prev_io_w, prev_wall)) = cpu_state.prev.get(&pid) {
+        if let Some(&(prev_mach_time, prev_energy, prev_io_r, prev_io_w, prev_wall)) =
+            cpu_state.prev.get(&pid)
+        {
             let delta_task_ns = cpu_state.mach_to_ns(cur_mach_time.saturating_sub(prev_mach_time));
             let delta_wall_ns = now.duration_since(prev_wall).as_nanos() as u64;
             let cpu = if delta_wall_ns > 0 {
@@ -187,7 +192,10 @@ fn get_process_info(pid: i32, cpu_state: &mut ProcessCpuState, now: Instant) -> 
             (0.0, 0.0, 0.0, 0.0)
         };
 
-    cpu_state.prev.insert(pid, (cur_mach_time, cur_energy_nj, cur_io_read, cur_io_write, now));
+    cpu_state.prev.insert(
+        pid,
+        (cur_mach_time, cur_energy_nj, cur_io_read, cur_io_write, now),
+    );
 
     let mem_bytes = task_info.pti_resident_size;
     let thread_count = task_info.pti_threadnum;
@@ -297,12 +305,12 @@ const RUSAGE_INFO_V4: i32 = 4;
 /// Total struct size is 296 bytes.
 #[repr(C)]
 struct RusageInfoV4 {
-    _padding_pre_diskio: [u8; 144],    // 16-byte UUID + 16 u64 fields = 16 + 128 = 144
-    ri_diskio_bytesread: u64,           // offset 144
-    ri_diskio_byteswritten: u64,        // offset 152
-    _padding_mid: [u8; 104],            // 13 fields (QoS/system) * 8 bytes = 104
-    ri_billed_energy: u64,              // offset 264
-    _rest: [u8; 24],                    // 3 trailing fields * 8 bytes = 24
+    _padding_pre_diskio: [u8; 144], // 16-byte UUID + 16 u64 fields = 16 + 128 = 144
+    ri_diskio_bytesread: u64,       // offset 144
+    ri_diskio_byteswritten: u64,    // offset 152
+    _padding_mid: [u8; 104],        // 13 fields (QoS/system) * 8 bytes = 104
+    ri_billed_energy: u64,          // offset 264
+    _rest: [u8; 24],                // 3 trailing fields * 8 bytes = 24
 }
 
 // Compile-time assertions: struct size and field offsets (verified against macOS sys/resource.h).
@@ -322,7 +330,11 @@ fn read_process_rusage(pid: i32) -> Option<(u64, u64, u64)> {
         if ret != 0 {
             return None;
         }
-        Some((ri.ri_billed_energy, ri.ri_diskio_bytesread, ri.ri_diskio_byteswritten))
+        Some((
+            ri.ri_billed_energy,
+            ri.ri_diskio_bytesread,
+            ri.ri_diskio_byteswritten,
+        ))
     }
 }
 
@@ -368,19 +380,19 @@ const _: () = assert!(std::mem::offset_of!(ProcTaskInfo, pti_threadnum) == 84);
 // 64 bytes total, works in VMs and sandboxed environments
 #[repr(C)]
 struct ProcBsdShortInfo {
-    pbsi_pid: u32,          // offset 0
-    pbsi_ppid: u32,         // offset 4
-    pbsi_pgid: u32,         // offset 8
-    pbsi_status: u32,       // offset 12
-    pbsi_comm: [u8; 16],    // offset 16 (MAXCOMLEN)
-    pbsi_flags: u32,        // offset 32
-    pbsi_uid: u32,          // offset 36
-    pbsi_gid: u32,          // offset 40
-    pbsi_ruid: u32,         // offset 44
-    pbsi_rgid: u32,         // offset 48
-    pbsi_svuid: u32,        // offset 52
-    pbsi_svgid: u32,        // offset 56
-    _rfu: u32,              // offset 60
+    pbsi_pid: u32,       // offset 0
+    pbsi_ppid: u32,      // offset 4
+    pbsi_pgid: u32,      // offset 8
+    pbsi_status: u32,    // offset 12
+    pbsi_comm: [u8; 16], // offset 16 (MAXCOMLEN)
+    pbsi_flags: u32,     // offset 32
+    pbsi_uid: u32,       // offset 36
+    pbsi_gid: u32,       // offset 40
+    pbsi_ruid: u32,      // offset 44
+    pbsi_rgid: u32,      // offset 48
+    pbsi_svuid: u32,     // offset 52
+    pbsi_svgid: u32,     // offset 56
+    _rfu: u32,           // offset 60
 }
 
 // proc_bsdinfo from <sys/proc_info.h> — used with PROC_PIDTBSDINFO
@@ -398,8 +410,8 @@ struct ProcBsdInfo {
     pbi_svuid: u32,
     pbi_svgid: u32,
     _rfu_1: u32,
-    pbi_comm: [u8; 16],   // MAXCOMLEN
-    pbi_name: [u8; 32],   // 2*MAXCOMLEN
+    pbi_comm: [u8; 16], // MAXCOMLEN
+    pbi_name: [u8; 32], // 2*MAXCOMLEN
     pbi_nfiles: u32,
     pbi_pgid: u32,
     pbi_pjobc: u32,

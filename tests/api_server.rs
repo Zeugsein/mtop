@@ -3,7 +3,6 @@
 ///   openspec/changes/archive/2026-04-05-mvp-core/specs/api-server/spec.md
 ///
 /// Tests marked #[ignore] cover known PARTIAL / FAIL items in the compliance audit.
-
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::{Arc, RwLock};
@@ -35,7 +34,18 @@ fn spawn_server_with_data(snapshot: Option<MetricsSnapshot>) -> u16 {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     // Give the server a moment to bind
     std::thread::sleep(Duration::from_millis(50));
@@ -64,7 +74,7 @@ fn make_snapshot() -> MetricsSnapshot {
     s.timestamp = "2026-04-05T00:00:00+00:00".into();
     s.soc.chip = "Apple M4 Pro".into();
     s.memory.ram_total = 25_769_803_776; // 24 GB
-    s.memory.ram_used = 8_589_934_592;   // 8 GB
+    s.memory.ram_used = 8_589_934_592; // 8 GB
     s.gpu.available = true;
     s.power.available = true;
     s.temperature.available = true;
@@ -92,8 +102,7 @@ fn json_endpoint_body_is_valid_json() {
     let port = spawn_server_with_data(Some(make_snapshot()));
     let resp = http_get(port, "/json");
     let body = body_of(&resp);
-    serde_json::from_str::<serde_json::Value>(body)
-        .expect("response body should be valid JSON");
+    serde_json::from_str::<serde_json::Value>(body).expect("response body should be valid JSON");
 }
 
 #[test]
@@ -104,7 +113,17 @@ fn json_endpoint_contains_required_fields() {
     let body = body_of(&resp);
     let json: serde_json::Value = serde_json::from_str(body).unwrap();
 
-    for field in &["timestamp", "soc", "cpu", "gpu", "power", "temperature", "memory", "network", "disk"] {
+    for field in &[
+        "timestamp",
+        "soc",
+        "cpu",
+        "gpu",
+        "power",
+        "temperature",
+        "memory",
+        "network",
+        "disk",
+    ] {
         assert!(
             json.get(field).is_some(),
             "JSON body missing required field '{field}'"
@@ -119,7 +138,9 @@ fn json_endpoint_timestamp_is_iso8601() {
     let resp = http_get(port, "/json");
     let body = body_of(&resp);
     let json: serde_json::Value = serde_json::from_str(body).unwrap();
-    let ts = json["timestamp"].as_str().expect("timestamp should be a string");
+    let ts = json["timestamp"]
+        .as_str()
+        .expect("timestamp should be a string");
     assert!(
         ts.contains('T'),
         "timestamp '{ts}' does not look like ISO 8601"
@@ -465,7 +486,18 @@ fn prometheus_label_values_are_escaped() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -528,7 +560,18 @@ fn external_bind_accepted_with_opt_in() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "0.0.0.0", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        serve::run(
+            port,
+            "0.0.0.0",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -557,7 +600,18 @@ fn ipv6_loopback_accepted() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "::1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        serve::run(
+            port,
+            "::1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
     let ok = std::net::TcpStream::connect(format!("[::1]:{port}")).is_ok();
@@ -596,7 +650,18 @@ fn prometheus_interface_name_labels_are_escaped() {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -658,7 +723,18 @@ fn lease_extension_on_request() {
     };
     let last_request_serve = Arc::clone(&last_request);
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request_serve, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), None).ok();
+        serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request_serve,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            None,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
 
@@ -698,7 +774,18 @@ fn spawn_server_with_token(token: Option<String>) -> u16 {
             .as_secs(),
     ));
     std::thread::spawn(move || {
-        serve::run(port, "127.0.0.1", shared, &soc, last_request, 30, Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())), Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())), token).ok();
+        serve::run(
+            port,
+            "127.0.0.1",
+            shared,
+            &soc,
+            last_request,
+            30,
+            Arc::new((parking_lot::Mutex::new(false), parking_lot::Condvar::new())),
+            Arc::new((parking_lot::Mutex::new(0u64), parking_lot::Condvar::new())),
+            token,
+        )
+        .ok();
     });
     std::thread::sleep(Duration::from_millis(50));
     port
@@ -710,7 +797,8 @@ fn http_get_with_auth(port: u16, path: &str, auth: Option<&str>) -> String {
     let auth_line = auth
         .map(|v| format!("Authorization: {v}\r\n"))
         .unwrap_or_default();
-    let req = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n{auth_line}\r\n");
+    let req =
+        format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n{auth_line}\r\n");
     stream.write_all(req.as_bytes()).expect("write request");
     let mut resp = String::new();
     stream.read_to_string(&mut resp).expect("read response");
@@ -851,9 +939,13 @@ fn raw_http_get(port: u16, path: &str) -> String {
         match stream.read(&mut buf) {
             Ok(0) => break,
             Ok(n) => resp.push_str(&String::from_utf8_lossy(&buf[..n])),
-            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset
-                   || e.kind() == std::io::ErrorKind::UnexpectedEof
-                   || e.kind() == std::io::ErrorKind::TimedOut => break,
+            Err(e)
+                if e.kind() == std::io::ErrorKind::ConnectionReset
+                    || e.kind() == std::io::ErrorKind::UnexpectedEof
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                break;
+            }
             Err(_) => break,
         }
     }
@@ -862,14 +954,10 @@ fn raw_http_get(port: u16, path: &str) -> String {
 
 /// Extract the body from a raw HTTP response string (after the blank line).
 fn body_of(resp: &str) -> &str {
-    resp.split_once("\r\n\r\n")
-        .map(|(_, b)| b)
-        .unwrap_or(resp)
+    resp.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or(resp)
 }
 
 /// Extract only the header section of a raw HTTP response.
 fn headers_of(resp: &str) -> &str {
-    resp.split_once("\r\n\r\n")
-        .map(|(h, _)| h)
-        .unwrap_or(resp)
+    resp.split_once("\r\n\r\n").map(|(h, _)| h).unwrap_or(resp)
 }
