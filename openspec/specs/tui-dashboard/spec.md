@@ -1777,6 +1777,20 @@ All CF objects created for the matching dictionary (CFStrings for keys, CFNumber
 
 > SHALL-48-F2c
 
+## Iteration 56: Config Default Theme Sentinel [I56] (AH56 recovery)
+
+### Requirement: Config::default() theme sentinel [I56-F2a]
+`Config::default()` SHALL return `theme = "default"` (the sentinel string), NOT a named theme. The sentinel is resolved to the first theme in the array at runtime by the theme resolution logic.
+
+> SHALL-56-F2a
+
+### Requirement: Theme sentinel resolution [I56-F2b]
+When the resolved theme string is `"default"`, the TUI SHALL use the theme at index 0 of `theme_names()` (currently "horizon"). This is implemented via the `.position()` predicate: `t.name == color || (color == "default" && t.name == "horizon")`.
+
+> SHALL-56-F2b
+
+---
+
 ### Requirement: Key prefix classification without TC [I48-F2d]
 `smc_enumerate_temp_keys()` SHALL classify keys: prefix "Tp" or "Te" as CPU, "Tg" or "TG" as GPU, "Ts" or "TH" as SSD, "TB" as battery. Keys with prefix "TC" (Intel legacy) SHALL NOT appear in any category.
 
