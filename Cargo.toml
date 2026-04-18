@@ -1,11 +1,17 @@
 [package]
-name = "mtop"
+name = "mtop-tui"
 version = "0.1.0"
 edition = "2024"
-description = "System monitor for macOS — TUI, HTTP API, pipe mode"
+description = "Sudo-less system monitor for Apple Silicon Macs: beautiful real-time braille graphs for CPU, GPU, temperature, memory, disk, network, power, and processes."
 license = "MIT"
 default-run = "mtop"
 repository = "https://github.com/Zeugsein/mtop"
+readme = "README.md"
+keywords = ["macos", "apple-silicon", "tui", "monitoring", "gpu"]
+categories = ["command-line-utilities"]
+
+[features]
+dev-tools = []
 
 [[bin]]
 name = "mtop"
@@ -14,6 +20,12 @@ path = "src/main.rs"
 [[bin]]
 name = "stories"
 path = "src/bin/stories.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "hid_diag"
+path = "src/bin/hid_diag.rs"
+required-features = ["dev-tools"]
 
 [lib]
 name = "mtop"
