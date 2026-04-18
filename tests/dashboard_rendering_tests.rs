@@ -149,13 +149,13 @@ fn baseline_color_channels_cap_at_255() {
     use ratatui::style::Color;
     for t in THEMES.iter() {
         let baseline = theme::baseline_color(t);
-        if let Color::Rgb(r, g, b) = baseline {
-            assert!(
-                r <= 255 && g <= 255 && b <= 255,
-                "theme '{}': baseline_color channels must not exceed 255",
-                t.name
-            );
-        }
+        // Color::Rgb channels are u8, so overflow past 255 is impossible by type.
+        // Assert the variant is Rgb (not Reset/Indexed) to satisfy SHALL-01-04.
+        assert!(
+            matches!(baseline, Color::Rgb(_, _, _)),
+            "theme '{}': baseline_color must be an Rgb variant",
+            t.name
+        );
     }
 }
 

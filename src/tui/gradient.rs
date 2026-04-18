@@ -71,7 +71,7 @@ pub fn temp_to_color(celsius: f32, theme: &Theme) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::theme::{HORIZON, THEMES};
+    use crate::tui::theme::THEMES;
 
     fn rgb(c: Color) -> (u8, u8, u8) {
         match c {
@@ -159,7 +159,7 @@ mod tests {
     fn test_interpolation_midpoint() {
         // 0.25 is between green(0.0) and yellow(0.4) for Nord
         let nord = THEMES.iter().find(|t| t.name == "nord").unwrap();
-        let (r, g, b) = rgb(value_to_color(0.25, nord));
+        let (r, g, _b) = rgb(value_to_color(0.25, nord));
         // Should be between (163,190,140) and (221,200,139)
         assert!(r > 163 && r < 221, "r={r} not between 163 and 221");
         assert!(g > 190 && g <= 200, "g={g} not between 190 and 200");
