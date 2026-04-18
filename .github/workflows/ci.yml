@@ -38,3 +38,9 @@ jobs:
 
       - name: Deny check
         run: cargo deny check
+
+      - name: Install cargo-vet
+        run: cargo install cargo-vet --locked
+
+      - name: Vet check
+        run: cargo vet
