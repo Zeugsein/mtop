@@ -13,7 +13,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            theme: "horizon".to_string(),
+            theme: "default".to_string(),
             interval_ms: 1000,
             temp_unit: "celsius".to_string(),
             sort_mode: "score".to_string(),
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn default_config_values() {
         let cfg = Config::default();
-        assert_eq!(cfg.theme, "horizon");
+        assert_eq!(cfg.theme, "default");
         assert_eq!(cfg.interval_ms, 1000);
         assert_eq!(cfg.temp_unit, "celsius");
         assert_eq!(cfg.sort_mode, "score");
@@ -145,7 +145,7 @@ theme = "nord"
     #[test]
     fn deserialize_empty_config() {
         let cfg: Config = toml::from_str("").unwrap();
-        assert_eq!(cfg.theme, "horizon");
+        assert_eq!(cfg.theme, "default");
         assert_eq!(cfg.interval_ms, 1000);
     }
 
