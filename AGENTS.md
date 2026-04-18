@@ -88,3 +88,4 @@ Each phase maps to a specific agent capability. Any agent with equivalent capabi
 - Panel and sub-panel titles use lowercase (even acronyms); body-content acronyms stay uppercase
 - Maintainer feedback goes through the full idea-to-archive cycle; no ad-hoc changes
 - Commits reference the iteration and SHALL requirement where applicable
+- Before committing: `cargo fmt --check` must pass, `cargo clippy -- -D warnings` must be clean, and `cargo test` (lib and integration) must produce zero warnings in both build and test targets
