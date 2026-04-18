@@ -8,7 +8,7 @@ When invoked with no subcommand, mtop SHALL launch in TUI dashboard mode. [T1-st
 
 #### Scenario: No arguments
 - **WHEN** the user runs `mtop`
-- **THEN** the TUI dashboard SHALL start with default settings (1000ms interval, default theme)
+- **THEN** the TUI dashboard SHALL start with default settings (1000ms interval, theme sentinel "default" which resolves to the first theme — horizon)
 
 ### Requirement: Pipe subcommand
 mtop SHALL support a `pipe` subcommand for NDJSON output to stdout. [T1-static]
