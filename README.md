@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Zeugsein/mtop/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeugsein/mtop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![crates.io](https://img.shields.io/badge/crates.io-coming%20soon-orange?logo=rust)](https://crates.io)
+[![crates.io](https://img.shields.io/crates/v/mtop-tui?logo=rust)](https://crates.io/crates/mtop-tui)
 [![macOS](https://img.shields.io/badge/macOS-Sequoia%2015%2B-black?logo=apple)](https://github.com/Zeugsein/mtop)
 [![Rust](https://img.shields.io/badge/Rust-stable-orange?logo=rust)](https://www.rust-lang.org)
 
@@ -38,10 +38,16 @@ Before building mtop, I used a combination of tools; see [Acknowledgements](#ack
 ## Install
 
 ```sh
-cargo install --git https://github.com/Zeugsein/mtop --locked
+cargo install mtop-tui --locked
 ```
 
 Installs `mtop` to `~/.cargo/bin/`. Make sure that directory is in your `PATH`.
+
+### Install development version
+
+```sh
+cargo install --git https://github.com/Zeugsein/mtop --locked
+```
 
 ## Quick start
 
