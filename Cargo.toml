@@ -1,6 +1,6 @@
 [package]
 name = "mtop-tui"
-version = "0.1.0-rc.3"
+version = "0.1.0"
 edition = "2024"
 description = "Sudo-less system monitor for Apple Silicon Macs: beautiful real-time braille graphs for CPU, GPU, temperature, memory, disk, network, power, and processes."
 license = "MIT"
