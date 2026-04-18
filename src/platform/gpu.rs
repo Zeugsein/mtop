@@ -179,11 +179,7 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
     }
 
     let usage = active_residency as f32 / total_residency as f32;
-    let freq_mhz = if active_residency > 0 {
-        (weighted_freq / active_residency) as u32
-    } else {
-        0
-    };
+    let freq_mhz = weighted_freq.checked_div(active_residency).unwrap_or(0) as u32;
 
     Some(GpuMetrics {
         freq_mhz,
