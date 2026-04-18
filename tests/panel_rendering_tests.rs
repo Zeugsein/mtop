@@ -1,7 +1,6 @@
 /// Feature-organized tests: panel rendering
 /// Covers: panel rendering, expanded panels, braille visuals, gauge edge cases,
 /// dashboard render paths, HistoryBuffer, memory/process/network/power panels.
-
 use mtop::metrics::types::{MemoryMetrics, MetricsSnapshot, PowerMetrics, ProcessInfo, SortMode};
 use mtop::tui::PanelId;
 
@@ -155,7 +154,12 @@ fn render_with_show_detail_true_does_not_panic() {
 #[test]
 fn render_with_expanded_cpu_panel() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Cpu), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Cpu),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -163,7 +167,12 @@ fn render_with_expanded_cpu_panel() {
 #[test]
 fn render_with_expanded_gpu_panel() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Gpu), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Gpu),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -171,7 +180,12 @@ fn render_with_expanded_gpu_panel() {
 #[test]
 fn render_with_expanded_memdisk_panel() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::MemDisk),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -179,7 +193,12 @@ fn render_with_expanded_memdisk_panel() {
 #[test]
 fn render_with_expanded_network_panel() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Network), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Network),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -187,7 +206,12 @@ fn render_with_expanded_network_panel() {
 #[test]
 fn render_with_expanded_power_panel() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Power), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Power),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -195,7 +219,12 @@ fn render_with_expanded_power_panel() {
 #[test]
 fn render_with_expanded_process_panel() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Process), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Process),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -203,7 +232,12 @@ fn render_with_expanded_process_panel() {
 #[test]
 fn render_expanded_cpu_80x24_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        80, 24, empty_snapshot(), false, Some(PanelId::Cpu), SortMode::default(),
+        80,
+        24,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Cpu),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -211,7 +245,12 @@ fn render_expanded_cpu_80x24_no_panic() {
 #[test]
 fn render_expanded_memdisk_80x24_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        80, 24, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
+        80,
+        24,
+        empty_snapshot(),
+        false,
+        Some(PanelId::MemDisk),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -219,7 +258,12 @@ fn render_expanded_memdisk_80x24_no_panic() {
 #[test]
 fn render_expanded_network_80x24_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        80, 24, empty_snapshot(), false, Some(PanelId::Network), SortMode::default(),
+        80,
+        24,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Network),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -227,7 +271,12 @@ fn render_expanded_network_80x24_no_panic() {
 #[test]
 fn render_expanded_gpu_80x24_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        80, 24, empty_snapshot(), false, Some(PanelId::Gpu), SortMode::default(),
+        80,
+        24,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Gpu),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -235,7 +284,12 @@ fn render_expanded_gpu_80x24_no_panic() {
 #[test]
 fn render_expanded_power_80x24_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        80, 24, empty_snapshot(), false, Some(PanelId::Power), SortMode::default(),
+        80,
+        24,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Power),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -243,7 +297,12 @@ fn render_expanded_power_80x24_no_panic() {
 #[test]
 fn render_expanded_process_80x24_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        80, 24, empty_snapshot(), false, Some(PanelId::Process), SortMode::default(),
+        80,
+        24,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Process),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
 }
@@ -252,19 +311,41 @@ fn render_expanded_process_80x24_no_panic() {
 #[test]
 fn expanded_cpu_contains_cluster_labels() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Cpu), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Cpu),
+        SortMode::default(),
     );
-    assert!(text.contains("cpu"), "expanded CPU panel should contain 'cpu' title");
-    assert!(text.contains("e-cpu") || text.contains("p-cpu"), "expanded CPU should contain cluster labels");
+    assert!(
+        text.contains("cpu"),
+        "expanded CPU panel should contain 'cpu' title"
+    );
+    assert!(
+        text.contains("e-cpu") || text.contains("p-cpu"),
+        "expanded CPU should contain cluster labels"
+    );
 }
 
 #[test]
 fn expanded_gpu_contains_metrics() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Gpu), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Gpu),
+        SortMode::default(),
     );
-    assert!(text.contains("gpu"), "expanded GPU panel should contain 'gpu' title");
-    assert!(text.contains("frequency"), "expanded GPU should contain frequency metric");
+    assert!(
+        text.contains("gpu"),
+        "expanded GPU panel should contain 'gpu' title"
+    );
+    assert!(
+        text.contains("frequency"),
+        "expanded GPU should contain frequency metric"
+    );
 }
 
 #[test]
@@ -272,52 +353,112 @@ fn expanded_power_contains_component_breakdown() {
     let mut snap = empty_snapshot();
     snap.power.available = true;
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snap, false, Some(PanelId::Power), SortMode::default(),
+        120,
+        40,
+        snap,
+        false,
+        Some(PanelId::Power),
+        SortMode::default(),
     );
-    assert!(text.contains("power"), "expanded power panel should contain 'power' title");
-    assert!(text.contains("component breakdown"), "expanded power should contain component breakdown");
+    assert!(
+        text.contains("power"),
+        "expanded power panel should contain 'power' title"
+    );
+    assert!(
+        text.contains("component breakdown"),
+        "expanded power should contain component breakdown"
+    );
 }
 
 #[test]
 fn expanded_power_shows_na_when_unavailable() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Power), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Power),
+        SortMode::default(),
     );
-    assert!(text.contains("power"), "expanded power panel should contain 'power' title");
-    assert!(text.contains("N/A"), "expanded power should show N/A when sensors unavailable");
+    assert!(
+        text.contains("power"),
+        "expanded power panel should contain 'power' title"
+    );
+    assert!(
+        text.contains("N/A"),
+        "expanded power should show N/A when sensors unavailable"
+    );
 }
 
 #[test]
 fn expanded_network_contains_interface_header() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Network), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Network),
+        SortMode::default(),
     );
-    assert!(text.contains("net"), "expanded network panel should contain 'net' title");
-    assert!(text.contains("interface"), "expanded network should contain interface table header");
+    assert!(
+        text.contains("net"),
+        "expanded network panel should contain 'net' title"
+    );
+    assert!(
+        text.contains("interface"),
+        "expanded network should contain interface table header"
+    );
 }
 
 #[test]
 fn expanded_process_contains_sort_label() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::Process), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::Process),
+        SortMode::default(),
     );
-    assert!(text.contains("proc"), "expanded process panel should contain 'proc' title");
-    assert!(text.contains("no processes"), "expanded process should show 'no processes' when empty");
+    assert!(
+        text.contains("proc"),
+        "expanded process panel should contain 'proc' title"
+    );
+    assert!(
+        text.contains("no processes"),
+        "expanded process should show 'no processes' when empty"
+    );
 }
 
 #[test]
 fn expanded_memory_contains_ram_label() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, Some(PanelId::MemDisk), SortMode::default(),
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        Some(PanelId::MemDisk),
+        SortMode::default(),
     );
-    assert!(text.contains("mem"), "expanded memory panel should contain 'mem' title");
-    assert!(text.contains("used") || text.contains("available"), "expanded memory should contain chart labels");
+    assert!(
+        text.contains("mem"),
+        "expanded memory panel should contain 'mem' title"
+    );
+    assert!(
+        text.contains("used") || text.contains("available"),
+        "expanded memory should contain chart labels"
+    );
 }
 
 #[test]
 fn render_sort_mode_cpu() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, None, SortMode::Cpu,
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        None,
+        SortMode::Cpu,
     );
     assert!(!text.is_empty());
 }
@@ -325,7 +466,12 @@ fn render_sort_mode_cpu() {
 #[test]
 fn render_sort_mode_memory() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, None, SortMode::Memory,
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        None,
+        SortMode::Memory,
     );
     assert!(!text.is_empty());
 }
@@ -333,7 +479,12 @@ fn render_sort_mode_memory() {
 #[test]
 fn render_sort_mode_name() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, empty_snapshot(), false, None, SortMode::Name,
+        120,
+        40,
+        empty_snapshot(),
+        false,
+        None,
+        SortMode::Name,
     );
     assert!(!text.is_empty());
 }
@@ -356,9 +507,8 @@ fn process_panel_multiple_processes() {
 #[test]
 fn process_panel_sort_memory() {
     let snapshot = make_snapshot_with_processes(4);
-    let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, None, SortMode::Memory,
-    );
+    let text =
+        mtop::tui::render_dashboard_with_state(120, 40, snapshot, false, None, SortMode::Memory);
     assert!(!text.is_empty());
     assert!(
         text.contains("Mem"),
@@ -369,9 +519,8 @@ fn process_panel_sort_memory() {
 #[test]
 fn process_panel_sort_power() {
     let snapshot = make_snapshot_with_processes(4);
-    let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, None, SortMode::Power,
-    );
+    let text =
+        mtop::tui::render_dashboard_with_state(120, 40, snapshot, false, None, SortMode::Power);
     assert!(!text.is_empty());
     assert!(
         text.contains("Power"),
@@ -382,9 +531,8 @@ fn process_panel_sort_power() {
 #[test]
 fn process_panel_sort_pid() {
     let snapshot = make_snapshot_with_processes(4);
-    let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, None, SortMode::Pid,
-    );
+    let text =
+        mtop::tui::render_dashboard_with_state(120, 40, snapshot, false, None, SortMode::Pid);
     assert!(!text.is_empty());
     assert!(
         text.contains("PID"),
@@ -395,7 +543,12 @@ fn process_panel_sort_pid() {
 #[test]
 fn dashboard_expanded_cpu() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, MetricsSnapshot::default(), false, Some(PanelId::Cpu), SortMode::default(),
+        120,
+        40,
+        MetricsSnapshot::default(),
+        false,
+        Some(PanelId::Cpu),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
     assert!(
@@ -407,7 +560,12 @@ fn dashboard_expanded_cpu() {
 #[test]
 fn dashboard_expanded_network() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, MetricsSnapshot::default(), false, Some(PanelId::Network), SortMode::default(),
+        120,
+        40,
+        MetricsSnapshot::default(),
+        false,
+        Some(PanelId::Network),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
     assert!(
@@ -420,7 +578,12 @@ fn dashboard_expanded_network() {
 fn dashboard_expanded_power() {
     let snapshot = make_snapshot_with_power(5.0, 2.0);
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, Some(PanelId::Power), SortMode::default(),
+        120,
+        40,
+        snapshot,
+        false,
+        Some(PanelId::Power),
+        SortMode::default(),
     );
     assert!(!text.is_empty());
     assert!(
@@ -434,10 +597,8 @@ fn detail_toggle_produces_different_output() {
     let gb: u64 = 1024 * 1024 * 1024;
     let snapshot = make_snapshot_with_memory(16 * gb, 8 * gb);
 
-    let text_no_detail =
-        mtop::tui::render_dashboard_to_string(120, 40, snapshot.clone(), false);
-    let text_with_detail =
-        mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
+    let text_no_detail = mtop::tui::render_dashboard_to_string(120, 40, snapshot.clone(), false);
+    let text_with_detail = mtop::tui::render_dashboard_to_string(120, 40, snapshot, true);
 
     assert!(!text_no_detail.is_empty());
     assert!(!text_with_detail.is_empty());
@@ -483,7 +644,12 @@ fn power_panel_gpu_idle_detail() {
 #[test]
 fn expanded_panel_cpu_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, MetricsSnapshot::default(), false, Some(PanelId::Cpu), SortMode::default(),
+        120,
+        40,
+        MetricsSnapshot::default(),
+        false,
+        Some(PanelId::Cpu),
+        SortMode::default(),
     );
     assert!(
         text.contains("CPU") || text.contains("cpu"),
@@ -494,7 +660,12 @@ fn expanded_panel_cpu_no_panic() {
 #[test]
 fn expanded_panel_gpu_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, MetricsSnapshot::default(), false, Some(PanelId::Gpu), SortMode::default(),
+        120,
+        40,
+        MetricsSnapshot::default(),
+        false,
+        Some(PanelId::Gpu),
+        SortMode::default(),
     );
     assert!(
         text.contains("GPU") || text.contains("gpu"),
@@ -507,7 +678,12 @@ fn expanded_panel_memdisk_no_panic() {
     let gb: u64 = 1024 * 1024 * 1024;
     let snapshot = make_snapshot_with_memory(16 * gb, 4 * gb);
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, Some(PanelId::MemDisk), SortMode::default(),
+        120,
+        40,
+        snapshot,
+        false,
+        Some(PanelId::MemDisk),
+        SortMode::default(),
     );
     assert!(
         text.contains("mem") || text.contains("used"),
@@ -518,7 +694,12 @@ fn expanded_panel_memdisk_no_panic() {
 #[test]
 fn expanded_panel_network_no_panic() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, MetricsSnapshot::default(), false, Some(PanelId::Network), SortMode::default(),
+        120,
+        40,
+        MetricsSnapshot::default(),
+        false,
+        Some(PanelId::Network),
+        SortMode::default(),
     );
     assert!(
         text.contains("network") || text.contains("upload"),
@@ -530,7 +711,12 @@ fn expanded_panel_network_no_panic() {
 fn expanded_panel_power_no_panic() {
     let snapshot = make_snapshot_with_power(6.0, 1.5);
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, Some(PanelId::Power), SortMode::default(),
+        120,
+        40,
+        snapshot,
+        false,
+        Some(PanelId::Power),
+        SortMode::default(),
     );
     assert!(
         text.contains("power") || text.contains("cpu power"),
@@ -542,7 +728,12 @@ fn expanded_panel_power_no_panic() {
 fn expanded_panel_process_no_panic() {
     let snapshot = make_snapshot_with_processes(10);
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, snapshot, false, Some(PanelId::Process), SortMode::default(),
+        120,
+        40,
+        snapshot,
+        false,
+        Some(PanelId::Process),
+        SortMode::default(),
     );
     assert!(
         text.contains("processes") || text.contains("proc"),
@@ -560,7 +751,10 @@ use mtop::metrics::types::HistoryBuffer;
 fn history_buffer_empty_iter() {
     let buf = HistoryBuffer::new();
     let count = buf.iter().count();
-    assert_eq!(count, 0, "empty HistoryBuffer should yield 0 items, got {count}");
+    assert_eq!(
+        count, 0,
+        "empty HistoryBuffer should yield 0 items, got {count}"
+    );
 }
 
 #[test]
@@ -568,7 +762,11 @@ fn history_buffer_single_push() {
     let mut buf = HistoryBuffer::new();
     buf.push_back(42.0);
     let items: Vec<f64> = buf.iter().copied().collect();
-    assert_eq!(items.len(), 1, "single-push HistoryBuffer should yield 1 item");
+    assert_eq!(
+        items.len(),
+        1,
+        "single-push HistoryBuffer should yield 1 item"
+    );
     assert_eq!(items[0], 42.0);
 }
 
@@ -634,7 +832,13 @@ fn gauge_zero_max() {
 
 #[test]
 fn braille_down_empty() {
-    let result = mtop::tui::braille::render_braille_graph_down(&[], 100.0, 10, 5, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &[],
+        100.0,
+        10,
+        5,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 5, "Expected 5 rows for height=5");
     for row in &result {
         assert!(row.is_empty(), "Empty input should produce empty rows");
@@ -644,16 +848,31 @@ fn braille_down_empty() {
 #[test]
 fn braille_down_full_scale() {
     let values = vec![100.0, 100.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &values,
+        100.0,
+        1,
+        2,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 2);
     assert_eq!(result[0][0].0, '⣿', "Top row (row 0) should be ⣿ at 100%");
-    assert_eq!(result[1][0].0, '⣿', "Bottom row (row 1) should be ⣿ at 100%");
+    assert_eq!(
+        result[1][0].0, '⣿',
+        "Bottom row (row 1) should be ⣿ at 100%"
+    );
 }
 
 #[test]
 fn braille_down_zero() {
     let values = vec![0.0, 0.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &values,
+        100.0,
+        1,
+        2,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 2);
     assert_eq!(result[0][0].0, ' ', "Top row should be space at 0%");
     assert_eq!(result[1][0].0, ' ', "Bottom row should be space at 0%");
@@ -662,7 +881,13 @@ fn braille_down_zero() {
 #[test]
 fn braille_down_half_height() {
     let values = vec![50.0, 50.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 2, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &values,
+        100.0,
+        1,
+        2,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 2);
     assert_eq!(result[0][0].0, '⣿', "Top row should be fully filled at 50%");
     assert_eq!(result[1][0].0, ' ', "Bottom row should be empty at 50%");
@@ -671,7 +896,13 @@ fn braille_down_half_height() {
 #[test]
 fn braille_down_asymmetric() {
     let values = vec![100.0, 0.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &values,
+        100.0,
+        1,
+        1,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 1);
     assert_eq!(
         result[0][0].0, '\u{2847}',
@@ -681,23 +912,53 @@ fn braille_down_asymmetric() {
 
 #[test]
 fn braille_down_table_corners() {
-    let r00 = mtop::tui::braille::render_braille_graph_down(&[0.0, 0.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
+    let r00 = mtop::tui::braille::render_braille_graph_down(
+        &[0.0, 0.0],
+        100.0,
+        1,
+        1,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(r00[0][0].0, ' ', "BRAILLE_DOWN[0][0] should be space");
 
-    let r44 = mtop::tui::braille::render_braille_graph_down(&[100.0, 100.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
+    let r44 = mtop::tui::braille::render_braille_graph_down(
+        &[100.0, 100.0],
+        100.0,
+        1,
+        1,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(r44[0][0].0, '\u{28FF}', "BRAILLE_DOWN[4][4] should be ⣿");
 
-    let r40 = mtop::tui::braille::render_braille_graph_down(&[100.0, 0.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
+    let r40 = mtop::tui::braille::render_braille_graph_down(
+        &[100.0, 0.0],
+        100.0,
+        1,
+        1,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(r40[0][0].0, '\u{2847}', "BRAILLE_DOWN[4][0] check");
 
-    let r04 = mtop::tui::braille::render_braille_graph_down(&[0.0, 100.0], 100.0, 1, 1, &mtop::tui::theme::THEMES[0]);
+    let r04 = mtop::tui::braille::render_braille_graph_down(
+        &[0.0, 100.0],
+        100.0,
+        1,
+        1,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(r04[0][0].0, '\u{28B8}', "BRAILLE_DOWN[0][4] check");
 }
 
 #[test]
 fn braille_down_29_percent() {
     let values = vec![29.0, 29.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 100.0, 1, 10, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &values,
+        100.0,
+        1,
+        10,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 10);
     assert_eq!(result[0][0].0, '⣿', "Row 0 should be ⣿ at 29%");
     assert_eq!(result[1][0].0, '⣿', "Row 1 should be ⣿ at 29%");
@@ -708,7 +969,13 @@ fn braille_down_29_percent() {
 
 #[test]
 fn braille_down_zero_width() {
-    let result = mtop::tui::braille::render_braille_graph_down(&[50.0, 50.0], 100.0, 0, 3, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &[50.0, 50.0],
+        100.0,
+        0,
+        3,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 3, "height=3 rows expected even for width=0");
     for row in &result {
         assert!(row.is_empty(), "Rows should be empty when width=0");
@@ -717,16 +984,31 @@ fn braille_down_zero_width() {
 
 #[test]
 fn braille_down_zero_height() {
-    let result = mtop::tui::braille::render_braille_graph_down(&[50.0, 50.0], 100.0, 5, 0, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &[50.0, 50.0],
+        100.0,
+        5,
+        0,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert!(result.is_empty(), "height=0 should return empty vec");
 }
 
 #[test]
 fn braille_down_zero_max_value() {
     let values = vec![0.0, 0.0];
-    let result = mtop::tui::braille::render_braille_graph_down(&values, 0.0, 1, 1, &mtop::tui::theme::THEMES[0]);
+    let result = mtop::tui::braille::render_braille_graph_down(
+        &values,
+        0.0,
+        1,
+        1,
+        &mtop::tui::theme::THEMES[0],
+    );
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0][0].0, ' ', "Zero value with zero max should produce space");
+    assert_eq!(
+        result[0][0].0, ' ',
+        "Zero value with zero max should produce space"
+    );
 }
 
 // ===========================================================================
@@ -753,12 +1035,10 @@ fn process_header_no_dots() {
     let snapshot = make_snapshot_with_processes(3);
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
 
-    let header_line = text
-        .lines()
-        .find(|line| {
-            let lower = line.to_lowercase();
-            lower.contains("name") && lower.contains("pid")
-        });
+    let header_line = text.lines().find(|line| {
+        let lower = line.to_lowercase();
+        lower.contains("name") && lower.contains("pid")
+    });
 
     assert!(
         header_line.is_some(),
@@ -833,7 +1113,12 @@ fn render_all_expanded_panels_with_padding() {
 
     for (panel_id, snapshot) in panels {
         let text = mtop::tui::render_dashboard_with_state(
-            120, 40, snapshot, false, Some(panel_id), SortMode::default(),
+            120,
+            40,
+            snapshot,
+            false,
+            Some(panel_id),
+            SortMode::default(),
         );
         assert!(
             !text.is_empty(),
@@ -855,7 +1140,12 @@ fn dashboard_narrow_no_panic() {
 #[test]
 fn network_expanded_has_symmetric_labels() {
     let text = mtop::tui::render_dashboard_with_state(
-        120, 40, MetricsSnapshot::default(), false, Some(PanelId::Network), SortMode::default(),
+        120,
+        40,
+        MetricsSnapshot::default(),
+        false,
+        Some(PanelId::Network),
+        SortMode::default(),
     );
     assert!(
         text.contains("Upload") || text.contains("upload"),
@@ -908,8 +1198,17 @@ fn shall_23_13_gpu_panel_title_contains_idle_when_gpu_w_is_zero() {
 fn shall_23_13_gpu_panel_shows_usage_percent_when_gpu_active() {
     use mtop::metrics::types::{GpuMetrics, PowerMetrics};
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.gpu = GpuMetrics { freq_mhz: 800, usage: 0.45, power_w: 3.5, available: true };
-    snapshot.power = PowerMetrics { gpu_w: 3.5, available: true, ..Default::default() };
+    snapshot.gpu = GpuMetrics {
+        freq_mhz: 800,
+        usage: 0.45,
+        power_w: 3.5,
+        available: true,
+    };
+    snapshot.power = PowerMetrics {
+        gpu_w: 3.5,
+        available: true,
+        ..Default::default()
+    };
     let text = mtop::tui::render_dashboard_to_string(120, 40, snapshot, false);
     assert!(
         text.contains("45.0"),
@@ -924,7 +1223,10 @@ fn shall_23_13_gpu_panel_shows_usage_percent_when_gpu_active() {
 #[test]
 fn panel_id_is_left_column_cpu() {
     let names = mtop::tui::theme_names();
-    assert!(!names.is_empty(), "theme_names should return non-empty list (proves mod.rs loads)");
+    assert!(
+        !names.is_empty(),
+        "theme_names should return non-empty list (proves mod.rs loads)"
+    );
 }
 
 // ===========================================================================
@@ -961,7 +1263,16 @@ fn idle_threshold_gpu_removed() {
 #[test]
 fn process_dot_near_zero_threshold() {
     let proc_src = include_str!("../src/tui/panels/process.rs");
-    assert!(proc_src.contains("cpu_pct < 0.1"), "expected `cpu_pct < 0.1` in process.rs");
-    assert!(proc_src.contains("1_048_576"), "expected `1_048_576` (1MB) threshold in process.rs");
-    assert!(proc_src.contains("power_w < 0.1"), "expected `power_w < 0.1` in process.rs");
+    assert!(
+        proc_src.contains("cpu_pct < 0.1"),
+        "expected `cpu_pct < 0.1` in process.rs"
+    );
+    assert!(
+        proc_src.contains("1_048_576"),
+        "expected `1_048_576` (1MB) threshold in process.rs"
+    );
+    assert!(
+        proc_src.contains("power_w < 0.1"),
+        "expected `power_w < 0.1` in process.rs"
+    );
 }

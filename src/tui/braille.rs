@@ -72,8 +72,10 @@ pub fn render_braille_graph(
         };
 
         // Scale to total vertical dot range
-        let scaled_left = ((v_left / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
-        let scaled_right = ((v_right / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
+        let scaled_left =
+            ((v_left / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
+        let scaled_right =
+            ((v_right / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
 
         // Fill each row — color by Y-position (bottom=green, top=red)
         for (row_idx, row_vec) in rows.iter_mut().enumerate() {
@@ -132,17 +134,28 @@ pub fn render_braille_graph_down(
     let start = values.len().saturating_sub(needed);
     let visible = &values[start..];
 
-    let mut rows: Vec<Vec<(char, Color)>> = (0..height).map(|_| Vec::with_capacity(width)).collect();
+    let mut rows: Vec<Vec<(char, Color)>> =
+        (0..height).map(|_| Vec::with_capacity(width)).collect();
 
     for col in 0..width {
         let idx_left = col * 2;
         let idx_right = col * 2 + 1;
 
-        let v_left = if idx_left < visible.len() { visible[idx_left] } else { 0.0 };
-        let v_right = if idx_right < visible.len() { visible[idx_right] } else { 0.0 };
+        let v_left = if idx_left < visible.len() {
+            visible[idx_left]
+        } else {
+            0.0
+        };
+        let v_right = if idx_right < visible.len() {
+            visible[idx_right]
+        } else {
+            0.0
+        };
 
-        let scaled_left = ((v_left / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
-        let scaled_right = ((v_right / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
+        let scaled_left =
+            ((v_left / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
+        let scaled_right =
+            ((v_right / safe_max).clamp(0.0, 1.0) * total_dots as f64).round() as usize;
 
         // Fill from top down: row 0 = top row
         for (row_idx, row_vec) in rows.iter_mut().enumerate() {
@@ -173,7 +186,12 @@ pub fn render_braille_graph_down(
 ///
 /// Each value maps to one braille character using the left-column dots (4 vertical levels).
 /// Returns `(braille_char, color)` pairs, truncated or padded to `width`.
-pub fn render_braille_sparkline(values: &[f64], max_value: f64, width: usize, theme: &Theme) -> Vec<(char, Color)> {
+pub fn render_braille_sparkline(
+    values: &[f64],
+    max_value: f64,
+    width: usize,
+    theme: &Theme,
+) -> Vec<(char, Color)> {
     if values.is_empty() || width == 0 {
         return Vec::new();
     }

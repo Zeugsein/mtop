@@ -89,16 +89,17 @@ fn read_disk_bytes() -> (u64, u64) {
             }
 
             // Use CreateCFProperty (singular) which reads the property fresh
-            let stats = IORegistryEntryCreateCFProperty(
-                service,
-                stats_key,
-                std::ptr::null(),
-                0,
-            );
+            let stats = IORegistryEntryCreateCFProperty(service, stats_key, std::ptr::null(), 0);
 
             if !stats.is_null() {
-                total_read += cf_number_value(CFDictionaryGetValue(stats as CFDictionaryRef, read_key as *const _));
-                total_write += cf_number_value(CFDictionaryGetValue(stats as CFDictionaryRef, write_key as *const _));
+                total_read += cf_number_value(CFDictionaryGetValue(
+                    stats as CFDictionaryRef,
+                    read_key as *const _,
+                ));
+                total_write += cf_number_value(CFDictionaryGetValue(
+                    stats as CFDictionaryRef,
+                    write_key as *const _,
+                ));
                 CFRelease(stats as *const _);
             }
 
@@ -125,12 +126,14 @@ unsafe fn cf_number_value(val: *const libc::c_void) -> u64 {
     }
     let mut out: i64 = 0;
     // kCFNumberSInt64Type = 4
-    let ok = unsafe { CFNumberGetValue(val as CFNumberRef, 4, &mut out as *mut _ as *mut libc::c_void) };
-    if ok {
-        out as u64
-    } else {
-        0
-    }
+    let ok = unsafe {
+        CFNumberGetValue(
+            val as CFNumberRef,
+            4,
+            &mut out as *mut _ as *mut libc::c_void,
+        )
+    };
+    if ok { out as u64 } else { 0 }
 }
 
 // --- IOKit and CoreFoundation FFI ---
@@ -162,7 +165,8 @@ unsafe extern "C" {
 
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
-    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void) -> *const libc::c_void;
+    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void)
+    -> *const libc::c_void;
     fn CFStringCreateWithCString(
         alloc: CFAllocatorRef,
         cstr: *const i8,

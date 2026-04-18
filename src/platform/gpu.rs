@@ -1,5 +1,7 @@
 use crate::metrics::GpuMetrics;
-use crate::platform::ioreport_ffi::{self, CFDictionaryRef, CFArrayRef, CFStringRef, IOReportFns, CFRelease};
+use crate::platform::ioreport_ffi::{
+    self, CFArrayRef, CFDictionaryRef, CFRelease, CFStringRef, IOReportFns,
+};
 
 /// Stateful GPU collector. Stores IOReport subscription and previous sample
 /// to compute deltas without internal sleeps.
@@ -72,7 +74,8 @@ impl GpuState {
         };
 
         unsafe {
-            let new_sample = (fns.create_samples)(self.subscription, self.channel, std::ptr::null());
+            let new_sample =
+                (fns.create_samples)(self.subscription, self.channel, std::ptr::null());
             if new_sample.is_null() {
                 return GpuMetrics::default();
             }
@@ -168,8 +171,8 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
         if i > 0 {
             active_residency += residency;
             // Try to read actual frequency from state name (format: "GPUPH_XXXX_YYYY")
-            let freq = unsafe { get_state_freq_mhz(fns, channel, i) }
-                .unwrap_or(200 + (i as u32) * 200); // fallback to linear estimate
+            let freq =
+                unsafe { get_state_freq_mhz(fns, channel, i) }.unwrap_or(200 + (i as u32) * 200); // fallback to linear estimate
             weighted_freq += residency * freq as u64;
         }
     }
@@ -192,7 +195,11 @@ unsafe fn parse_gpu_delta(fns: &IOReportFns, delta: CFDictionaryRef) -> Option<G
 /// Extract frequency in MHz from IOReport state name.
 /// State names are formatted as "GPUPH_XXXX_YYYY" where YYYY is freq in MHz.
 /// The returned CFStringRef is borrowed (Get rule) — do NOT release it.
-unsafe fn get_state_freq_mhz(fns: &IOReportFns, channel: CFDictionaryRef, index: i32) -> Option<u32> {
+unsafe fn get_state_freq_mhz(
+    fns: &IOReportFns,
+    channel: CFDictionaryRef,
+    index: i32,
+) -> Option<u32> {
     let name_cf: CFStringRef = unsafe { (fns.state_get_name_for_index)(channel, index) };
     if name_cf.is_null() {
         return None;
@@ -201,7 +208,9 @@ unsafe fn get_state_freq_mhz(fns: &IOReportFns, channel: CFDictionaryRef, index:
     // Do NOT CFRelease name_cf — it is a borrowed reference (Get rule)
     // State name format: "GPUPH_XXXX_YYYY" where YYYY is freq in MHz.
     // Try last 4 chars first, then search for any trailing numeric segment.
-    if name.len() >= 4 && let Ok(freq) = name[name.len() - 4..].parse::<u32>() {
+    if name.len() >= 4
+        && let Ok(freq) = name[name.len() - 4..].parse::<u32>()
+    {
         return Some(freq);
     }
     // Fallback: extract last numeric segment from the name

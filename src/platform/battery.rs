@@ -19,8 +19,13 @@ unsafe extern "C" {
 unsafe extern "C" {
     fn CFArrayGetCount(array: CFArrayRef) -> i64;
     fn CFArrayGetValueAtIndex(array: CFArrayRef, idx: i64) -> CFTypeRef;
-    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void) -> *const libc::c_void;
-    fn CFStringCreateWithCString(alloc: CFAllocatorRef, cstr: *const i8, encoding: u32) -> CFStringRef;
+    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: *const libc::c_void)
+    -> *const libc::c_void;
+    fn CFStringCreateWithCString(
+        alloc: CFAllocatorRef,
+        cstr: *const i8,
+        encoding: u32,
+    ) -> CFStringRef;
     fn CFStringCompare(a: CFStringRef, b: CFStringRef, flags: u64) -> i32;
     fn CFNumberGetValue(number: CFNumberRef, the_type: i32, value_ptr: *mut libc::c_void) -> bool;
     fn CFBooleanGetValue(boolean: CFBooleanRef) -> bool;
@@ -43,7 +48,13 @@ fn dict_get_int(dict: CFDictionaryRef, key: &str) -> Option<i32> {
         return None;
     }
     let mut result: i32 = 0;
-    let ok = unsafe { CFNumberGetValue(val as CFNumberRef, K_CF_NUMBER_INT_TYPE, &mut result as *mut i32 as *mut libc::c_void) };
+    let ok = unsafe {
+        CFNumberGetValue(
+            val as CFNumberRef,
+            K_CF_NUMBER_INT_TYPE,
+            &mut result as *mut i32 as *mut libc::c_void,
+        )
+    };
     if ok { Some(result) } else { None }
 }
 
@@ -103,7 +114,10 @@ pub fn collect_battery() -> BatteryMetrics {
         if !is_present {
             CFRelease(sources);
             CFRelease(blob);
-            return BatteryMetrics { is_present: false, ..Default::default() };
+            return BatteryMetrics {
+                is_present: false,
+                ..Default::default()
+            };
         }
 
         let current_capacity = dict_get_int(desc, "Current Capacity").unwrap_or(0);

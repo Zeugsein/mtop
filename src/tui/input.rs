@@ -1,9 +1,9 @@
 //! Keybinding handler extracted from mod.rs (iteration 8).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use super::{PanelId, AppState, theme};
+use super::{AppState, PanelId, theme};
 use crate::config;
 use crate::tui::helpers::sort_indices;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 fn toggle_expand(state: &mut AppState, panel: PanelId) {
     if state.expanded_panel == Some(panel) {
@@ -29,7 +29,9 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
                 // Send the signal
-                unsafe { libc::kill(pid, signal); }
+                unsafe {
+                    libc::kill(pid, signal);
+                }
             }
             _ => {} // Any other key cancels
         }
@@ -143,13 +145,18 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         }
         KeyCode::Char('+') | KeyCode::Char('=') => {
             const PRESETS: [u32; 10] = [100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000];
-            state.interval_ms = PRESETS.iter().copied()
+            state.interval_ms = PRESETS
+                .iter()
+                .copied()
                 .find(|&v| v > state.interval_ms)
                 .unwrap_or(10000);
         }
         KeyCode::Char('-') => {
             const PRESETS: [u32; 10] = [100, 250, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000];
-            state.interval_ms = PRESETS.iter().copied().rev()
+            state.interval_ms = PRESETS
+                .iter()
+                .copied()
+                .rev()
                 .find(|&v| v < state.interval_ms)
                 .unwrap_or(100);
         }
@@ -197,14 +204,23 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
 fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
     let sel = state.process_selected?;
     let procs = &state.snapshot.processes;
-    if procs.is_empty() { return None; }
+    if procs.is_empty() {
+        return None;
+    }
 
     let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
     let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
     let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
 
     let mut indices: Vec<usize> = (0..procs.len()).collect();
-    sort_indices(&mut indices, procs, state.sort_mode, max_cpu, max_mem, max_power);
+    sort_indices(
+        &mut indices,
+        procs,
+        state.sort_mode,
+        max_cpu,
+        max_mem,
+        max_power,
+    );
 
     // I45-F5c: apply filter to sorted indices
     if let Some(ref filter) = state.process_filter
@@ -216,5 +232,7 @@ fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
 
     let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
     let display_idx = scroll + sel;
-    indices.get(display_idx).map(|&idx| (procs[idx].pid, procs[idx].name.clone()))
+    indices
+        .get(display_idx)
+        .map(|&idx| (procs[idx].pid, procs[idx].name.clone()))
 }

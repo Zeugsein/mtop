@@ -5,7 +5,13 @@ fn sysctl_string(name: &str) -> Option<String> {
     let cname = std::ffi::CString::new(name).ok()?;
     let mut size: libc::size_t = 0;
     unsafe {
-        libc::sysctlbyname(cname.as_ptr(), std::ptr::null_mut(), &mut size, std::ptr::null_mut(), 0);
+        libc::sysctlbyname(
+            cname.as_ptr(),
+            std::ptr::null_mut(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        );
         if size == 0 {
             return None;
         }
@@ -91,24 +97,44 @@ fn estimate_gpu_cores(chip: &str) -> u32 {
     // Estimate GPU cores from chip model name
     let lower = chip.to_lowercase();
     if lower.contains("ultra") {
-        if lower.contains("m4") { 80 }
-        else if lower.contains("m3") { 76 }
-        else if lower.contains("m2") { 76 }
-        else { 64 }
+        if lower.contains("m4") {
+            80
+        } else if lower.contains("m3") {
+            76
+        } else if lower.contains("m2") {
+            76
+        } else {
+            64
+        }
     } else if lower.contains("max") {
-        if lower.contains("m4") { 40 }
-        else if lower.contains("m3") { 40 }
-        else if lower.contains("m2") { 38 }
-        else { 32 }
+        if lower.contains("m4") {
+            40
+        } else if lower.contains("m3") {
+            40
+        } else if lower.contains("m2") {
+            38
+        } else {
+            32
+        }
     } else if lower.contains("pro") {
-        if lower.contains("m4") { 20 }
-        else if lower.contains("m3") { 18 }
-        else if lower.contains("m2") { 19 }
-        else { 16 }
+        if lower.contains("m4") {
+            20
+        } else if lower.contains("m3") {
+            18
+        } else if lower.contains("m2") {
+            19
+        } else {
+            16
+        }
     } else {
-        if lower.contains("m4") { 10 }
-        else if lower.contains("m3") { 10 }
-        else if lower.contains("m2") { 10 }
-        else { 8 }
+        if lower.contains("m4") {
+            10
+        } else if lower.contains("m3") {
+            10
+        } else if lower.contains("m2") {
+            10
+        } else {
+            8
+        }
     }
 }

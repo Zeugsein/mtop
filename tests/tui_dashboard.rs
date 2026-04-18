@@ -6,10 +6,9 @@
 /// logic directly against a mock buffer and assert on the produced text.
 /// Tests that require a real terminal or full TUI lifecycle are marked
 /// #[ignore] and document the gap.
-
 use mtop::metrics::types::{
-    CpuMetrics, CoreClusterMetrics, GpuMetrics, MemoryMetrics, MetricsHistory,
-    MetricsSnapshot, NetworkMetrics, NetInterface, PowerMetrics, SocInfo, ThermalMetrics,
+    CoreClusterMetrics, CpuMetrics, GpuMetrics, MemoryMetrics, MetricsHistory, MetricsSnapshot,
+    NetInterface, NetworkMetrics, PowerMetrics, SocInfo, ThermalMetrics,
 };
 
 // ---------------------------------------------------------------------------
@@ -28,8 +27,14 @@ fn make_soc() -> SocInfo {
 
 fn make_cpu_metrics() -> CpuMetrics {
     CpuMetrics {
-        e_cluster: CoreClusterMetrics { freq_mhz: 2200, usage: 0.42 },
-        p_cluster: CoreClusterMetrics { freq_mhz: 4400, usage: 0.65 },
+        e_cluster: CoreClusterMetrics {
+            freq_mhz: 2200,
+            usage: 0.42,
+        },
+        p_cluster: CoreClusterMetrics {
+            freq_mhz: 4400,
+            usage: 0.65,
+        },
         total_usage: 0.55,
         core_usages: vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         power_w: 8.5,
@@ -53,7 +58,12 @@ fn make_snapshot() -> MetricsSnapshot {
     s.soc = make_soc();
     s.cpu = make_cpu_metrics();
     s.power = make_power_metrics();
-    s.temperature = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true, ..Default::default() };
+    s.temperature = ThermalMetrics {
+        cpu_avg_c: 52.0,
+        gpu_avg_c: 45.0,
+        available: true,
+        ..Default::default()
+    };
     s.memory = MemoryMetrics {
         ram_total: 25_769_803_776, // 24 GB
         ram_used: 8_589_934_592,   // 8 GB
@@ -192,7 +202,11 @@ fn power_sparkline_caps_at_128_entries() {
     }
     assert_eq!(history.cpu_power.len(), 128, "cpu_power should cap at 128");
     assert_eq!(history.gpu_power.len(), 128, "gpu_power should cap at 128");
-    assert_eq!(history.system_power.len(), 128, "system_power should cap at 128");
+    assert_eq!(
+        history.system_power.len(),
+        128,
+        "system_power should cap at 128"
+    );
 }
 
 #[test]
@@ -234,7 +248,12 @@ fn gpu_panel_renders_usage_freq_power() {
 #[test]
 /// FR-5: ThermalMetrics stores cpu_avg_c and gpu_avg_c
 fn thermal_metrics_has_cpu_and_gpu_fields() {
-    let t = ThermalMetrics { cpu_avg_c: 52.0, gpu_avg_c: 45.0, available: true, ..Default::default() };
+    let t = ThermalMetrics {
+        cpu_avg_c: 52.0,
+        gpu_avg_c: 45.0,
+        available: true,
+        ..Default::default()
+    };
     assert!(t.cpu_avg_c > 0.0);
     assert!(t.gpu_avg_c > 0.0);
 }
@@ -242,7 +261,9 @@ fn thermal_metrics_has_cpu_and_gpu_fields() {
 #[test]
 /// FR-5: Fahrenheit conversion formula: F = C * 9/5 + 32
 fn temperature_celsius_to_fahrenheit_conversion() {
-    fn to_fahrenheit(c: f32) -> f32 { c * 9.0 / 5.0 + 32.0 }
+    fn to_fahrenheit(c: f32) -> f32 {
+        c * 9.0 / 5.0 + 32.0
+    }
     assert!((to_fahrenheit(0.0) - 32.0).abs() < 0.01);
     assert!((to_fahrenheit(100.0) - 212.0).abs() < 0.01);
     assert!((to_fahrenheit(52.0) - 125.6).abs() < 0.1);
@@ -321,10 +342,15 @@ fn net_interface_has_required_fields() {
 /// FR-7: network rate auto-scaling: B/s, KB/s, MB/s, GB/s
 fn network_rate_auto_scale_formatting() {
     fn format_rate(bytes_sec: f64) -> String {
-        if bytes_sec >= 1e9 { format!("{:.1} GB/s", bytes_sec / 1e9) }
-        else if bytes_sec >= 1e6 { format!("{:.1} MB/s", bytes_sec / 1e6) }
-        else if bytes_sec >= 1e3 { format!("{:.1} KB/s", bytes_sec / 1e3) }
-        else { format!("{:.0} B/s", bytes_sec) }
+        if bytes_sec >= 1e9 {
+            format!("{:.1} GB/s", bytes_sec / 1e9)
+        } else if bytes_sec >= 1e6 {
+            format!("{:.1} MB/s", bytes_sec / 1e6)
+        } else if bytes_sec >= 1e3 {
+            format!("{:.1} KB/s", bytes_sec / 1e3)
+        } else {
+            format!("{:.0} B/s", bytes_sec)
+        }
     }
 
     assert_eq!(format_rate(500.0), "500 B/s");
@@ -349,9 +375,36 @@ fn network_panel_renders_rates_with_units() {
 fn process_list_is_sorted_cpu_desc() {
     use mtop::metrics::types::ProcessInfo;
     let mut procs = vec![
-        ProcessInfo { pid: 1, name: "a".into(), cpu_pct: 10.0, mem_bytes: 100, energy_nj: 0, power_w: 0.0, user: "root".into(), ..Default::default() },
-        ProcessInfo { pid: 2, name: "b".into(), cpu_pct: 50.0, mem_bytes: 200, energy_nj: 0, power_w: 0.0, user: "root".into(), ..Default::default() },
-        ProcessInfo { pid: 3, name: "c".into(), cpu_pct: 30.0, mem_bytes: 300, energy_nj: 0, power_w: 0.0, user: "root".into(), ..Default::default() },
+        ProcessInfo {
+            pid: 1,
+            name: "a".into(),
+            cpu_pct: 10.0,
+            mem_bytes: 100,
+            energy_nj: 0,
+            power_w: 0.0,
+            user: "root".into(),
+            ..Default::default()
+        },
+        ProcessInfo {
+            pid: 2,
+            name: "b".into(),
+            cpu_pct: 50.0,
+            mem_bytes: 200,
+            energy_nj: 0,
+            power_w: 0.0,
+            user: "root".into(),
+            ..Default::default()
+        },
+        ProcessInfo {
+            pid: 3,
+            name: "c".into(),
+            cpu_pct: 30.0,
+            mem_bytes: 300,
+            energy_nj: 0,
+            power_w: 0.0,
+            user: "root".into(),
+            ..Default::default()
+        },
     ];
     procs.sort_by(|a, b| b.cpu_pct.partial_cmp(&a.cpu_pct).unwrap());
     assert_eq!(procs[0].cpu_pct, 50.0);
@@ -432,7 +485,11 @@ fn dashboard_handles_terminal_resize() {
 /// FR-12: SocInfo chip string contains the chip model name
 fn soc_info_chip_has_model_name() {
     let soc = make_soc();
-    assert!(soc.chip.contains("Apple M4 Pro"), "chip '{}' should contain model name", soc.chip);
+    assert!(
+        soc.chip.contains("Apple M4 Pro"),
+        "chip '{}' should contain model name",
+        soc.chip
+    );
 }
 
 #[test]

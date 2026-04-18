@@ -21,7 +21,11 @@ pub fn too_small_message(area: Rect) -> String {
 pub fn split_type_a(area: Rect) -> (Rect, Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(74), Constraint::Length(2), Constraint::Percentage(25)])
+        .constraints([
+            Constraint::Percentage(74),
+            Constraint::Length(2),
+            Constraint::Percentage(25),
+        ])
         .split(area);
     (chunks[0], chunks[2])
 }
@@ -47,7 +51,7 @@ pub fn split_page(area: Rect) -> PageLayout {
     let main = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // header
+            Constraint::Length(1), // header
             Constraint::Min(18),   // body (two columns)
             Constraint::Length(1), // footer
         ])

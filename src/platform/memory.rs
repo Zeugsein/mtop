@@ -34,8 +34,10 @@ impl MemoryState {
 
         if self.prev_swapins > 0 || self.prev_swapouts > 0 {
             // Not first sample
-            metrics.swap_in_bytes_sec = swapins.saturating_sub(self.prev_swapins) as f64 * page_size as f64 / dt;
-            metrics.swap_out_bytes_sec = swapouts.saturating_sub(self.prev_swapouts) as f64 * page_size as f64 / dt;
+            metrics.swap_in_bytes_sec =
+                swapins.saturating_sub(self.prev_swapins) as f64 * page_size as f64 / dt;
+            metrics.swap_out_bytes_sec =
+                swapouts.saturating_sub(self.prev_swapouts) as f64 * page_size as f64 / dt;
         }
 
         self.prev_swapins = swapins;
@@ -83,7 +85,8 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
                 .saturating_sub(vm_stat.purgeable_count as u64)
                 * page_size;
             let compressed = vm_stat.compressor_page_count as u64 * page_size;
-            let cached = (vm_stat.inactive_count as u64 + vm_stat.purgeable_count as u64) * page_size;
+            let cached =
+                (vm_stat.inactive_count as u64 + vm_stat.purgeable_count as u64) * page_size;
             let free = vm_stat.free_count as u64 * page_size;
             (used, wired, app, compressed, cached, free)
         } else {
@@ -93,7 +96,9 @@ pub fn collect_memory(host: u32) -> MemoryMetrics {
         // Swap via sysctl
         let swap = get_swap_usage();
 
-        (ram_used, swap.0, swap.1, wired, app, compressed, cached, free)
+        (
+            ram_used, swap.0, swap.1, wired, app, compressed, cached, free,
+        )
     };
 
     MemoryMetrics {

@@ -3,7 +3,6 @@
 ///   openspec/changes/archive/2026-04-05-mvp-core/specs/cli-interface/spec.md
 ///
 /// Tests marked #[ignore] cover known PARTIAL / FAIL items in the compliance audit.
-
 use clap::Parser;
 use mtop::Cli;
 use mtop::cli::{Command, TempUnit};
@@ -26,7 +25,10 @@ fn no_subcommand_means_tui_mode() {
 /// FR-1: default interval is 1000ms when no --interval is given
 fn default_interval_is_1000ms() {
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.interval, None, "default interval should be None when not specified");
+    assert_eq!(
+        cli.interval, None,
+        "default interval should be None when not specified"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -143,14 +145,21 @@ fn global_interval_with_subcommand() {
 /// FR-5: `mtop --color blue` parses color="blue"
 fn color_flag_parses() {
     let cli = Cli::parse_from(["mtop", "--color", "blue"]);
-    assert_eq!(cli.color, Some("blue".to_string()), "--color blue should set color field to 'blue'");
+    assert_eq!(
+        cli.color,
+        Some("blue".to_string()),
+        "--color blue should set color field to 'blue'"
+    );
 }
 
 #[test]
 /// FR-5: default color is "default"
 fn color_default_value() {
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.color, None, "default color should be None when not specified");
+    assert_eq!(
+        cli.color, None,
+        "default color should be None when not specified"
+    );
 }
 
 #[test]
@@ -187,7 +196,11 @@ fn temp_unit_celsius_parses() {
 /// FR-6: default temp_unit is "celsius"
 fn temp_unit_default_is_celsius() {
     let cli = Cli::parse_from(["mtop"]);
-    assert_eq!(cli.temp_unit, TempUnit::Celsius, "default temp-unit should be celsius");
+    assert_eq!(
+        cli.temp_unit,
+        TempUnit::Celsius,
+        "default temp-unit should be celsius"
+    );
 }
 
 #[test]
@@ -204,10 +217,7 @@ fn temp_unit_rejects_invalid_value() {
 /// FR-6: `mtop --temp-unit garbage` should be rejected
 fn temp_unit_rejects_garbage_value() {
     let result = Cli::try_parse_from(["mtop", "--temp-unit", "garbage"]);
-    assert!(
-        result.is_err(),
-        "--temp-unit garbage should be rejected"
-    );
+    assert!(result.is_err(), "--temp-unit garbage should be rejected");
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +346,12 @@ fn pipe_output_lines_are_valid_json() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
 
-    assert_eq!(lines.len(), 3, "pipe --samples 3 should produce exactly 3 lines; got {}", lines.len());
+    assert_eq!(
+        lines.len(),
+        3,
+        "pipe --samples 3 should produce exactly 3 lines; got {}",
+        lines.len()
+    );
 
     for (i, line) in lines.iter().enumerate() {
         serde_json::from_str::<serde_json::Value>(line)
@@ -357,7 +372,17 @@ fn pipe_output_contains_required_fields() {
     let line = stdout.lines().next().expect("expected at least one line");
     let json: serde_json::Value = serde_json::from_str(line).expect("line should be valid JSON");
 
-    for field in &["timestamp", "soc", "cpu", "gpu", "power", "temperature", "memory", "network", "disk"] {
+    for field in &[
+        "timestamp",
+        "soc",
+        "cpu",
+        "gpu",
+        "power",
+        "temperature",
+        "memory",
+        "network",
+        "disk",
+    ] {
         assert!(
             json.get(field).is_some(),
             "pipe JSON object missing required field '{field}'"
@@ -397,7 +422,10 @@ fn pipe_exits_zero_after_n_samples() {
         .args(["pipe", "--samples", "2"])
         .output()
         .expect("failed to run mtop");
-    assert!(output.status.success(), "pipe --samples 2 should exit with code 0");
+    assert!(
+        output.status.success(),
+        "pipe --samples 2 should exit with code 0"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<_> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
     assert_eq!(lines.len(), 2, "expected exactly 2 NDJSON lines");

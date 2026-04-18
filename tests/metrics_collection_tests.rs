@@ -1,7 +1,6 @@
 /// Feature-organized tests: metrics collection
 /// Covers: sampling, metrics types, history, process CPU deltas, power collection,
 /// memory metrics, disk I/O, interval clamping, and consecutive sample stability.
-
 use mtop::metrics::types::*;
 
 // ===========================================================================
@@ -81,7 +80,10 @@ fn power_calculation_uses_measured_elapsed_time() {
 
     assert!(snapshot.power.cpu_w >= 0.0, "H3: cpu_w should be >= 0.0");
     assert!(snapshot.power.gpu_w >= 0.0, "H3: gpu_w should be >= 0.0");
-    assert!(snapshot.power.system_w >= 0.0, "H3: system_w should be >= 0.0");
+    assert!(
+        snapshot.power.system_w >= 0.0,
+        "H3: system_w should be >= 0.0"
+    );
 }
 
 // ===========================================================================
@@ -135,7 +137,8 @@ fn metrics_history_uses_efficient_data_structure() {
     }
 
     assert_eq!(
-        history.cpu_usage.len(), 128,
+        history.cpu_usage.len(),
+        128,
         "M3: history should cap at 128 entries"
     );
 }
@@ -150,11 +153,19 @@ fn metrics_history_capacity_invariant_at_128() {
     for _ in 0..128 {
         history.push(&snap);
     }
-    assert_eq!(history.cpu_usage.len(), 128, "M3: should hold exactly 128 entries");
+    assert_eq!(
+        history.cpu_usage.len(),
+        128,
+        "M3: should hold exactly 128 entries"
+    );
 
     snap.cpu.total_usage = 1.0;
     history.push(&snap);
-    assert_eq!(history.cpu_usage.len(), 128, "M3: should still be 128 after overflow");
+    assert_eq!(
+        history.cpu_usage.len(),
+        128,
+        "M3: should still be 128 after overflow"
+    );
 
     assert_eq!(
         *history.cpu_usage.last().unwrap(),
@@ -202,8 +213,11 @@ fn metrics_history_records_gpu_usage() {
     history.push(&snap);
 
     assert_eq!(history.gpu_usage.len(), 1);
-    assert!((history.gpu_usage[0] - 0.75).abs() < f64::EPSILON,
-        "gpu_usage should be 0.75, got {}", history.gpu_usage[0]);
+    assert!(
+        (history.gpu_usage[0] - 0.75).abs() < f64::EPSILON,
+        "gpu_usage should be 0.75, got {}",
+        history.gpu_usage[0]
+    );
 }
 
 // ===========================================================================
@@ -313,7 +327,10 @@ fn per_iface_skips_loopback() {
     let mut h = MetricsHistory::new();
     let snap = make_iface_snapshot(&[("lo0", 100.0, 200.0), ("en0", 50.0, 60.0)]);
     h.push(&snap);
-    assert!(!h.per_iface.contains_key("lo0"), "loopback should be skipped");
+    assert!(
+        !h.per_iface.contains_key("lo0"),
+        "loopback should be skipped"
+    );
     assert!(h.per_iface.contains_key("en0"));
 }
 
@@ -325,7 +342,10 @@ fn per_iface_stale_pruned() {
     assert!(h.per_iface.contains_key("en1"));
     let snap2 = make_iface_snapshot(&[("en0", 150.0, 250.0)]);
     h.push(&snap2);
-    assert!(!h.per_iface.contains_key("en1"), "stale interface buffer should be pruned");
+    assert!(
+        !h.per_iface.contains_key("en1"),
+        "stale interface buffer should be pruned"
+    );
 }
 
 #[test]
@@ -352,14 +372,14 @@ fn per_iface_aggregate_still_works() {
     let snap = make_iface_snapshot(&[("en0", 100.0, 200.0), ("en1", 300.0, 400.0)]);
     h.push(&snap);
     assert_eq!(*h.net_download.last().unwrap(), 400.0); // 100 + 300
-    assert_eq!(*h.net_upload.last().unwrap(), 600.0);   // 200 + 400
+    assert_eq!(*h.net_upload.last().unwrap(), 600.0); // 200 + 400
 }
 
 // ===========================================================================
 // Memory available fraction (iter17)
 // ===========================================================================
 
-use mtop::metrics::{MetricsHistory, MetricsSnapshot, MemoryMetrics};
+use mtop::metrics::{MemoryMetrics, MetricsHistory, MetricsSnapshot};
 
 #[test]
 fn mem_available_fraction_correct() {
@@ -372,7 +392,10 @@ fn mem_available_fraction_correct() {
 
     let latest = history.mem_available.last().copied().unwrap_or(0.0);
     let expected = 4.0 / 16.0; // 0.25
-    assert!((latest - expected).abs() < 1e-9, "expected ~0.25, got {latest}");
+    assert!(
+        (latest - expected).abs() < 1e-9,
+        "expected ~0.25, got {latest}"
+    );
 }
 
 #[test]
@@ -423,7 +446,11 @@ fn shall_23_15_memory_used_equals_total_minus_free() {
     let free_bytes: u64 = 4 * 1024 * 1024 * 1024;
     let ram_used = ram_total.saturating_sub(free_bytes);
 
-    assert_eq!(ram_used, 12 * 1024 * 1024 * 1024, "ram_used should be 12 GB");
+    assert_eq!(
+        ram_used,
+        12 * 1024 * 1024 * 1024,
+        "ram_used should be 12 GB"
+    );
 
     let mut snapshot = MetricsSnapshot::default();
     snapshot.memory = MemoryMetrics {
@@ -435,8 +462,14 @@ fn shall_23_15_memory_used_equals_total_minus_free() {
     let mut history = MetricsHistory::new();
     history.push(&snapshot);
 
-    let usage_frac = *history.mem_usage.last().expect("mem_usage should have one entry");
-    let avail_frac = *history.mem_available.last().expect("mem_available should have one entry");
+    let usage_frac = *history
+        .mem_usage
+        .last()
+        .expect("mem_usage should have one entry");
+    let avail_frac = *history
+        .mem_available
+        .last()
+        .expect("mem_available should have one entry");
 
     assert!(
         (usage_frac - 0.75).abs() < 0.001,
@@ -458,7 +491,10 @@ fn shall_23_15_memory_used_saturates_at_zero_when_free_exceeds_total() {
     let ram_total: u64 = 8 * 1024 * 1024 * 1024;
     let free_bytes: u64 = 10 * 1024 * 1024 * 1024;
     let ram_used = ram_total.saturating_sub(free_bytes);
-    assert_eq!(ram_used, 0, "saturating_sub must floor at 0, never underflow");
+    assert_eq!(
+        ram_used, 0,
+        "saturating_sub must floor at 0, never underflow"
+    );
 }
 
 #[test]
@@ -466,7 +502,11 @@ fn shall_23_15_memory_all_free_gives_zero_usage_fraction() {
     let ram_total: u64 = 8 * 1024 * 1024 * 1024;
     let ram_used = 0u64;
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    snapshot.memory = MemoryMetrics {
+        ram_total,
+        ram_used,
+        ..Default::default()
+    };
     let mut history = MetricsHistory::new();
     history.push(&snapshot);
     let usage_frac = *history.mem_usage.last().unwrap();
@@ -482,7 +522,11 @@ fn shall_23_15_memory_half_free_gives_half_usage_fraction() {
     let free_bytes: u64 = ram_total / 2;
     let ram_used = ram_total.saturating_sub(free_bytes);
     let mut snapshot = MetricsSnapshot::default();
-    snapshot.memory = MemoryMetrics { ram_total, ram_used, ..Default::default() };
+    snapshot.memory = MemoryMetrics {
+        ram_total,
+        ram_used,
+        ..Default::default()
+    };
     let mut history = MetricsHistory::new();
     history.push(&snapshot);
     let usage_frac = *history.mem_usage.last().unwrap();

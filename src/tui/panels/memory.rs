@@ -1,13 +1,19 @@
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 
-use crate::metrics::MetricsSnapshot;
-use crate::tui::{AppState, theme, gauge, layout};
-use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact};
 use super::cpu::{render_graph, render_graph_green};
+use crate::metrics::MetricsSnapshot;
+use crate::tui::helpers::{format_bytes_rate, format_bytes_rate_compact};
+use crate::tui::{AppState, gauge, layout, theme};
 
 /// Memory+Disk panel: Type B layout when detail, 50/50 when not
-pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnapshot, state: &AppState, theme: &theme::Theme) {
+pub(crate) fn draw_mem_disk_panel_v2(
+    f: &mut Frame,
+    area: Rect,
+    s: &MetricsSnapshot,
+    state: &AppState,
+    theme: &theme::Theme,
+) {
     let gb = 1024.0 * 1024.0 * 1024.0;
     let ram_used_gb = s.memory.ram_used as f64 / gb;
     let ram_total_gb = s.memory.ram_total as f64 / gb;
@@ -27,9 +33,15 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     };
 
     let title_spans = vec![
-        Span::styled(format!(" {}", theme::PANEL_SUPERSCRIPTS[2]), Style::default().fg(theme.muted)),
+        Span::styled(
+            format!(" {}", theme::PANEL_SUPERSCRIPTS[2]),
+            Style::default().fg(theme.muted),
+        ),
         Span::styled("mem  ", Style::default().fg(theme.fg).bold()),
-        Span::styled(format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"), Style::default().fg(theme.fg)),
+        Span::styled(
+            format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"),
+            Style::default().fg(theme.fg),
+        ),
         Span::styled(" \u{25cf}", Style::default().fg(pressure_dot_color)),
         Span::raw(" "),
     ];
@@ -44,14 +56,24 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     f.render_widget(block, area);
 
     // 1-char padding left/right, no top padding (UAT-07)
-    let inner = Rect::new(raw_inner.x + 1, raw_inner.y, raw_inner.width.saturating_sub(2), raw_inner.height);
+    let inner = Rect::new(
+        raw_inner.x + 1,
+        raw_inner.y,
+        raw_inner.width.saturating_sub(2),
+        raw_inner.height,
+    );
 
     if inner.height < 2 || inner.width == 0 {
         return;
     }
 
     // Reserve last row for bottom info
-    let content_area = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+    let content_area = Rect::new(
+        inner.x,
+        inner.y,
+        inner.width,
+        inner.height.saturating_sub(1),
+    );
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
     let sparkline_data: Vec<f64> = state.history.mem_usage.iter().copied().collect();
@@ -59,7 +81,11 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
     // Compute available bytes/GB for labels (single source of truth)
     let ram_avail_bytes = s.memory.ram_total.saturating_sub(s.memory.ram_used) as f64;
-    let ram_avail_gb = if s.memory.ram_total > 0 { ram_avail_bytes / gb } else { 0.0 };
+    let ram_avail_gb = if s.memory.ram_total > 0 {
+        ram_avail_bytes / gb
+    } else {
+        0.0
+    };
 
     let sub_border_color = theme::dim_color(border_color, 0.8);
     let mb = 1024.0 * 1024.0;
@@ -126,7 +152,11 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
 
         let detail_lines: Vec<Line> = vec![
             Line::from(Span::styled("disk", Style::default().fg(theme.fg).bold())),
-            Line::from(gauge::render_compact_gauge(disk_fraction, right.width as usize, theme)),
+            Line::from(gauge::render_compact_gauge(
+                disk_fraction,
+                right.width as usize,
+                theme,
+            )),
             Line::from(Span::styled(
                 format!("{disk_used_gb:.0}/{disk_total_gb:.0} GB"),
                 Style::default().fg(theme.fg),
@@ -159,7 +189,12 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
         // 50/50 split: used + available graphs with sub-panel borders
         let half_w = content_area.width / 2;
         let left = Rect::new(content_area.x, content_area.y, half_w, content_area.height);
-        let mid = Rect::new(content_area.x + half_w, content_area.y, content_area.width - half_w, content_area.height);
+        let mid = Rect::new(
+            content_area.x + half_w,
+            content_area.y,
+            content_area.width - half_w,
+            content_area.height,
+        );
 
         let used_block = Block::default()
             .title(Line::from(vec![
@@ -211,14 +246,19 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
             let swap_total_gb = s.memory.swap_total as f64 / gb;
             let swap_text = format!(" swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
             f.render_widget(
-                Paragraph::new(Line::from(Span::styled(swap_text, Style::default().fg(theme.muted)))),
+                Paragraph::new(Line::from(Span::styled(
+                    swap_text,
+                    Style::default().fg(theme.muted),
+                ))),
                 Rect::new(inner.x, bottom_y, inner.width / 2, 1),
             );
         }
         // Disk on the right
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(disk_text, Style::default().fg(theme.muted)))
-                .alignment(ratatui::layout::Alignment::Right)),
+            Paragraph::new(
+                Line::from(Span::styled(disk_text, Style::default().fg(theme.muted)))
+                    .alignment(ratatui::layout::Alignment::Right),
+            ),
             Rect::new(inner.x, bottom_y, inner.width, 1),
         );
         return; // skip default bottom info (detail mode handles swap separately)
@@ -244,7 +284,10 @@ pub(crate) fn draw_mem_disk_panel_v2(f: &mut Frame, area: Rect, s: &MetricsSnaps
     };
 
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(swap_text, Style::default().fg(theme.muted)))),
+        Paragraph::new(Line::from(Span::styled(
+            swap_text,
+            Style::default().fg(theme.muted),
+        ))),
         Rect::new(inner.x, bottom_y, inner.width, 1),
     );
 }

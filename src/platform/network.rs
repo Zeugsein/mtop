@@ -32,15 +32,16 @@ impl NetworkState {
                 continue; // skip loopback
             }
 
-            let (rx_rate, tx_rate, pkt_in_rate, pkt_out_rate) = if let Some((prev_rx, prev_tx, _, prev_rpkt, prev_tpkt)) = self.prev.get(name) {
-                let drx = rx.saturating_sub(*prev_rx) as f64 / dt;
-                let dtx = tx.saturating_sub(*prev_tx) as f64 / dt;
-                let dpkt_in = rx_pkts.saturating_sub(*prev_rpkt) as f64 / dt;
-                let dpkt_out = tx_pkts.saturating_sub(*prev_tpkt) as f64 / dt;
-                (drx, dtx, dpkt_in, dpkt_out)
-            } else {
-                (0.0, 0.0, 0.0, 0.0)
-            };
+            let (rx_rate, tx_rate, pkt_in_rate, pkt_out_rate) =
+                if let Some((prev_rx, prev_tx, _, prev_rpkt, prev_tpkt)) = self.prev.get(name) {
+                    let drx = rx.saturating_sub(*prev_rx) as f64 / dt;
+                    let dtx = tx.saturating_sub(*prev_tx) as f64 / dt;
+                    let dpkt_in = rx_pkts.saturating_sub(*prev_rpkt) as f64 / dt;
+                    let dpkt_out = tx_pkts.saturating_sub(*prev_tpkt) as f64 / dt;
+                    (drx, dtx, dpkt_in, dpkt_out)
+                } else {
+                    (0.0, 0.0, 0.0, 0.0)
+                };
 
             let iface_type = classify_interface(name).to_string();
 
@@ -58,7 +59,8 @@ impl NetworkState {
         }
 
         // Prefer en* interfaces for baudrate; fall back to global max
-        let en_baudrate = current.iter()
+        let en_baudrate = current
+            .iter()
             .filter(|(name, _)| name.starts_with("en"))
             .map(|(_, &(_, _, baud, _, _))| baud)
             .max()
@@ -66,7 +68,8 @@ impl NetworkState {
         let primary_baudrate = if en_baudrate > 0 {
             en_baudrate
         } else {
-            current.values()
+            current
+                .values()
                 .map(|&(_, _, baud, _, _)| baud)
                 .max()
                 .unwrap_or(0)
@@ -75,7 +78,10 @@ impl NetworkState {
         self.prev = current;
         self.prev_time = now;
 
-        NetworkMetrics { interfaces, primary_baudrate }
+        NetworkMetrics {
+            interfaces,
+            primary_baudrate,
+        }
     }
 }
 
@@ -141,11 +147,11 @@ fn classify_interface(name: &str) -> &'static str {
 /// Returns the maximum bytes/sec value for sparkline scaling.
 pub fn speed_tier_from_baudrate(baudrate: u64) -> u64 {
     if baudrate >= 1_000_000_000 {
-        125_000_000  // 1 Gbps → 125 MB/s
+        125_000_000 // 1 Gbps → 125 MB/s
     } else if baudrate >= 100_000_000 {
-        12_500_000   // 100 Mbps → 12.5 MB/s
+        12_500_000 // 100 Mbps → 12.5 MB/s
     } else {
-        1_250_000    // 10 Mbps fallback → 1.25 MB/s
+        1_250_000 // 10 Mbps fallback → 1.25 MB/s
     }
 }
 

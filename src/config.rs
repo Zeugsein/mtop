@@ -56,7 +56,9 @@ pub fn load_dotenv() {
                     if std::env::var(key).is_err() {
                         // Safety: only called at program start, single-threaded
                         #[allow(deprecated)]
-                        unsafe { std::env::set_var(key, value) };
+                        unsafe {
+                            std::env::set_var(key, value)
+                        };
                     }
                 }
                 None => {
@@ -74,7 +76,10 @@ pub fn load_dotenv() {
 
 fn config_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".config").join("mtop").join("config.toml")
+    PathBuf::from(home)
+        .join(".config")
+        .join("mtop")
+        .join("config.toml")
 }
 
 /// Load config from ~/.config/mtop/config.toml. Returns defaults on any error.
@@ -179,7 +184,15 @@ another = 42
     fn config_path_contains_mtop() {
         let path = config_path();
         let path_str = path.to_string_lossy();
-        assert!(path_str.contains("mtop"), "config path should contain 'mtop': {}", path_str);
-        assert!(path_str.ends_with("config.toml"), "config path should end with config.toml: {}", path_str);
+        assert!(
+            path_str.contains("mtop"),
+            "config path should contain 'mtop': {}",
+            path_str
+        );
+        assert!(
+            path_str.ends_with("config.toml"),
+            "config path should end with config.toml: {}",
+            path_str
+        );
     }
 }

@@ -1,10 +1,9 @@
 /// Feature-organized tests: config loading and input handling
 /// Covers: config loading, deserialization, sort modes, process I/O fields,
 /// thermal metrics, config roundtrips.
-
 use mtop::config::{self, Config};
-use mtop::metrics::{ProcessInfo, ThermalMetrics, SortMode};
 use mtop::metrics::types::*;
+use mtop::metrics::{ProcessInfo, SortMode, ThermalMetrics};
 
 use std::sync::Mutex;
 
@@ -135,9 +134,18 @@ fn config_serialize_contains_all_fields() {
     let cfg = Config::default();
     let s = toml::to_string_pretty(&cfg).unwrap();
     assert!(s.contains("theme"), "serialized should contain theme");
-    assert!(s.contains("interval_ms"), "serialized should contain interval_ms");
-    assert!(s.contains("temp_unit"), "serialized should contain temp_unit");
-    assert!(s.contains("sort_mode"), "serialized should contain sort_mode");
+    assert!(
+        s.contains("interval_ms"),
+        "serialized should contain interval_ms"
+    );
+    assert!(
+        s.contains("temp_unit"),
+        "serialized should contain temp_unit"
+    );
+    assert!(
+        s.contains("sort_mode"),
+        "serialized should contain sort_mode"
+    );
 }
 
 #[test]
@@ -195,11 +203,19 @@ fn sort_mode_full_cycle_returns_to_start() {
 #[test]
 fn sort_mode_labels_non_empty() {
     let modes = [
-        SortMode::WeightedScore, SortMode::Cpu, SortMode::Memory,
-        SortMode::Power, SortMode::Pid, SortMode::Name,
+        SortMode::WeightedScore,
+        SortMode::Cpu,
+        SortMode::Memory,
+        SortMode::Power,
+        SortMode::Pid,
+        SortMode::Name,
     ];
     for mode in modes {
-        assert!(!mode.label().is_empty(), "label for {:?} should not be empty", mode);
+        assert!(
+            !mode.label().is_empty(),
+            "label for {:?} should not be empty",
+            mode
+        );
     }
 }
 
@@ -365,7 +381,10 @@ fn memory_metrics_has_pressure_fields() {
 
 #[test]
 fn w1a_offset_assertions_verified_by_compilation() {
-    assert!(true, "All FFI struct offset assertions pass at compile time");
+    assert!(
+        true,
+        "All FFI struct offset assertions pass at compile time"
+    );
 }
 
 // ===========================================================================
@@ -461,7 +480,10 @@ fn config_clone_is_independent() {
     let a = Config::default();
     let mut b = a.clone();
     b.theme = "custom".to_string();
-    assert_eq!(a.theme, "default", "clone mutation must not affect original");
+    assert_eq!(
+        a.theme, "default",
+        "clone mutation must not affect original"
+    );
 }
 
 #[test]

@@ -74,27 +74,48 @@ impl SocInfo {
 fn estimate_cpu_tdp(chip: &str) -> f32 {
     let lower = chip.to_lowercase();
     if lower.contains("ultra") {
-        if lower.contains("m4") { 60.0 }
-        else if lower.contains("m3") { 50.0 }
-        else if lower.contains("m2") { 50.0 }
-        else { 40.0 } // M1 Ultra
+        if lower.contains("m4") {
+            60.0
+        } else if lower.contains("m3") {
+            50.0
+        } else if lower.contains("m2") {
+            50.0
+        } else {
+            40.0
+        } // M1 Ultra
     } else if lower.contains("max") {
-        if lower.contains("m4") { 30.0 }
-        else if lower.contains("m3") { 25.0 }
-        else if lower.contains("m2") { 20.0 }
-        else { 20.0 } // M1 Max
+        if lower.contains("m4") {
+            30.0
+        } else if lower.contains("m3") {
+            25.0
+        } else if lower.contains("m2") {
+            20.0
+        } else {
+            20.0
+        } // M1 Max
     } else if lower.contains("pro") {
-        if lower.contains("m4") { 25.0 }
-        else if lower.contains("m3") { 20.0 }
-        else if lower.contains("m2") { 20.0 }
-        else { 20.0 } // M1 Pro
+        if lower.contains("m4") {
+            25.0
+        } else if lower.contains("m3") {
+            20.0
+        } else if lower.contains("m2") {
+            20.0
+        } else {
+            20.0
+        } // M1 Pro
     } else {
         // Base chips (M1, M2, M3, M4)
-        if lower.contains("m4") { 12.0 }
-        else if lower.contains("m3") { 10.0 }
-        else if lower.contains("m2") { 10.0 }
-        else if lower.contains("m1") { 10.0 }
-        else { 30.0 } // Unknown — conservative fallback
+        if lower.contains("m4") {
+            12.0
+        } else if lower.contains("m3") {
+            10.0
+        } else if lower.contains("m2") {
+            10.0
+        } else if lower.contains("m1") {
+            10.0
+        } else {
+            30.0
+        } // Unknown — conservative fallback
     }
 }
 
@@ -102,26 +123,47 @@ fn estimate_cpu_tdp(chip: &str) -> f32 {
 fn estimate_gpu_tdp(chip: &str) -> f32 {
     let lower = chip.to_lowercase();
     if lower.contains("ultra") {
-        if lower.contains("m4") { 100.0 }
-        else if lower.contains("m3") { 90.0 }
-        else if lower.contains("m2") { 76.0 }
-        else { 64.0 }
+        if lower.contains("m4") {
+            100.0
+        } else if lower.contains("m3") {
+            90.0
+        } else if lower.contains("m2") {
+            76.0
+        } else {
+            64.0
+        }
     } else if lower.contains("max") {
-        if lower.contains("m4") { 50.0 }
-        else if lower.contains("m3") { 45.0 }
-        else if lower.contains("m2") { 40.0 }
-        else { 32.0 }
+        if lower.contains("m4") {
+            50.0
+        } else if lower.contains("m3") {
+            45.0
+        } else if lower.contains("m2") {
+            40.0
+        } else {
+            32.0
+        }
     } else if lower.contains("pro") {
-        if lower.contains("m4") { 20.0 }
-        else if lower.contains("m3") { 15.0 }
-        else if lower.contains("m2") { 15.0 }
-        else { 12.0 }
+        if lower.contains("m4") {
+            20.0
+        } else if lower.contains("m3") {
+            15.0
+        } else if lower.contains("m2") {
+            15.0
+        } else {
+            12.0
+        }
     } else {
-        if lower.contains("m4") { 10.0 }
-        else if lower.contains("m3") { 10.0 }
-        else if lower.contains("m2") { 8.0 }
-        else if lower.contains("m1") { 8.0 }
-        else { 30.0 } // Unknown — conservative fallback
+        if lower.contains("m4") {
+            10.0
+        } else if lower.contains("m3") {
+            10.0
+        } else if lower.contains("m2") {
+            8.0
+        } else if lower.contains("m1") {
+            8.0
+        } else {
+            30.0
+        } // Unknown — conservative fallback
     }
 }
 
@@ -355,17 +397,45 @@ impl MetricsHistory {
     }
 
     pub fn push(&mut self, snapshot: &MetricsSnapshot) {
-        Self::push_val(&mut self.cpu_usage, snapshot.cpu.total_usage as f64, self.max_len);
+        Self::push_val(
+            &mut self.cpu_usage,
+            snapshot.cpu.total_usage as f64,
+            self.max_len,
+        );
         if snapshot.gpu.available {
             Self::push_val(&mut self.gpu_usage, snapshot.gpu.usage as f64, self.max_len);
         }
         if snapshot.power.available {
-            Self::push_val(&mut self.cpu_power, snapshot.power.cpu_w as f64, self.max_len);
-            Self::push_val(&mut self.gpu_power, snapshot.power.gpu_w as f64, self.max_len);
-            Self::push_val(&mut self.ane_power, snapshot.power.ane_w as f64, self.max_len);
-            Self::push_val(&mut self.dram_power, snapshot.power.dram_w as f64, self.max_len);
-            Self::push_val(&mut self.package_power, snapshot.power.package_w as f64, self.max_len);
-            Self::push_val(&mut self.system_power, snapshot.power.system_w as f64, self.max_len);
+            Self::push_val(
+                &mut self.cpu_power,
+                snapshot.power.cpu_w as f64,
+                self.max_len,
+            );
+            Self::push_val(
+                &mut self.gpu_power,
+                snapshot.power.gpu_w as f64,
+                self.max_len,
+            );
+            Self::push_val(
+                &mut self.ane_power,
+                snapshot.power.ane_w as f64,
+                self.max_len,
+            );
+            Self::push_val(
+                &mut self.dram_power,
+                snapshot.power.dram_w as f64,
+                self.max_len,
+            );
+            Self::push_val(
+                &mut self.package_power,
+                snapshot.power.package_w as f64,
+                self.max_len,
+            );
+            Self::push_val(
+                &mut self.system_power,
+                snapshot.power.system_w as f64,
+                self.max_len,
+            );
         }
         // Memory usage and available as fractions (0.0 to 1.0)
         if snapshot.memory.ram_total > 0 {
@@ -375,12 +445,11 @@ impl MetricsHistory {
                 (snapshot.memory.ram_used as f64 / total).min(1.0),
                 self.max_len,
             );
-            let available = snapshot.memory.ram_total.saturating_sub(snapshot.memory.ram_used) as f64;
-            Self::push_val(
-                &mut self.mem_available,
-                available / total,
-                self.max_len,
-            );
+            let available = snapshot
+                .memory
+                .ram_total
+                .saturating_sub(snapshot.memory.ram_used) as f64;
+            Self::push_val(&mut self.mem_available, available / total, self.max_len);
             Self::push_val(
                 &mut self.mem_cached,
                 (snapshot.memory.cached as f64 / total).min(1.0),
@@ -393,13 +462,27 @@ impl MetricsHistory {
             );
         }
         // Disk I/O rates
-        Self::push_val(&mut self.disk_read, snapshot.disk.read_bytes_sec as f64, self.max_len);
-        Self::push_val(&mut self.disk_write, snapshot.disk.write_bytes_sec as f64, self.max_len);
+        Self::push_val(
+            &mut self.disk_read,
+            snapshot.disk.read_bytes_sec as f64,
+            self.max_len,
+        );
+        Self::push_val(
+            &mut self.disk_write,
+            snapshot.disk.write_bytes_sec as f64,
+            self.max_len,
+        );
         // Network aggregate rates (sum across all interfaces)
-        let total_upload: f64 = snapshot.network.interfaces.iter()
+        let total_upload: f64 = snapshot
+            .network
+            .interfaces
+            .iter()
             .map(|i| i.tx_bytes_sec)
             .sum();
-        let total_download: f64 = snapshot.network.interfaces.iter()
+        let total_download: f64 = snapshot
+            .network
+            .interfaces
+            .iter()
             .map(|i| i.rx_bytes_sec)
             .sum();
         Self::push_val(&mut self.net_upload, total_upload, self.max_len);
@@ -416,22 +499,38 @@ impl MetricsHistory {
             if iface.name.starts_with("lo") {
                 continue;
             }
-            let (rx_buf, tx_buf) = self.per_iface
+            let (rx_buf, tx_buf) = self
+                .per_iface
                 .entry(iface.name.clone())
                 .or_insert_with(|| (HistoryBuffer::new(), HistoryBuffer::new()));
             Self::push_val(rx_buf, iface.rx_bytes_sec, self.max_len);
             Self::push_val(tx_buf, iface.tx_bytes_sec, self.max_len);
 
             // I45-F2: track per-interface session max rates
-            let max_entry = self.per_iface_max.entry(iface.name.clone()).or_insert((0.0, 0.0));
-            if iface.rx_bytes_sec > max_entry.0 { max_entry.0 = iface.rx_bytes_sec; }
-            if iface.tx_bytes_sec > max_entry.1 { max_entry.1 = iface.tx_bytes_sec; }
+            let max_entry = self
+                .per_iface_max
+                .entry(iface.name.clone())
+                .or_insert((0.0, 0.0));
+            if iface.rx_bytes_sec > max_entry.0 {
+                max_entry.0 = iface.rx_bytes_sec;
+            }
+            if iface.tx_bytes_sec > max_entry.1 {
+                max_entry.1 = iface.tx_bytes_sec;
+            }
 
             // I45-F2: track per-interface cumulative totals from OS counters
-            self.per_iface_total.insert(iface.name.clone(), (iface.rx_bytes_total, iface.tx_bytes_total));
+            self.per_iface_total.insert(
+                iface.name.clone(),
+                (iface.rx_bytes_total, iface.tx_bytes_total),
+            );
         }
         // Prune interfaces not seen in this snapshot to bound memory
-        let seen: Vec<String> = snapshot.network.interfaces.iter().map(|i| i.name.clone()).collect();
+        let seen: Vec<String> = snapshot
+            .network
+            .interfaces
+            .iter()
+            .map(|i| i.name.clone())
+            .collect();
         self.per_iface.retain(|name, _| seen.contains(name));
         self.per_iface_max.retain(|name, _| seen.contains(name));
         self.per_iface_total.retain(|name, _| seen.contains(name));
@@ -442,11 +541,19 @@ impl MetricsHistory {
 
     fn update_net_tier(&mut self) {
         const TIERS: [f64; 7] = [
-            1_048_576.0, 5_242_880.0, 10_485_760.0, 52_428_800.0,
-            104_857_600.0, 524_288_000.0, 1_048_576_000.0,
+            1_048_576.0,
+            5_242_880.0,
+            10_485_760.0,
+            52_428_800.0,
+            104_857_600.0,
+            524_288_000.0,
+            1_048_576_000.0,
         ];
 
-        let max_val = self.net_upload.iter().chain(self.net_download.iter())
+        let max_val = self
+            .net_upload
+            .iter()
+            .chain(self.net_download.iter())
             .copied()
             .fold(0.0_f64, f64::max);
 
@@ -565,8 +672,14 @@ mod tests {
 
         history.push(&snapshot);
 
-        let upload = *history.net_upload.last().expect("net_upload should have one entry");
-        let download = *history.net_download.last().expect("net_download should have one entry");
+        let upload = *history
+            .net_upload
+            .last()
+            .expect("net_upload should have one entry");
+        let download = *history
+            .net_download
+            .last()
+            .expect("net_download should have one entry");
 
         assert_eq!(
             upload, 800.0,
@@ -602,7 +715,10 @@ mod tests {
     fn test_soc_info_tdp_methods() {
         let soc = SocInfo {
             chip: "Apple M3 Max".to_string(),
-            e_cores: 4, p_cores: 12, gpu_cores: 40, memory_gb: 36,
+            e_cores: 4,
+            p_cores: 12,
+            gpu_cores: 40,
+            memory_gb: 36,
         };
         assert_eq!(soc.cpu_tdp_w(), 25.0);
         assert_eq!(soc.gpu_tdp_w(), 45.0);

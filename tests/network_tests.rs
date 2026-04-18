@@ -294,9 +294,18 @@ fn shall_23_08_dim_color_produces_darker_result_than_source() {
     let border = theme::dim_color(t.net_download, theme::adaptive_border_dim(t));
 
     if let (Color::Rgb(sr, sg, sb), Color::Rgb(br, bg, bb)) = (t.net_download, border) {
-        assert!(br <= sr, "border R ({br}) should be <= source R ({sr}) after dimming");
-        assert!(bg <= sg, "border G ({bg}) should be <= source G ({sg}) after dimming");
-        assert!(bb <= sb, "border B ({bb}) should be <= source B ({sb}) after dimming");
+        assert!(
+            br <= sr,
+            "border R ({br}) should be <= source R ({sr}) after dimming"
+        );
+        assert!(
+            bg <= sg,
+            "border G ({bg}) should be <= source G ({sg}) after dimming"
+        );
+        assert!(
+            bb <= sb,
+            "border B ({bb}) should be <= source B ({sb}) after dimming"
+        );
     } else {
         panic!("expected Rgb colors");
     }
@@ -343,7 +352,10 @@ fn shall_23_10_baseline_floor_for_100mbps_link() {
     let scale = speed_tier_from_baudrate(baudrate) as f64;
     let baseline_floor = scale * 0.005;
 
-    assert_eq!(scale, 12_500_000.0, "100 Mbps should map to 12.5 MB/s scale");
+    assert_eq!(
+        scale, 12_500_000.0,
+        "100 Mbps should map to 12.5 MB/s scale"
+    );
     assert!(
         (baseline_floor - 62_500.0).abs() < 1.0,
         "baseline_floor for 100 Mbps should be ~62500 bytes/sec, got {baseline_floor}"
@@ -358,7 +370,10 @@ fn shall_23_10_baseline_floor_for_10mbps_fallback() {
     let scale = speed_tier_from_baudrate(baudrate) as f64;
     let baseline_floor = scale * 0.005;
 
-    assert_eq!(scale, 1_250_000.0, "10 Mbps should use the 1.25 MB/s fallback scale");
+    assert_eq!(
+        scale, 1_250_000.0,
+        "10 Mbps should use the 1.25 MB/s fallback scale"
+    );
     assert!(
         (baseline_floor - 6_250.0).abs() < 1.0,
         "baseline_floor for 10 Mbps fallback should be ~6250 bytes/sec, got {baseline_floor}"
@@ -369,7 +384,14 @@ fn shall_23_10_baseline_floor_for_10mbps_fallback() {
 fn shall_23_10_baseline_floor_is_positive_for_all_tiers() {
     use mtop::platform::network::speed_tier_from_baudrate;
 
-    let test_baudrates = [0u64, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000, 10_000_000_000];
+    let test_baudrates = [
+        0u64,
+        1_000_000,
+        10_000_000,
+        100_000_000,
+        1_000_000_000,
+        10_000_000_000,
+    ];
     for baud in test_baudrates {
         let scale = speed_tier_from_baudrate(baud) as f64;
         let baseline_floor = scale * 0.005;

@@ -42,9 +42,7 @@ pub fn value_to_color(normalized: f64, theme: &Theme) -> Color {
         (t - t0) / (t1 - t0)
     };
 
-    let lerp = |a: u8, b: u8| -> u8 {
-        (a as f64 + (b as f64 - a as f64) * frac).round() as u8
-    };
+    let lerp = |a: u8, b: u8| -> u8 { (a as f64 + (b as f64 - a as f64) * frac).round() as u8 };
 
     Color::Rgb(lerp(r0, r1), lerp(g0, g1), lerp(b0, b1))
 }
@@ -150,7 +148,11 @@ mod tests {
             let c = value_to_color(0.0, theme);
             starts.insert(format!("{:?}", c));
         }
-        assert!(starts.len() >= 9, "expected >= 9 distinct gradient starts, got {}", starts.len());
+        assert!(
+            starts.len() >= 9,
+            "expected >= 9 distinct gradient starts, got {}",
+            starts.len()
+        );
     }
 
     #[test]
