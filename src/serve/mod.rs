@@ -6,7 +6,15 @@ use std::net::{IpAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
-use subtle::ConstantTimeEq;
+/// Constant-time byte slice comparison. Avoids timing oracles for auth token checks.
+/// Uses `std::hint::black_box` to discourage compiler optimisations that could
+/// reintroduce timing variance via early exit or loop unrolling.
+fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
+    let lengths_match = a.len() == b.len();
+    let b_cmp = if lengths_match { b } else { a };
+    let diff = a.iter().zip(b_cmp.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y));
+    std::hint::black_box(diff) == 0 && lengths_match
+}
 
 type CollectNow = Arc<(PLMutex<bool>, Condvar)>;
 type CollectDone = Arc<(PLMutex<u64>, Condvar)>;
@@ -144,11 +152,7 @@ fn process_request(
             .unwrap_or("");
         let expected_bytes = expected.as_bytes();
         let provided_bytes = provided.as_bytes();
-        // Constant-time compare; if lengths differ pad to avoid short-circuit
-        let lengths_match = provided_bytes.len() == expected_bytes.len();
-        let dummy = expected_bytes; // same length as expected for dummy compare
-        let compare_against = if lengths_match { provided_bytes } else { dummy };
-        let ok = compare_against.ct_eq(expected_bytes).unwrap_u8() == 1 && lengths_match;
+        let ok = ct_eq_bytes(provided_bytes, expected_bytes);
         if !ok {
             let _ = stream.write_all(
                 b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
