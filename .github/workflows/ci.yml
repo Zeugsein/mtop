@@ -32,3 +32,9 @@ jobs:
 
       - name: Format check
         run: cargo fmt --check
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Deny check
+        run: cargo deny check
