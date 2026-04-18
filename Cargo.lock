@@ -847,8 +847,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "mtop"
-version = "0.1.0"
+name = "mtop-tui"
+version = "0.1.0-rc.1"
 dependencies = [
  "chrono",
  "clap",

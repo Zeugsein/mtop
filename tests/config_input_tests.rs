@@ -2,7 +2,6 @@
 /// Covers: config loading, deserialization, sort modes, process I/O fields,
 /// thermal metrics, config roundtrips.
 use mtop::config::{self, Config};
-use mtop::metrics::types::*;
 use mtop::metrics::{ProcessInfo, SortMode, ThermalMetrics};
 
 use std::sync::Mutex;

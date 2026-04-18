@@ -396,7 +396,6 @@ fn healthz_returns_404() {
 #[test]
 /// V2: server rejects the 65th connection with HTTP 503
 fn http_server_rejects_connection_beyond_max() {
-    use std::io::{Read as _, Write as _};
     let port = spawn_server_with_data(Some(make_snapshot()));
 
     // Hold 64 connections open by sending no data (server blocks on 2s read timeout)
