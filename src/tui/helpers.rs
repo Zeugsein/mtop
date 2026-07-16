@@ -129,6 +129,54 @@ pub fn format_baudrate(baudrate: u64) -> String {
     }
 }
 
+/// Build the sorted + filtered display-order index list for the process panel.
+/// Used by both the process-panel renderer (highlight) and the input handler
+/// (nav + SIGTERM/SIGKILL target), so both agree on the current visible
+/// ordering. I58-F1b.
+pub fn sorted_filtered_indices(
+    procs: &[crate::metrics::ProcessInfo],
+    sort_mode: crate::metrics::SortMode,
+    process_filter: Option<&str>,
+) -> Vec<usize> {
+    if procs.is_empty() {
+        return Vec::new();
+    }
+    let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
+    let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
+    let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
+    let mut indices: Vec<usize> = (0..procs.len()).collect();
+    sort_indices(&mut indices, procs, sort_mode, max_cpu, max_mem, max_power);
+    if let Some(filter) = process_filter
+        && !filter.is_empty()
+    {
+        let filter_lower = filter.to_lowercase();
+        indices.retain(|&idx| procs[idx].name.to_lowercase().contains(&filter_lower));
+    }
+    indices
+}
+
+/// Resolve the current selection to a visible display row, preferring the
+/// stable pid-key over the raw cursor index. I58-F1b resolution order:
+/// 1) if `selected_pid` present in `indices`, return its position;
+/// 2) else, if cursor set, return cursor clamped to indices length;
+/// 3) else None.
+pub fn effective_selection_row(
+    procs: &[crate::metrics::ProcessInfo],
+    indices: &[usize],
+    selected_pid: Option<i32>,
+    process_selected: Option<usize>,
+) -> Option<usize> {
+    if indices.is_empty() {
+        return None;
+    }
+    if let Some(pid) = selected_pid
+        && let Some(pos) = indices.iter().position(|&idx| procs[idx].pid == pid)
+    {
+        return Some(pos);
+    }
+    process_selected.map(|c| c.min(indices.len() - 1))
+}
+
 pub fn sort_indices(
     indices: &mut [usize],
     procs: &[crate::metrics::ProcessInfo],

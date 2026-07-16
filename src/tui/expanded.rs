@@ -5,7 +5,7 @@ use ratatui::widgets::*;
 
 use super::helpers::{
     format_baudrate, format_bytes_compact, format_bytes_rate_compact, is_infrastructure_interface,
-    pad_to_display_width, sort_indices, truncate_by_display_width, truncate_with_ellipsis,
+    pad_to_display_width, truncate_by_display_width, truncate_with_ellipsis,
 };
 use super::panels::render_graph_with_baseline;
 use super::panels::{COL_CPU, COL_FIXED_TOTAL, COL_MEM, COL_PID, COL_POW, COL_THR};
@@ -1365,23 +1365,14 @@ fn draw_process_expanded(
     let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
     let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
 
-    let mut indices: Vec<usize> = (0..procs.len()).collect();
-    sort_indices(
-        &mut indices,
+    // I58-F1b: use the shared helper so the renderer and the input handler
+    // (kill target resolution) walk exactly the same sorted+filtered list —
+    // no chance of divergence if filter semantics change in one place.
+    let indices = crate::tui::helpers::sorted_filtered_indices(
         procs,
         state.sort_mode,
-        max_cpu,
-        max_mem,
-        max_power,
+        state.process_filter.as_deref(),
     );
-
-    // I45-F5c: apply process name filter
-    if let Some(ref filter) = state.process_filter
-        && !filter.is_empty()
-    {
-        let filter_lower = filter.to_lowercase();
-        indices.retain(|&idx| procs[idx].name.to_lowercase().contains(&filter_lower));
-    }
 
     // I45-F5c: filter bar below header when filter is active
     let filter_rows: u16 = if state.process_filter.is_some() { 1 } else { 0 };
@@ -1416,12 +1407,19 @@ fn draw_process_expanded(
     // Reserve header + filter bar + bottom bar rows
     let max_visible = inner.height.saturating_sub(2 + filter_rows) as usize;
 
-    // I44-F5a: clamp selection and scroll-follows-selection
-    let sel = state
-        .process_selected
-        .unwrap_or(0)
-        .min(indices.len().saturating_sub(1));
-    // Auto-adjust scroll so selection stays visible
+    // I58-F1b: unified selection resolution — prefer pid, fall back to cursor.
+    // Highlight row and SIGTERM/SIGKILL target resolve through the same helper
+    // so they never disagree.
+    let sel_row = crate::tui::helpers::effective_selection_row(
+        procs,
+        &indices,
+        state.selected_pid,
+        state.process_selected,
+    );
+    let has_selection = sel_row.is_some();
+    let sel = sel_row.unwrap_or(0);
+
+    // Auto-adjust scroll so the resolved selection row stays visible.
     let mut scroll = state.process_scroll;
     if sel < scroll {
         scroll = sel;
@@ -1437,7 +1435,7 @@ fn draw_process_expanded(
         }
 
         let proc = &procs[idx];
-        let is_selected = state.process_selected.is_some() && (scroll + i) == sel;
+        let is_selected = has_selection && (scroll + i) == sel;
 
         // F3: CJK-aware name truncation and padding
         let name_trunc = truncate_by_display_width(&proc.name, name_width);

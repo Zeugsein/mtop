@@ -887,3 +887,265 @@ fn interval_equals_same_as_plus() {
     input::handle_key_event(make_key(KeyCode::Char('=')), &mut state);
     assert_eq!(state.interval_ms, 1500, "'=' should behave like '+'");
 }
+
+// =========================================================================
+// I58: pid-keyed process selection stability
+// =========================================================================
+
+/// Build a Process-expanded AppState with `procs` loaded into the snapshot.
+fn make_process_state(procs: Vec<ProcessInfo>) -> AppState {
+    let mut state = AppState::default();
+    state.expanded_panel = Some(PanelId::Process);
+    state.snapshot.processes = procs;
+    state
+}
+
+/// Test fixture where CPU-sort and Memory-sort orders genuinely diverge, so
+/// that a test which selects by pid can distinguish real pid-key resolution
+/// from cursor-fallback (which would return whatever pid happens to occupy
+/// the same cursor row after the reordering).
+///
+/// Layout:
+///   pid 100 "a" — high cpu (90%), low mem  → CPU rank 0, Memory rank 2
+///   pid 200 "b" — low cpu (5%), high mem   → CPU rank 2, Memory rank 0
+///   pid 300 "c" — medium both              → CPU rank 1, Memory rank 1
+fn make_divergent_test_procs() -> Vec<ProcessInfo> {
+    vec![
+        ProcessInfo {
+            pid: 100,
+            name: "a".to_string(),
+            cpu_pct: 90.0,
+            mem_bytes: 10 * 1024 * 1024,
+            power_w: 0.5,
+            user: "u".to_string(),
+            ..Default::default()
+        },
+        ProcessInfo {
+            pid: 200,
+            name: "b".to_string(),
+            cpu_pct: 5.0,
+            mem_bytes: 4u64 * 1024 * 1024 * 1024,
+            power_w: 0.5,
+            user: "u".to_string(),
+            ..Default::default()
+        },
+        ProcessInfo {
+            pid: 300,
+            name: "c".to_string(),
+            cpu_pct: 40.0,
+            mem_bytes: 500 * 1024 * 1024,
+            power_w: 0.5,
+            user: "u".to_string(),
+            ..Default::default()
+        },
+    ]
+}
+
+/// I58-F1c: pressing `↓` populates `selected_pid` from the row now under the cursor.
+#[test]
+fn i58_nav_down_anchors_selected_pid() {
+    let mut state = make_process_state(make_test_procs());
+    // WeightedScore sort → order beta, gamma, alpha (2, 3, 1) roughly.
+    // Preserved unwrap_or(0).saturating_add(1) means first ↓ lands on row 1.
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    assert_eq!(state.process_selected, Some(1));
+    assert!(
+        state.selected_pid.is_some(),
+        "selected_pid should be set after nav"
+    );
+}
+
+/// I58-F1a + F1b: after a snapshot refresh, `selected_pid` still resolves to
+/// the same pid even when the tracked process has moved to a different visual
+/// row due to score changes. Uses divergent fixture data so cursor-fallback
+/// and pid-key produce DIFFERENT answers — a broken pid-key would fail this.
+#[test]
+fn i58_selection_survives_snapshot_reorder() {
+    let mut state = make_process_state(make_divergent_test_procs());
+    state.sort_mode = SM::Cpu;
+    // CPU order at row 0 = pid 100 "a" (90% cpu), row 1 = pid 300 "c" (40%),
+    // row 2 = pid 200 "b" (5%). Cursor to row 1 → anchors pid 300.
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    let tracked_pid = state.selected_pid.expect("nav must anchor pid");
+    assert_eq!(tracked_pid, 300, "row 1 under CPU sort = pid 300 'c'");
+
+    // Simulate a snapshot refresh that mutates cpu_pct so the CPU-sort order
+    // changes: pid 300 drops to row 2, pid 100 stays at row 0, pid 200 moves
+    // to row 1. Cursor-fallback at row 1 would now return pid 200.
+    for p in state.snapshot.processes.iter_mut() {
+        if p.pid == 300 {
+            p.cpu_pct = 1.0; // tanks to the bottom
+        } else if p.pid == 200 {
+            p.cpu_pct = 60.0; // rises above 300
+        }
+    }
+
+    let (resolved_pid, _) = input::resolve_selected_process(&state)
+        .expect("selection must still resolve after snapshot mutation");
+    assert_eq!(
+        resolved_pid, tracked_pid,
+        "pid-key must track pid 300 to its new row 2, not fallback to cursor row 1 (which now = pid 200)"
+    );
+}
+
+/// I58-F1a + F1b: sort-mode change is another kind of re-ordering — pid
+/// selection MUST persist across it. Divergent fixture ensures the cursor row
+/// under the new sort maps to a DIFFERENT pid, so cursor-fallback would fail.
+#[test]
+fn i58_selection_survives_sort_mode_change() {
+    let mut state = make_process_state(make_divergent_test_procs());
+    state.sort_mode = SM::Cpu;
+    // CPU row 0 = pid 100 "a" (90% cpu). Cursor stays at Some(0) initially;
+    // first `↓` moves to row 1 = pid 300 "c" (semantics preserved from I44-F5a).
+    // But we want row 0. Use `Up` from initial None to stay at 0? Actually
+    // `Up` with None cursor uses `unwrap_or(0).saturating_sub(1)` = 0. That
+    // resolves row 0 = pid 100.
+    input::handle_key_event(make_key(KeyCode::Up), &mut state);
+    let tracked_pid = state.selected_pid.expect("nav must anchor pid");
+    assert_eq!(tracked_pid, 100, "row 0 under CPU sort = pid 100 'a'");
+
+    // Cycle sort: WeightedScore → Cpu → Memory. Two 's' presses from Cpu
+    // land on Memory. Under Memory sort, pid 200 is at row 0, pid 300 at
+    // row 1, pid 100 (our tracked pid) at row 2. Cursor is still 0, so
+    // cursor-fallback would return pid 200 — WRONG.
+    input::handle_key_event(make_key(KeyCode::Char('s')), &mut state); // Cpu → Memory
+    assert_eq!(state.sort_mode, SM::Memory);
+
+    let (resolved_pid, _) = input::resolve_selected_process(&state)
+        .expect("selection must still resolve after sort-mode change");
+    assert_eq!(
+        resolved_pid, tracked_pid,
+        "pid-key must track pid 100 to its new row under Memory sort, not fallback to cursor row 0 (pid 200)"
+    );
+}
+
+/// I58-F1f: after a snapshot reorder, pressing `t` produces a SIGTERM
+/// `pending_signal` targeting the originally-tracked pid — NOT a neighbor
+/// that happens to now occupy the same cursor row. This is the end-to-end
+/// bug-fix guarantee (highlight-agrees-with-kill after score jitter).
+#[test]
+fn i58_sigterm_targets_tracked_pid_after_reorder() {
+    let mut state = make_process_state(make_divergent_test_procs());
+    state.sort_mode = SM::Cpu;
+    // Cursor to row 1 = pid 300 "c".
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    let tracked_pid = state.selected_pid.expect("nav must anchor pid");
+    assert_eq!(tracked_pid, 300);
+
+    // Snapshot refresh: pid 300 drops out of row 1, pid 200 takes its place.
+    for p in state.snapshot.processes.iter_mut() {
+        if p.pid == 300 {
+            p.cpu_pct = 1.0;
+        } else if p.pid == 200 {
+            p.cpu_pct = 60.0;
+        }
+    }
+
+    // User presses `t`.
+    input::handle_key_event(make_key(KeyCode::Char('t')), &mut state);
+
+    let (signal_pid, _name, signal) = state
+        .pending_signal
+        .expect("pressing t must construct a pending_signal");
+    assert_eq!(signal, libc::SIGTERM);
+    assert_eq!(
+        signal_pid, tracked_pid,
+        "SIGTERM target must be the tracked pid 300, not the neighbor pid 200 that took row 1"
+    );
+}
+
+/// I58-F1d: when the tracked pid disappears from the current view (process
+/// exited), resolution falls through to the cursor row rather than silently
+/// retargeting a neighbor. The `t`/`k` target and the on-screen highlight
+/// come from the same helper, so they never disagree.
+#[test]
+fn i58_selection_falls_through_when_pid_gone() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid; // order = pid 1, 2, 3
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // cursor→1, pid=2
+    assert_eq!(state.selected_pid, Some(2));
+
+    // Simulate pid 2 exiting between ticks.
+    state.snapshot.processes.retain(|p| p.pid != 2);
+
+    let (resolved_pid, _) =
+        input::resolve_selected_process(&state).expect("fallback to cursor row when pid gone");
+    // Cursor is still at row 1; remaining pids under Pid sort = [1, 3], so
+    // row 1 = pid 3. Fallback is a positional neighbor, but it is the SAME
+    // position the highlight will draw at — no invisible retarget.
+    assert_eq!(resolved_pid, 3, "fallback target must equal cursor row");
+}
+
+/// I58-F1e: `Esc` from expanded panel resets BOTH `process_selected` and
+/// `selected_pid` — a stale pid must not survive panel close.
+#[test]
+fn i58_esc_from_expanded_resets_selected_pid() {
+    let mut state = make_process_state(make_test_procs());
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    assert!(state.selected_pid.is_some());
+
+    input::handle_key_event(make_key(KeyCode::Esc), &mut state);
+    assert_eq!(state.expanded_panel, None);
+    assert_eq!(state.process_selected, None);
+    assert_eq!(
+        state.selected_pid, None,
+        "Esc close must clear selected_pid too"
+    );
+}
+
+/// I58-F1e: `e` collapse resets both cursor and pid.
+#[test]
+fn i58_e_key_resets_selected_pid() {
+    let mut state = make_process_state(make_test_procs());
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    assert!(state.selected_pid.is_some());
+
+    input::handle_key_event(make_key(KeyCode::Char('e')), &mut state);
+    assert_eq!(state.selected_pid, None);
+}
+
+/// I58-F1e: entering filter mode (`f`) resets both, since row 0 of the
+/// (about-to-be-filtered) view is a fresh anchor.
+#[test]
+fn i58_filter_enter_resets_selected_pid() {
+    let mut state = make_process_state(make_test_procs());
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    assert!(state.selected_pid.is_some());
+
+    input::handle_key_event(make_key(KeyCode::Char('f')), &mut state);
+    assert_eq!(state.process_filter.as_deref(), Some(""));
+    assert_eq!(state.process_selected, Some(0));
+    assert_eq!(
+        state.selected_pid, None,
+        "entering filter mode must clear selected_pid"
+    );
+}
+
+/// I58-F1b + F1f: `resolve_selected_process` returns None when there is no
+/// selection (fresh panel open, user hasn't navigated).
+#[test]
+fn i58_resolve_none_before_first_nav() {
+    let state = make_process_state(make_test_procs());
+    assert_eq!(state.process_selected, None);
+    assert_eq!(state.selected_pid, None);
+    assert!(input::resolve_selected_process(&state).is_none());
+}
+
+/// I58-F1b: filter narrows the view; a tracked pid outside the filtered set
+/// falls through to the cursor (same as pid-gone).
+#[test]
+fn i58_selection_falls_through_when_filter_hides_pid() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // pid 2 = "beta"
+    assert_eq!(state.selected_pid, Some(2));
+
+    // Filter to names starting with "g" — only "gamma" (pid 3) remains.
+    state.process_filter = Some("gamma".to_string());
+
+    let (resolved_pid, _) = input::resolve_selected_process(&state)
+        .expect("fallback to cursor row when pid filtered out");
+    // Cursor is 1 (clamped to indices.len()-1 == 0 for a 1-item list).
+    // Fallback pid = the only visible row, which IS the highlighted row.
+    assert_eq!(resolved_pid, 3);
+}

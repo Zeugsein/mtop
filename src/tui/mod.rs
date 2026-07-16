@@ -839,6 +839,8 @@ pub(crate) struct AppState {
     pub(crate) pending_signal: Option<(i32, String, i32)>, // (pid, process_name, signal)
     // I45-F5: process name filter in expanded mode
     pub(crate) process_filter: Option<String>,
+    // I58-F1a: stable pid-keyed selection — survives sort/refresh shuffles
+    pub(crate) selected_pid: Option<i32>,
 }
 
 impl Default for AppState {
@@ -857,6 +859,7 @@ impl Default for AppState {
             process_selected: None,
             pending_signal: None,
             process_filter: None,
+            selected_pid: None,
         }
     }
 }
@@ -890,6 +893,7 @@ pub fn run(
         process_selected: None,
         pending_signal: None,
         process_filter: None,
+        selected_pid: None,
     };
 
     // Initial sample
