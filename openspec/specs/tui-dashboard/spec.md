@@ -1800,3 +1800,37 @@ When the resolved theme string is `"default"`, the TUI SHALL use the theme at in
 The static CPU fallback key list SHALL NOT include Intel-legacy keys ("TC0P", "TC0C", "TC1C", "TC2C", "TC0F"). It SHALL contain only M-series keys: "Tp09", "Tp0T", "Tp01", "Tp02", "Te01", "Te02".
 
 > SHALL-48-F2e
+
+## Iteration 58: Process Selection Stability [I58]
+
+Supersedes the semantics of SHALL-44-F5a: `process_selected: Option<usize>` remains as the keyboard cursor field, but the stable selection identity is now `selected_pid: Option<i32>`, and both the highlight and the SIGTERM/SIGKILL target route through the same helper so they can never disagree.
+
+### Requirement: Stable pid-keyed process selection [I58-F1a]
+`AppState` SHALL add `selected_pid: Option<i32>` alongside the existing `process_selected: Option<usize>` cursor. `selected_pid` SHALL hold the pid of the row the user most recently navigated to in the expanded process panel and SHALL be preserved across snapshot refreshes, sort-mode changes, and process list re-orderings.
+
+> SHALL-58-F1a
+
+### Requirement: Unified selection resolution helper [I58-F1b]
+A helper SHALL exist that, given the current sorted+filtered display indices and `AppState`, returns `Option<usize>` — the visual display row that is currently selected. Resolution order SHALL be: (1) if `selected_pid` is `Some(pid)` and pid appears in the display indices, return the position of pid in the indices; (2) else, if `process_selected` is `Some(cursor)`, return `cursor` clamped to the display-indices length; (3) else return `None`. Both the expanded-panel highlight and the SIGTERM/SIGKILL target SHALL resolve through this same helper. Highlight and signal target SHALL therefore never point at different pids.
+
+> SHALL-58-F1b
+
+### Requirement: Navigation re-anchors `selected_pid` [I58-F1c]
+`↓`, `↑`, `j` in the expanded process panel (both plain and filter-input modes) SHALL, after mutating `process_selected`, look up the pid at the new cursor position in the current sorted+filtered indices and store it as `selected_pid`. If the cursor lands outside the indices length, `selected_pid` SHALL be cleared. The pre-existing behavior of `unwrap_or(0).saturating_add(1)` (from a `None` cursor, first `↓` moves to row 1) SHALL be preserved for backwards compatibility with SHALL-44-F5a tests.
+
+> SHALL-58-F1c
+
+### Requirement: PID-gone fallback [I58-F1d]
+When `selected_pid` refers to a pid that is not present in the current sorted+filtered display indices (process exited, filter now excludes it), the resolution helper SHALL fall through to the `process_selected` cursor rather than silently retargeting a neighbor. `t` and `k` SHALL therefore act on the same visible highlight row rather than an invisible neighbor.
+
+> SHALL-58-F1d
+
+### Requirement: Selection reset points [I58-F1e]
+Every site that resets `process_selected` to `None` or to `Some(0)` SHALL also reset `selected_pid` to `None`. Sites: `toggle_expand` (open + close), `Esc` panel close, `Esc` filter clear (still panel-open), filter enter (`f` key), filter backspace-empty transition, `e`/`Enter` collapse.
+
+> SHALL-58-F1e
+
+### Requirement: SIGTERM/SIGKILL target correctness [I58-F1f]
+`t` and `k` in the expanded process panel SHALL construct `pending_signal = Some((pid, name, signal))` using the pid returned by the unified resolution helper (SHALL-58-F1b) rather than by re-computing the sorted+filtered indices and reading `procs[indices[scroll+sel]]`. The `pid` in `pending_signal` SHALL equal the pid currently highlighted on screen at the moment the key was pressed.
+
+> SHALL-58-F1f
