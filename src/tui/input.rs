@@ -2,7 +2,7 @@
 
 use super::{AppState, PanelId, theme};
 use crate::config;
-use crate::tui::helpers::sort_indices;
+use crate::tui::helpers::{effective_selection_row, sorted_filtered_indices};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 fn toggle_expand(state: &mut AppState, panel: PanelId) {
@@ -13,12 +13,39 @@ fn toggle_expand(state: &mut AppState, panel: PanelId) {
         state.pending_signal = None;
         // I45-F5a: reset filter on close
         state.process_filter = None;
+        // I58-F1e: clear stable pid selection alongside the cursor
+        state.selected_pid = None;
     } else {
         state.expanded_panel = Some(panel);
         state.process_selected = None;
         state.pending_signal = None;
         state.process_filter = None;
+        state.selected_pid = None;
     }
+}
+
+/// Move the process-panel cursor by `delta` (positive = down, negative = up),
+/// then re-anchor `selected_pid` from the current sorted+filtered view.
+/// I58-F1c. Preserves the pre-existing `unwrap_or(0).saturating_add/sub(1)`
+/// semantics from a `None` cursor to keep SHALL-44-F5a tests green.
+fn move_process_cursor(state: &mut AppState, delta: i32) {
+    let cur = state.process_selected.unwrap_or(0);
+    let new_cursor = if delta >= 0 {
+        cur.saturating_add(delta as usize)
+    } else {
+        cur.saturating_sub(delta.unsigned_abs() as usize)
+    };
+    state.process_selected = Some(new_cursor);
+
+    // Re-anchor selected_pid to whichever pid now occupies the cursor row.
+    let indices = sorted_filtered_indices(
+        &state.snapshot.processes,
+        state.sort_mode,
+        state.process_filter.as_deref(),
+    );
+    state.selected_pid = indices
+        .get(new_cursor)
+        .map(|&idx| state.snapshot.processes[idx].pid);
 }
 
 /// Process a key event and mutate AppState accordingly.
@@ -47,29 +74,31 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                     // Clear filter and exit filter mode (don't close panel)
                     state.process_filter = None;
                     state.process_selected = Some(0);
+                    state.selected_pid = None;
                     return false;
                 }
                 KeyCode::Backspace => {
                     filter.pop();
-                    if filter.is_empty() {
+                    let cleared = filter.is_empty();
+                    if cleared {
                         state.process_filter = None;
                     }
                     state.process_selected = Some(0);
+                    state.selected_pid = None;
                     return false;
                 }
                 KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                     filter.push(c);
                     state.process_selected = Some(0);
+                    state.selected_pid = None;
                     return false;
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    let sel = state.process_selected.unwrap_or(0);
-                    state.process_selected = Some(sel.saturating_add(1));
+                    move_process_cursor(state, 1);
                     return false;
                 }
                 KeyCode::Up => {
-                    let sel = state.process_selected.unwrap_or(0);
-                    state.process_selected = Some(sel.saturating_sub(1));
+                    move_process_cursor(state, -1);
                     return false;
                 }
                 _ => {} // Fall through to global handlers
@@ -78,14 +107,12 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
 
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let sel = state.process_selected.unwrap_or(0);
-                state.process_selected = Some(sel.saturating_add(1));
+                move_process_cursor(state, 1);
                 // Clamping happens in draw_process_expanded against actual list length
                 return false;
             }
             KeyCode::Up => {
-                let sel = state.process_selected.unwrap_or(0);
-                state.process_selected = Some(sel.saturating_sub(1));
+                move_process_cursor(state, -1);
                 return false;
             }
             KeyCode::Char('t') => {
@@ -104,6 +131,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
             KeyCode::Char('f') => {
                 state.process_filter = Some(String::new());
                 state.process_selected = Some(0);
+                state.selected_pid = None;
                 return false;
             }
             _ => {} // Fall through to global handlers
@@ -120,6 +148,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                 state.process_selected = None;
                 state.pending_signal = None;
                 state.process_filter = None;
+                state.selected_pid = None;
                 state.expanded_panel = None;
             } else {
                 return true;
@@ -141,6 +170,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Char('e') | KeyCode::Enter => {
             state.process_selected = None;
             state.pending_signal = None;
+            state.selected_pid = None;
             state.expanded_panel = None;
         }
         KeyCode::Char('+') | KeyCode::Char('=') => {
@@ -175,6 +205,10 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         }
         KeyCode::Char('s') => {
             state.sort_mode = state.sort_mode.next();
+            // I58-F1a: sort-mode change intentionally preserves selected_pid.
+            // The whole point of the pid-key is that the highlight tracks the
+            // process across re-orderings — sort mode is just another kind of
+            // re-ordering.
         }
         KeyCode::Char('w') => {
             let theme_name = theme::THEMES[state.theme_idx].name;
@@ -199,40 +233,23 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
     false
 }
 
-/// Resolve the currently selected process (by display-order index) to (pid, name).
-/// I45-F5c: operates on filtered list when process_filter is active.
-fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
-    let sel = state.process_selected?;
+/// Resolve the currently selected process to `(pid, name)` via the unified
+/// I58-F1b helper: prefer `selected_pid` when it appears in the current
+/// sorted+filtered view; otherwise fall back to the `process_selected`
+/// cursor clamped against the current view length. Highlight (in expanded.rs)
+/// resolves through the same helper — so the pid this returns and the pid
+/// the user sees highlighted are always the same. I45-F5c preserved:
+/// filter narrows the view before resolution.
+pub(crate) fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
     let procs = &state.snapshot.processes;
     if procs.is_empty() {
         return None;
     }
-
-    let max_cpu = procs.iter().map(|p| p.cpu_pct).fold(0.0f32, f32::max);
-    let max_mem = procs.iter().map(|p| p.mem_bytes).max().unwrap_or(1).max(1);
-    let max_power = procs.iter().map(|p| p.power_w).fold(0.0f32, f32::max);
-
-    let mut indices: Vec<usize> = (0..procs.len()).collect();
-    sort_indices(
-        &mut indices,
-        procs,
-        state.sort_mode,
-        max_cpu,
-        max_mem,
-        max_power,
-    );
-
-    // I45-F5c: apply filter to sorted indices
-    if let Some(ref filter) = state.process_filter
-        && !filter.is_empty()
-    {
-        let filter_lower = filter.to_lowercase();
-        indices.retain(|&idx| procs[idx].name.to_lowercase().contains(&filter_lower));
-    }
-
-    let scroll = state.process_scroll.min(indices.len().saturating_sub(1));
-    let display_idx = scroll + sel;
-    indices
-        .get(display_idx)
-        .map(|&idx| (procs[idx].pid, procs[idx].name.clone()))
+    let indices = sorted_filtered_indices(procs, state.sort_mode, state.process_filter.as_deref());
+    let row = effective_selection_row(procs, &indices, state.selected_pid, state.process_selected)?;
+    // Row is already clamped by effective_selection_row; skip scroll offset
+    // for kill target — the target is the visible highlighted row, not a
+    // scroll-window-relative offset. This matches the highlight in expanded.rs.
+    let idx = *indices.get(row)?;
+    Some((procs[idx].pid, procs[idx].name.clone()))
 }
