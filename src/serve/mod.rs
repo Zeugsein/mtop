@@ -12,7 +12,10 @@ use std::time::Duration;
 fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
     let lengths_match = a.len() == b.len();
     let b_cmp = if lengths_match { b } else { a };
-    let diff = a.iter().zip(b_cmp.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y));
+    let diff = a
+        .iter()
+        .zip(b_cmp.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y));
     std::hint::black_box(diff) == 0 && lengths_match
 }
 
