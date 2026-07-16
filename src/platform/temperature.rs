@@ -269,7 +269,7 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
     unsafe {
         let mut input = SmcKeyData::zeroed();
         let mut output = SmcKeyData::zeroed();
-        input.key = u32::from_be_bytes([b'#', b'K', b'E', b'Y']);
+        input.key = u32::from_be_bytes(*b"#KEY");
         input.data8 = SMC_CMD_READ_KEYINFO;
 
         if smc_call(conn, KERNEL_INDEX_SMC, &mut input, &mut output) != 0 {
@@ -280,7 +280,7 @@ fn smc_read_key_count(conn: u32) -> Option<u32> {
 
         input = SmcKeyData::zeroed();
         output = SmcKeyData::zeroed();
-        input.key = u32::from_be_bytes([b'#', b'K', b'E', b'Y']);
+        input.key = u32::from_be_bytes(*b"#KEY");
         input.key_info.data_size = data_size;
         input.data8 = SMC_CMD_READ_BYTES;
 
