@@ -156,10 +156,9 @@ pub fn sorted_filtered_indices(
 }
 
 /// Resolve the current selection to a visible display row, preferring the
-/// stable pid-key over the raw cursor index. I58-F1b resolution order:
-/// 1) if `selected_pid` present in `indices`, return its position;
-/// 2) else, if cursor set, return cursor clamped to indices length;
-/// 3) else None.
+/// stable pid-key over the raw cursor index. I59-F1a fails closed when an
+/// anchored pid is absent: cursor fallback is only valid before a pid has
+/// been anchored.
 pub fn effective_selection_row(
     procs: &[crate::metrics::ProcessInfo],
     indices: &[usize],
@@ -169,10 +168,8 @@ pub fn effective_selection_row(
     if indices.is_empty() {
         return None;
     }
-    if let Some(pid) = selected_pid
-        && let Some(pos) = indices.iter().position(|&idx| procs[idx].pid == pid)
-    {
-        return Some(pos);
+    if let Some(pid) = selected_pid {
+        return indices.iter().position(|&idx| procs[idx].pid == pid);
     }
     process_selected.map(|c| c.min(indices.len() - 1))
 }

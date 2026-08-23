@@ -30,36 +30,47 @@ fn toggle_expand(state: &mut AppState, panel: PanelId) {
 /// semantics from a `None` cursor to keep SHALL-44-F5a tests green.
 fn move_process_cursor(state: &mut AppState, delta: i32) {
     let cur = state.process_selected.unwrap_or(0);
-    let new_cursor = if delta >= 0 {
+    let requested_cursor = if delta >= 0 {
         cur.saturating_add(delta as usize)
     } else {
         cur.saturating_sub(delta.unsigned_abs() as usize)
     };
-    state.process_selected = Some(new_cursor);
 
-    // Re-anchor selected_pid to whichever pid now occupies the cursor row.
     let indices = sorted_filtered_indices(
         &state.snapshot.processes,
         state.sort_mode,
         state.process_filter.as_deref(),
     );
-    state.selected_pid = indices
-        .get(new_cursor)
-        .map(|&idx| state.snapshot.processes[idx].pid);
+    if indices.is_empty() {
+        // I59-F1c: navigation cannot establish a target in an empty view.
+        // Clear the positional cursor but preserve an existing missing pid so
+        // later repopulation cannot silently re-enable cursor fallback.
+        state.process_selected = None;
+        return;
+    }
+
+    // I59-F1c: every navigation on a non-empty view produces a valid,
+    // pid-backed selection, including after list shrinkage.
+    let new_cursor = requested_cursor.min(indices.len() - 1);
+    state.process_selected = Some(new_cursor);
+    state.selected_pid = Some(state.snapshot.processes[indices[new_cursor]].pid);
 }
 
 /// Process a key event and mutate AppState accordingly.
 /// Returns `true` if the application should quit.
 pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
+    // I59-F1b: discard an invalidated modal before dispatch so its first
+    // recovery key is handled as navigation rather than swallowed as cancel.
+    invalidate_stale_pending_signal(state);
+
     // I44-F5d: confirmation dialog intercepts all keys when active
-    if let Some((pid, _, signal)) = state.pending_signal.take() {
+    if let Some((pid, name, signal)) = state.pending_signal.take() {
+        // I59-F1b: the confirmation is valid only while the same process
+        // remains the effective selection.
         match key.code {
-            KeyCode::Char('y') | KeyCode::Char('Y') => {
-                // Send the signal
-                unsafe {
-                    libc::kill(pid, signal);
-                }
-            }
+            KeyCode::Char('y' | 'Y') if pending_signal_is_current(state, pid, &name) => unsafe {
+                libc::kill(pid, signal);
+            },
             _ => {} // Any other key cancels
         }
         return false;
@@ -87,18 +98,18 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                     state.selected_pid = None;
                     return false;
                 }
-                KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    filter.push(c);
-                    state.process_selected = Some(0);
-                    state.selected_pid = None;
-                    return false;
-                }
                 KeyCode::Down | KeyCode::Char('j') => {
                     move_process_cursor(state, 1);
                     return false;
                 }
                 KeyCode::Up => {
                     move_process_cursor(state, -1);
+                    return false;
+                }
+                KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    filter.push(c);
+                    state.process_selected = Some(0);
+                    state.selected_pid = None;
                     return false;
                 }
                 _ => {} // Fall through to global handlers
@@ -108,7 +119,6 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
                 move_process_cursor(state, 1);
-                // Clamping happens in draw_process_expanded against actual list length
                 return false;
             }
             KeyCode::Up => {
@@ -233,13 +243,32 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
     false
 }
 
+/// Revalidate a queued destructive action against the current visible
+/// selection immediately before delivery. I59-F1b.
+pub(crate) fn pending_signal_is_current(state: &AppState, pid: i32, name: &str) -> bool {
+    resolve_selected_process(state)
+        .is_some_and(|(current_pid, current_name)| current_pid == pid && current_name == name)
+}
+
+/// Permanently cancel a queued signal as soon as its target ceases to be the
+/// current effective selection. Once cleared, later pid/name reuse cannot
+/// revive the old confirmation. I59-F1b.
+pub(crate) fn invalidate_stale_pending_signal(state: &mut AppState) {
+    let stale = state
+        .pending_signal
+        .as_ref()
+        .is_some_and(|(pid, name, _)| !pending_signal_is_current(state, *pid, name));
+    if stale {
+        state.pending_signal = None;
+    }
+}
+
 /// Resolve the currently selected process to `(pid, name)` via the unified
-/// I58-F1b helper: prefer `selected_pid` when it appears in the current
-/// sorted+filtered view; otherwise fall back to the `process_selected`
-/// cursor clamped against the current view length. Highlight (in expanded.rs)
-/// resolves through the same helper — so the pid this returns and the pid
-/// the user sees highlighted are always the same. I45-F5c preserved:
-/// filter narrows the view before resolution.
+/// I58-F1b helper. I59-F1a fails closed when an anchored pid is absent;
+/// cursor fallback remains available only when no pid has been anchored.
+/// Highlight (in expanded.rs) resolves through the same helper, so the pid
+/// this returns and the pid the user sees highlighted are always the same.
+/// I45-F5c is preserved: filter narrows the view before resolution.
 pub(crate) fn resolve_selected_process(state: &AppState) -> Option<(i32, String)> {
     let procs = &state.snapshot.processes;
     if procs.is_empty() {

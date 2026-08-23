@@ -1407,9 +1407,9 @@ fn draw_process_expanded(
     // Reserve header + filter bar + bottom bar rows
     let max_visible = inner.height.saturating_sub(2 + filter_rows) as usize;
 
-    // I58-F1b: unified selection resolution — prefer pid, fall back to cursor.
-    // Highlight row and SIGTERM/SIGKILL target resolve through the same helper
-    // so they never disagree.
+    // I58-F1b + I59-F1a: unified selection resolution prefers an anchored pid
+    // and fails closed if it disappears. Highlight and signal target resolve
+    // through the same helper so they never disagree.
     let sel_row = crate::tui::helpers::effective_selection_row(
         procs,
         &indices,
@@ -1560,9 +1560,13 @@ fn draw_process_expanded(
     // I44-F5c: bottom bar — hint left, sort right
     let sort_y = inner.y + inner.height.saturating_sub(1);
 
-    // I44-F5d: confirmation prompt overrides hint bar
-    if let Some((pid, ref name, signal)) = state.pending_signal {
-        let sig_name = if signal == libc::SIGTERM {
+    // I44-F5d + I59-F1b: only a still-current confirmation overrides the hint.
+    let visible_pending_signal = state
+        .pending_signal
+        .as_ref()
+        .filter(|(pid, name, _)| crate::tui::input::pending_signal_is_current(state, *pid, name));
+    if let Some((pid, name, signal)) = visible_pending_signal {
+        let sig_name = if *signal == libc::SIGTERM {
             "SIGTERM"
         } else {
             "SIGKILL"

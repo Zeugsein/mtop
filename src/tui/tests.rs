@@ -633,11 +633,12 @@ fn key_minus_floors_at_100() {
 
 #[test]
 fn key_j_selects_next_in_expanded_process() {
-    let mut state = AppState::default();
-    state.expanded_panel = Some(PanelId::Process);
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
     state.process_selected = Some(0);
     input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
     assert_eq!(state.process_selected, Some(1));
+    assert_eq!(state.selected_pid, Some(2));
 }
 
 #[test]
@@ -1054,26 +1055,42 @@ fn i58_sigterm_targets_tracked_pid_after_reorder() {
     );
 }
 
-/// I58-F1d: when the tracked pid disappears from the current view (process
-/// exited), resolution falls through to the cursor row rather than silently
-/// retargeting a neighbor. The `t`/`k` target and the on-screen highlight
-/// come from the same helper, so they never disagree.
+/// I59-F1a + F1b: when the tracked pid disappears, neither the effective
+/// selection nor either signal key may retarget the cursor neighbor.
 #[test]
-fn i58_selection_falls_through_when_pid_gone() {
-    let mut state = make_process_state(make_test_procs());
-    state.sort_mode = SM::Pid; // order = pid 1, 2, 3
-    input::handle_key_event(make_key(KeyCode::Down), &mut state); // cursor→1, pid=2
-    assert_eq!(state.selected_pid, Some(2));
+fn i59_missing_tracked_pid_disables_term_and_kill() {
+    for key in [KeyCode::Char('t'), KeyCode::Char('k')] {
+        let mut state = make_process_state(make_test_procs());
+        state.sort_mode = SM::Pid; // order = pid 1, 2, 3
+        input::handle_key_event(make_key(KeyCode::Down), &mut state); // cursor→1, pid=2
+        assert_eq!(state.selected_pid, Some(2));
 
-    // Simulate pid 2 exiting between ticks.
-    state.snapshot.processes.retain(|p| p.pid != 2);
+        // Simulate pid 2 exiting between ticks. Cursor row 1 now holds pid 3,
+        // but the user never selected pid 3.
+        state.snapshot.processes.retain(|p| p.pid != 2);
 
-    let (resolved_pid, _) =
-        input::resolve_selected_process(&state).expect("fallback to cursor row when pid gone");
-    // Cursor is still at row 1; remaining pids under Pid sort = [1, 3], so
-    // row 1 = pid 3. Fallback is a positional neighbor, but it is the SAME
-    // position the highlight will draw at — no invisible retarget.
-    assert_eq!(resolved_pid, 3, "fallback target must equal cursor row");
+        let indices = helpers::sorted_filtered_indices(
+            &state.snapshot.processes,
+            state.sort_mode,
+            state.process_filter.as_deref(),
+        );
+        assert_eq!(
+            helpers::effective_selection_row(
+                &state.snapshot.processes,
+                &indices,
+                state.selected_pid,
+                state.process_selected,
+            ),
+            None,
+            "the renderer-facing helper must expose no highlighted row"
+        );
+        assert!(input::resolve_selected_process(&state).is_none());
+        input::handle_key_event(make_key(key), &mut state);
+        assert!(
+            state.pending_signal.is_none(),
+            "a missing tracked pid must not retarget the cursor neighbor"
+        );
+    }
 }
 
 /// I58-F1e: `Esc` from expanded panel resets BOTH `process_selected` and
@@ -1131,10 +1148,10 @@ fn i58_resolve_none_before_first_nav() {
     assert!(input::resolve_selected_process(&state).is_none());
 }
 
-/// I58-F1b: filter narrows the view; a tracked pid outside the filtered set
-/// falls through to the cursor (same as pid-gone).
+/// I59-F1a: a filter that excludes an anchored pid produces no effective
+/// selection rather than retargeting the only visible row.
 #[test]
-fn i58_selection_falls_through_when_filter_hides_pid() {
+fn i59_selection_clears_when_filter_hides_pid() {
     let mut state = make_process_state(make_test_procs());
     state.sort_mode = SM::Pid;
     input::handle_key_event(make_key(KeyCode::Down), &mut state); // pid 2 = "beta"
@@ -1143,9 +1160,246 @@ fn i58_selection_falls_through_when_filter_hides_pid() {
     // Filter to names starting with "g" — only "gamma" (pid 3) remains.
     state.process_filter = Some("gamma".to_string());
 
-    let (resolved_pid, _) = input::resolve_selected_process(&state)
-        .expect("fallback to cursor row when pid filtered out");
-    // Cursor is 1 (clamped to indices.len()-1 == 0 for a 1-item list).
-    // Fallback pid = the only visible row, which IS the highlighted row.
-    assert_eq!(resolved_pid, 3);
+    assert!(input::resolve_selected_process(&state).is_none());
+}
+
+/// I59-F1a: cursor fallback remains available when no pid has been anchored.
+#[test]
+fn i59_unanchored_cursor_still_resolves() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    state.process_selected = Some(1);
+    state.selected_pid = None;
+
+    let (resolved_pid, _) =
+        input::resolve_selected_process(&state).expect("unanchored cursor should resolve");
+    assert_eq!(resolved_pid, 2);
+}
+
+/// I59-F1c: explicit navigation after pid disappearance anchors a new target.
+#[test]
+fn i59_navigation_restores_selection_after_pid_disappears() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // cursor→1, pid=2
+    state.snapshot.processes.retain(|p| p.pid != 2);
+    assert!(input::resolve_selected_process(&state).is_none());
+
+    input::handle_key_event(make_key(KeyCode::Up), &mut state); // cursor→0, pid=1
+    assert_eq!(state.selected_pid, Some(1));
+    input::handle_key_event(make_key(KeyCode::Char('t')), &mut state);
+    assert_eq!(
+        state.pending_signal.map(|(pid, _, signal)| (pid, signal)),
+        Some((1, libc::SIGTERM))
+    );
+}
+
+/// I59-F1c: boundary navigation after list shrink clamps to a visible row and
+/// immediately anchors its pid rather than re-enabling cursor-only targeting.
+#[test]
+fn i59_boundary_navigation_clamps_and_anchors_pid() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 2, pid 3
+    assert_eq!(state.selected_pid, Some(3));
+
+    state.snapshot.processes.retain(|p| p.pid != 3);
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+
+    assert_eq!(state.process_selected, Some(1));
+    assert_eq!(state.selected_pid, Some(2));
+    input::handle_key_event(make_key(KeyCode::Char('k')), &mut state);
+    assert_eq!(
+        state.pending_signal.map(|(pid, _, signal)| (pid, signal)),
+        Some((2, libc::SIGKILL))
+    );
+}
+
+/// I59-F1c: navigation on an empty view cannot create a cursor fallback when
+/// the list later repopulates; a new non-empty navigation is required.
+#[test]
+fn i59_empty_view_navigation_stays_fail_closed_after_repopulation() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
+    state.snapshot.processes.clear();
+
+    input::handle_key_event(make_key(KeyCode::Down), &mut state);
+    assert_eq!(state.process_selected, None);
+    assert_eq!(state.selected_pid, Some(2));
+
+    state.snapshot.processes = vec![ProcessInfo {
+        pid: 4,
+        name: "delta".to_string(),
+        user: "u".to_string(),
+        ..Default::default()
+    }];
+    assert!(input::resolve_selected_process(&state).is_none());
+
+    input::handle_key_event(make_key(KeyCode::Up), &mut state);
+    assert_eq!(state.process_selected, Some(0));
+    assert_eq!(state.selected_pid, Some(4));
+}
+
+/// I59-F1c + I58-F1c: `j` remains navigation, rather than filter text, while
+/// filter-input mode is active and anchors a replacement after pid loss.
+#[test]
+fn i59_filter_input_j_navigation_anchors_visible_pid() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
+    state.process_filter = Some(String::new());
+    state.snapshot.processes.retain(|p| p.pid != 2);
+
+    input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
+
+    assert_eq!(state.process_filter.as_deref(), Some(""));
+    assert_eq!(state.process_selected, Some(1));
+    assert_eq!(state.selected_pid, Some(3));
+}
+
+/// I59-F1c + I45-F5b: after filter-mode navigation restores a selection,
+/// printable action keys remain filter text and cannot queue a signal.
+#[test]
+fn i59_filter_input_action_keys_remain_text_after_navigation() {
+    for key in ['t', 'k'] {
+        let mut state = make_process_state(make_test_procs());
+        state.sort_mode = SM::Pid;
+        input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
+        state.process_filter = Some(String::new());
+        state.snapshot.processes.retain(|p| p.pid != 2);
+
+        input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
+        assert_eq!(state.selected_pid, Some(3));
+
+        input::handle_key_event(make_key(KeyCode::Char(key)), &mut state);
+
+        let expected = key.to_string();
+        assert_eq!(state.process_filter.as_deref(), Some(expected.as_str()));
+        assert_eq!(state.selected_pid, None);
+        assert_eq!(state.pending_signal, None);
+    }
+}
+
+/// I59-F1b: a confirmation queued for a process that has disappeared is
+/// cancelled for both TERM and KILL. The child is owned by this test so a
+/// regression cannot signal an unrelated process.
+#[test]
+fn i59_confirmation_revalidates_missing_pid() {
+    use std::process::Command;
+    use std::thread;
+    use std::time::Duration;
+
+    for key in [KeyCode::Char('t'), KeyCode::Char('k')] {
+        let mut child = Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn owned signal-test child");
+        let pid = child.id() as i32;
+        let mut state = make_process_state(vec![ProcessInfo {
+            pid,
+            name: "mtop-i59-signal-test".to_string(),
+            user: "u".to_string(),
+            ..Default::default()
+        }]);
+        state.process_selected = Some(0);
+        state.selected_pid = Some(pid);
+
+        input::handle_key_event(make_key(key), &mut state);
+        assert!(state.pending_signal.is_some());
+        state.snapshot.processes.clear();
+        assert!(!input::pending_signal_is_current(
+            &state,
+            pid,
+            "mtop-i59-signal-test"
+        ));
+
+        input::handle_key_event(make_key(KeyCode::Char('y')), &mut state);
+        thread::sleep(Duration::from_millis(50));
+        let survived = child.try_wait().expect("query signal-test child").is_none();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(survived, "stale confirmation must not signal the child");
+    }
+}
+
+/// I59-F1b: an invalidated confirmation is not presented as an actionable
+/// target after the selected pid disappears.
+#[test]
+fn i59_stale_confirmation_is_not_rendered() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    state.process_selected = Some(0);
+    state.selected_pid = Some(1);
+    input::handle_key_event(make_key(KeyCode::Char('t')), &mut state);
+
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    assert!(buffer_text(&terminal).contains("send SIGTERM to alpha (1)?"));
+
+    state.snapshot.processes.retain(|p| p.pid != 1);
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    let text = buffer_text(&terminal);
+    assert!(!text.contains("send SIGTERM"));
+    assert!(text.contains("[t] term"));
+}
+
+/// I59-F1b: disappearance permanently cancels the confirmation, so later
+/// reuse of the same pid and name cannot revive or deliver it.
+#[test]
+fn i59_confirmation_stays_cancelled_after_pid_name_reuse() {
+    use std::process::Command;
+    use std::thread;
+    use std::time::Duration;
+
+    for key in [KeyCode::Char('t'), KeyCode::Char('k')] {
+        let mut child = Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn owned reuse-test child");
+        let pid = child.id() as i32;
+        let proc = ProcessInfo {
+            pid,
+            name: "mtop-i59-reuse-test".to_string(),
+            user: "u".to_string(),
+            ..Default::default()
+        };
+        let mut state = make_process_state(vec![proc.clone()]);
+        state.process_selected = Some(0);
+        state.selected_pid = Some(pid);
+        input::handle_key_event(make_key(key), &mut state);
+        assert!(state.pending_signal.is_some());
+
+        state.snapshot.processes.clear();
+        input::invalidate_stale_pending_signal(&mut state);
+        assert!(state.pending_signal.is_none());
+        state.snapshot.processes.push(proc);
+        input::handle_key_event(make_key(KeyCode::Char('y')), &mut state);
+
+        thread::sleep(Duration::from_millis(50));
+        let survived = child.try_wait().expect("query reuse-test child").is_none();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(survived, "pid/name reuse must not revive a stale action");
+    }
+}
+
+/// I59-F1b + F1c: once a hidden stale modal is invalid, the first navigation
+/// key cancels it and anchors a replacement in the same dispatch.
+#[test]
+fn i59_first_navigation_after_stale_confirmation_recovers_selection() {
+    let mut state = make_process_state(make_test_procs());
+    state.sort_mode = SM::Pid;
+    input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
+    input::handle_key_event(make_key(KeyCode::Char('t')), &mut state);
+    assert!(state.pending_signal.is_some());
+    state.snapshot.processes.retain(|p| p.pid != 2);
+
+    input::handle_key_event(make_key(KeyCode::Up), &mut state);
+
+    assert!(state.pending_signal.is_none());
+    assert_eq!(state.process_selected, Some(0));
+    assert_eq!(state.selected_pid, Some(1));
 }

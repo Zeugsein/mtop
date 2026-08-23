@@ -943,6 +943,9 @@ pub fn run(
             // interval handled by poll timeout
             Ok(s) => {
                 state.snapshot = s;
+                // I59-F1b: target disappearance permanently invalidates an
+                // open confirmation before the next render or input event.
+                input::invalidate_stale_pending_signal(&mut state);
                 state.history.push(&state.snapshot);
             }
             Err(e) => eprintln!("sample error: {e}"),
