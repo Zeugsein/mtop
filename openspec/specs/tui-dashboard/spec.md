@@ -1881,6 +1881,57 @@ navigation key on the non-empty view.
 
 > SHALL-59-F1c
 
+## Iteration 60: Compact Disk-Capacity Salience [I60]
+
+### Requirement: Non-expanded swap title [I60-F1a]
+In both details-hidden and details-visible non-expanded memory panels, when
+`swap_total > 0`, the outer frame SHALL include a separate right-aligned
+`swap: {used}/{total}GB` title in `theme.muted`. Details-hidden mode SHALL show
+usage only. Details-visible mode SHALL append compact `in:` and `out:` rates
+when either collected swap-I/O rate is nonzero, preserving the base behavior.
+At the supported 80-column dashboard width, the renderer MAY reduce numeric
+precision and spacing, promote capacity units, and compact or omit the left
+memory title, but the right-aligned swap fields SHALL remain complete and
+non-overlapping. When `swap_total == 0`, no swap title SHALL be rendered.
+Expanded behavior SHALL remain unchanged.
+
+> SHALL-60-F1a
+
+### Requirement: Salient compact disk row [I60-F1b]
+In details-hidden mode, the final inner row SHALL be dedicated to disk. Its
+left side SHALL present disk percentage, used/total capacity when space allows,
+and a gauge whose fill derives from `used_bytes / total_bytes`. The gauge SHALL
+use the established per-cell utilization gradient for filled cells and
+`theme.muted` for unfilled cells. Capacity text SHALL use normal foreground.
+The right side SHALL present compact `r:` and `w:` rates in `theme.muted` when
+space allows. The percentage SHALL use the same rounded, clamped fraction as
+the gauge.
+
+> SHALL-60-F1b
+
+### Requirement: Responsive capacity priority [I60-F1c]
+The compact disk row SHALL never overlap. Under width pressure it SHALL omit
+read/write rates first, then used/total size if necessary. Disk percentage and
+a non-zero-width gauge SHALL remain at the supported 80-column dashboard size.
+Zero total and over-range input SHALL remain bounded and SHALL NOT panic.
+
+> SHALL-60-F1c
+
+### Requirement: Details-visible and expanded boundaries [I60-F1d]
+Details-visible mode SHALL retain its existing used, available, and disk detail
+composition and disk gauge, except that the obsolete bottom swap row SHALL be
+removed after its usage and conditional I/O fields move to the right-aligned
+top title, and its vertical row SHALL be reclaimed. Expanded memory/disk
+rendering SHALL remain unchanged.
+
+> SHALL-60-F1d
+
+These requirements supersede SHALL-C4-01 through SHALL-C4-03 for non-expanded
+swap placement while preserving their hidden/detail I/O distinction,
+SHALL-26-07a through SHALL-26-07e for the non-expanded bottom-row layout, and
+SHALL-31-03a only for responsive omission of compact disk rates. They do not
+supersede expanded-mode requirements in I36 or I37.
+
 ## Iteration 61: Responsive Process Filtering and Visible Stable Selection [I61]
 
 Supersedes SHALL-45-F5b and the filter-input `j` navigation requirements in
