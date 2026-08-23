@@ -1237,8 +1237,8 @@ fn panel_id_is_left_column_cpu() {
 fn memory_panel_swap_guard() {
     let mem_src = include_str!("../src/tui/panels/memory.rs");
     assert!(
-        mem_src.contains("swap_total == 0"),
-        "memory panel should guard on `swap_total == 0` before showing swap info"
+        mem_src.contains("swap_total > 0"),
+        "memory panel should require configured swap before showing swap info"
     );
 }
 

@@ -401,6 +401,221 @@ fn buffer_text(terminal: &Terminal<TestBackend>) -> String {
     text
 }
 
+fn render_memory_panel_buffer(
+    width: u16,
+    height: u16,
+    snapshot: MetricsSnapshot,
+    show_detail: bool,
+) -> ratatui::buffer::Buffer {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let state = AppState {
+        snapshot,
+        show_detail,
+        ..AppState::default()
+    };
+    terminal
+        .draw(|f| {
+            panels::draw_mem_disk_panel_v2(f, f.area(), &state.snapshot, &state, &theme::THEMES[0])
+        })
+        .unwrap();
+    terminal.backend().buffer().clone()
+}
+
+fn memory_panel_fixture(disk_used_gb: u64, disk_total_gb: u64, with_swap: bool) -> MetricsSnapshot {
+    let gb = 1024 * 1024 * 1024;
+    let mut snapshot = MetricsSnapshot::default();
+    snapshot.memory.ram_total = 16 * gb;
+    snapshot.memory.ram_used = 8 * gb;
+    if with_swap {
+        snapshot.memory.swap_total = 4 * gb;
+        snapshot.memory.swap_used = gb;
+    }
+    snapshot.disk.total_bytes = disk_total_gb * gb;
+    snapshot.disk.used_bytes = disk_used_gb * gb;
+    snapshot.disk.read_bytes_sec = 512 * 1024;
+    snapshot.disk.write_bytes_sec = 2 * 1024 * 1024;
+    snapshot
+}
+
+fn buffer_row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
+    (0..buffer.area.width)
+        .map(|x| buffer[(x, y)].symbol())
+        .collect()
+}
+
+#[test]
+fn memory_compact_disk_capacity_and_gauge_survive_minimum_dashboard_width() {
+    // The memory panel receives half of an 80-column dashboard.
+    let buffer = render_memory_panel_buffer(40, 12, memory_panel_fixture(860, 926, true), false);
+    let row = (0..buffer.area.height)
+        .map(|y| buffer_row_text(&buffer, y))
+        .find(|row| row.contains("disk:"))
+        .expect("compact disk row");
+
+    assert!(row.contains("disk: 93% 860/926GB"));
+    assert!(row.contains('■'), "capacity gauge must remain visible");
+    assert!(!row.contains("r:"), "throughput must yield before capacity");
+}
+
+#[test]
+fn memory_compact_disk_omits_size_before_percentage_and_gauge() {
+    let buffer = render_memory_panel_buffer(20, 12, memory_panel_fixture(860, 926, true), false);
+    let row = (0..buffer.area.height)
+        .map(|y| buffer_row_text(&buffer, y))
+        .find(|row| row.contains("disk:"))
+        .expect("compact disk row");
+
+    assert!(row.contains("disk: 93%"));
+    assert!(!row.contains("860/926GB"));
+    assert!(row.contains('■'), "gauge must survive after size omission");
+    assert!(!row.contains("r:"), "rates must already be omitted");
+}
+
+#[test]
+fn memory_compact_disk_rates_are_right_aligned_when_space_allows() {
+    let buffer = render_memory_panel_buffer(80, 12, memory_panel_fixture(860, 926, false), false);
+    let row = (0..buffer.area.height)
+        .map(|y| buffer_row_text(&buffer, y))
+        .find(|row| row.contains("disk:"))
+        .expect("compact disk row");
+    let rates = "r:512.0K/s w:2.0M/s";
+
+    assert!(row.find("disk:").unwrap() < row.find('■').unwrap());
+    let rates_x = row
+        .split_once(rates)
+        .map(|(before, _)| before.chars().count());
+    assert_eq!(rates_x, Some(78 - rates.len()));
+}
+
+#[test]
+fn memory_compact_disk_gauge_uses_gradient_and_muted_remainder() {
+    let buffer = render_memory_panel_buffer(80, 12, memory_panel_fixture(860, 926, false), false);
+    let theme = &theme::THEMES[0];
+    let row_y = (0..buffer.area.height)
+        .find(|&y| buffer_row_text(&buffer, y).contains("disk:"))
+        .expect("compact disk row");
+    let gauge_cells: Vec<_> = (0..buffer.area.width)
+        .map(|x| &buffer[(x, row_y)])
+        .filter(|cell| cell.symbol() == "■")
+        .collect();
+    let filled: Vec<_> = gauge_cells
+        .iter()
+        .filter(|cell| cell.fg != theme.muted)
+        .collect();
+
+    assert!(filled.len() >= 3, "high utilization needs a visible fill");
+    assert_ne!(filled.first().unwrap().fg, filled.last().unwrap().fg);
+    assert!(gauge_cells.iter().any(|cell| cell.fg == theme.muted));
+}
+
+#[test]
+fn memory_nonexpanded_swap_moves_to_muted_frame_title_in_both_modes() {
+    for show_detail in [false, true] {
+        let mut snapshot = memory_panel_fixture(460, 926, true);
+        snapshot.memory.swap_in_bytes_sec = 3.0 * 1024.0 * 1024.0;
+        snapshot.memory.swap_out_bytes_sec = 4.0 * 1024.0 * 1024.0;
+        let buffer = render_memory_panel_buffer(100, 14, snapshot, show_detail);
+        let top = buffer_row_text(&buffer, 0);
+        let start = top
+            .split_once("swap:")
+            .map(|(before, _)| before.chars().count() as u16)
+            .expect("swap in frame title");
+        for x in start..start + "swap:".len() as u16 {
+            assert_eq!(buffer[(x, 0)].fg, theme::THEMES[0].muted);
+        }
+        for y in 1..buffer.area.height - 1 {
+            assert!(!buffer_row_text(&buffer, y).contains("swap:"));
+        }
+        let text = buffer_text_from_buffer(&buffer);
+        if show_detail {
+            assert!(top.ends_with("swap: 1.0/4.0GB in:3.0M/s out:4.0M/s ╮"));
+        } else {
+            assert!(top.ends_with("swap: 1.0/4.0GB ╮"));
+            assert!(!text.contains("3.0M/s"));
+            assert!(!text.contains("4.0M/s"));
+        }
+    }
+}
+
+#[test]
+fn memory_nonexpanded_swap_title_survives_minimum_dashboard_width() {
+    let gb = 1024 * 1024 * 1024;
+    for (show_detail, swap_used, swap_total, expected) in [
+        (false, 12, 16, "swap: 12.0/16.0GB"),
+        (true, 12, 16, "swap:12/16GB in:999K/s out:999K/s"),
+        (true, 100, 128, "swap:100/128GB in:999K/s out:999K/s"),
+        (true, 1000, 1024, "swap:1/1TB in:999K/s out:999K/s"),
+    ] {
+        let mut snapshot = memory_panel_fixture(460, 926, true);
+        snapshot.memory.ram_total = 128 * gb;
+        snapshot.memory.ram_used = 100 * gb;
+        snapshot.memory.swap_total = swap_total * gb;
+        snapshot.memory.swap_used = swap_used * gb;
+        snapshot.memory.swap_in_bytes_sec = 999.0 * 1024.0;
+        snapshot.memory.swap_out_bytes_sec = 999.0 * 1024.0;
+        let buffer = render_memory_panel_buffer(40, 14, snapshot, show_detail);
+        let top = buffer_row_text(&buffer, 0);
+        let start = top
+            .split_once(expected)
+            .map(|(before, _)| before.chars().count() as u16)
+            .expect("complete compact swap title");
+        for x in start..start + expected.len() as u16 {
+            assert_eq!(buffer[(x, 0)].fg, theme::THEMES[0].muted);
+        }
+        assert!(top.ends_with(&format!("{expected} ╮")));
+    }
+}
+
+#[test]
+fn memory_detail_swap_io_appears_when_either_rate_is_nonzero() {
+    let mb = 1024.0 * 1024.0;
+    for (swap_in, swap_out, expected) in [
+        (3.0 * mb, 0.0, Some("in:3.0M/s out:0B/s")),
+        (0.0, 4.0 * mb, Some("in:0B/s out:4.0M/s")),
+        (0.0, 0.0, None),
+    ] {
+        let mut snapshot = memory_panel_fixture(460, 926, true);
+        snapshot.memory.swap_in_bytes_sec = swap_in;
+        snapshot.memory.swap_out_bytes_sec = swap_out;
+        let buffer = render_memory_panel_buffer(100, 14, snapshot, true);
+        let top = buffer_row_text(&buffer, 0);
+
+        match expected {
+            Some(io) => assert!(top.contains(io)),
+            None => {
+                assert!(!top.contains("in:"));
+                assert!(!top.contains("out:"));
+            }
+        }
+    }
+}
+
+#[test]
+fn memory_nonexpanded_omits_swap_title_when_unconfigured() {
+    for show_detail in [false, true] {
+        let buffer =
+            render_memory_panel_buffer(80, 12, memory_panel_fixture(460, 926, false), show_detail);
+        assert!(!buffer_text_from_buffer(&buffer).contains("swap:"));
+    }
+}
+
+fn buffer_text_from_buffer(buffer: &ratatui::buffer::Buffer) -> String {
+    (0..buffer.area.height)
+        .map(|y| buffer_row_text(buffer, y))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn memory_compact_disk_fraction_is_bounded() {
+    for (used, total, expected) in [(1, 0, "disk: 0%"), (1200, 926, "disk: 100%")] {
+        let buffer =
+            render_memory_panel_buffer(40, 12, memory_panel_fixture(used, total, false), false);
+        assert!(buffer_text_from_buffer(&buffer).contains(expected));
+    }
+}
+
 #[test]
 fn dashboard_contains_cpu_text() {
     let backend = TestBackend::new(120, 40);

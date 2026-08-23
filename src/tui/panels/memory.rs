@@ -32,25 +32,96 @@ pub(crate) fn draw_mem_disk_panel_v2(
         _ => theme.pressure_normal,
     };
 
-    let title_spans = vec![
-        Span::styled(
-            format!(" {}", theme::PANEL_SUPERSCRIPTS[2]),
-            Style::default().fg(theme.muted),
-        ),
-        Span::styled("mem  ", Style::default().fg(theme.fg).bold()),
-        Span::styled(
-            format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%"),
-            Style::default().fg(theme.fg),
-        ),
-        Span::styled(" \u{25cf}", Style::default().fg(pressure_dot_color)),
-        Span::raw(" "),
-    ];
+    let title_capacity = area.width.saturating_sub(2) as usize;
+    let mut swap_text = (s.memory.swap_total > 0).then(|| {
+        let swap_used_gb = s.memory.swap_used as f64 / gb;
+        let swap_total_gb = s.memory.swap_total as f64 / gb;
+        let mut text = format!(" swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
+        if state.show_detail
+            && (s.memory.swap_in_bytes_sec > 0.0 || s.memory.swap_out_bytes_sec > 0.0)
+        {
+            text.push_str(&format!(
+                " in:{} out:{}",
+                format_bytes_rate_compact(s.memory.swap_in_bytes_sec),
+                format_bytes_rate_compact(s.memory.swap_out_bytes_sec),
+            ));
+        }
+        text.push(' ');
+        text
+    });
 
-    let block = Block::default()
-        .title(Line::from(title_spans))
+    // Keep the right-aligned swap title complete at the supported narrow
+    // dashboard width by compacting its precision and labels before the left
+    // memory title yields detail.
+    if swap_text.as_ref().map_or(0, String::len) + 6 > title_capacity {
+        swap_text = swap_text.map(|_| {
+            let swap_used_gb = s.memory.swap_used as f64 / gb;
+            let swap_total_gb = s.memory.swap_total as f64 / gb;
+            let mut text = format!(" {}", format_swap_usage_title(swap_used_gb, swap_total_gb));
+            if state.show_detail
+                && (s.memory.swap_in_bytes_sec > 0.0 || s.memory.swap_out_bytes_sec > 0.0)
+            {
+                let swap_in = format_swap_rate_title(s.memory.swap_in_bytes_sec);
+                let swap_out = format_swap_rate_title(s.memory.swap_out_bytes_sec);
+                text.push_str(&format!(" in:{swap_in} out:{swap_out}"));
+            }
+            text.push(' ');
+            if text.len() > title_capacity {
+                text.remove(0);
+            }
+            text
+        });
+    }
+
+    let left_capacity = title_capacity.saturating_sub(swap_text.as_ref().map_or(0, String::len));
+    let full_memory_text = format!("{ram_used_gb:.1}/{ram_total_gb:.0}GB {ram_pct}%");
+    let compact_memory_text = format!("{ram_used_gb:.0}/{ram_total_gb:.0}GB {ram_pct}%");
+    let percent_text = format!("{ram_pct}%");
+    let (mem_label, memory_text, show_pressure) =
+        if 2 + 5 + full_memory_text.len() + 3 <= left_capacity {
+            ("mem  ", full_memory_text, true)
+        } else if 2 + 4 + compact_memory_text.len() + 3 <= left_capacity {
+            ("mem ", compact_memory_text, true)
+        } else if 2 + 4 + percent_text.len() + 3 <= left_capacity {
+            ("mem ", percent_text, true)
+        } else if 2 + 4 <= left_capacity {
+            ("mem ", String::new(), false)
+        } else {
+            ("", String::new(), false)
+        };
+
+    let left_title = (left_capacity >= 2).then(|| {
+        let mut spans = vec![
+            Span::styled(
+                format!(" {}", theme::PANEL_SUPERSCRIPTS[2]),
+                Style::default().fg(theme.muted),
+            ),
+            Span::styled(mem_label, Style::default().fg(theme.fg).bold()),
+            Span::styled(memory_text, Style::default().fg(theme.fg)),
+        ];
+        if show_pressure {
+            spans.push(Span::styled(
+                " \u{25cf}",
+                Style::default().fg(pressure_dot_color),
+            ));
+            spans.push(Span::raw(" "));
+        }
+        Line::from(spans)
+    });
+
+    let mut block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
         .border_type(ratatui::widgets::BorderType::Rounded);
+    if let Some(left_title) = left_title {
+        block = block.title(left_title);
+    }
+    if let Some(swap_text) = swap_text {
+        block = block.title_top(
+            Line::from(Span::styled(swap_text, Style::default().fg(theme.muted)))
+                .alignment(Alignment::Right),
+        );
+    }
 
     let raw_inner = block.inner(area);
     f.render_widget(block, area);
@@ -67,12 +138,14 @@ pub(crate) fn draw_mem_disk_panel_v2(
         return;
     }
 
-    // Reserve last row for bottom info
+    // Hidden mode reserves its last row for the compact disk-capacity signal.
+    // Detail mode reclaims the old swap-only row after swap moves to the title.
+    let bottom_rows = usize::from(!state.show_detail) as u16;
     let content_area = Rect::new(
         inner.x,
         inner.y,
         inner.width,
-        inner.height.saturating_sub(1),
+        inner.height.saturating_sub(bottom_rows),
     );
     let bottom_y = inner.y + inner.height.saturating_sub(1);
 
@@ -226,68 +299,114 @@ pub(crate) fn draw_mem_disk_panel_v2(
             render_graph_green(f, avail_inner, &available_data, 1.0, theme);
         }
 
-        // Bottom row: swap left-aligned, disk right-aligned
-        let disk_used_gb = s.disk.used_bytes as f64 / gb;
-        let disk_total_gb = s.disk.total_bytes as f64 / gb;
-        let disk_pct = if s.disk.total_bytes > 0 {
-            (s.disk.used_bytes as f64 / s.disk.total_bytes as f64 * 100.0) as u32
-        } else {
-            0
-        };
-        let disk_text = format!(
-            "disk: {disk_pct}% {disk_used_gb:.0}/{disk_total_gb:.0}GB  r:{} w:{} ",
-            format_bytes_rate_compact(s.disk.read_bytes_sec as f64),
-            format_bytes_rate_compact(s.disk.write_bytes_sec as f64),
-        );
-
-        // Swap on the left (if configured)
-        if s.memory.swap_total > 0 {
-            let swap_used_gb = s.memory.swap_used as f64 / gb;
-            let swap_total_gb = s.memory.swap_total as f64 / gb;
-            let swap_text = format!(" swap: {swap_used_gb:.1}/{swap_total_gb:.1}GB");
-            f.render_widget(
-                Paragraph::new(Line::from(Span::styled(
-                    swap_text,
-                    Style::default().fg(theme.muted),
-                ))),
-                Rect::new(inner.x, bottom_y, inner.width / 2, 1),
-            );
-        }
-        // Disk on the right
-        f.render_widget(
-            Paragraph::new(
-                Line::from(Span::styled(disk_text, Style::default().fg(theme.muted)))
-                    .alignment(ratatui::layout::Alignment::Right),
-            ),
-            Rect::new(inner.x, bottom_y, inner.width, 1),
-        );
-        return; // skip default bottom info (detail mode handles swap separately)
+        render_compact_disk_row(f, Rect::new(inner.x, bottom_y, inner.width, 1), s, theme);
     }
+}
 
-    // Bottom info: Swap (only show if swap is configured)
-    if s.memory.swap_total == 0 {
+/// Bound a narrow frame-title capacity to at most three digits per value,
+/// promoting both values together so the swap status remains complete.
+fn format_swap_usage_title(used_gb: f64, total_gb: f64) -> String {
+    const UNITS: [&str; 4] = ["GB", "TB", "PB", "EB"];
+    let mut unit_index = 0;
+    let mut divisor = 1.0;
+    while unit_index + 1 < UNITS.len() && total_gb / divisor >= 999.5 {
+        unit_index += 1;
+        divisor *= 1024.0;
+    }
+    format!(
+        "swap:{:.0}/{:.0}{}",
+        used_gb / divisor,
+        total_gb / divisor,
+        UNITS[unit_index]
+    )
+}
+
+/// Bound a narrow frame-title rate to at most `999X/s`, promoting units near
+/// the four-digit boundary so two complete `in:`/`out:` fields can coexist.
+fn format_swap_rate_title(bytes_per_sec: f64) -> String {
+    const UNITS: [&str; 7] = ["B/s", "K/s", "M/s", "G/s", "T/s", "P/s", "E/s"];
+    let mut unit_index = 0;
+    let mut divisor = 1.0;
+    while unit_index + 1 < UNITS.len() && bytes_per_sec / divisor >= 999.5 {
+        unit_index += 1;
+        divisor *= 1024.0;
+    }
+    format!("{:.0}{}", bytes_per_sec / divisor, UNITS[unit_index])
+}
+
+/// Render a responsive, disk-only compact row. Capacity and its gradient gauge
+/// win width over throughput so near-full storage remains visible at the
+/// supported 80-column dashboard size.
+fn render_compact_disk_row(f: &mut Frame, area: Rect, s: &MetricsSnapshot, theme: &theme::Theme) {
+    if area.width == 0 {
         return;
     }
-    let swap_used_gb = s.memory.swap_used as f64 / gb;
-    let swap_total_gb = s.memory.swap_total as f64 / gb;
-    let swap_in = s.memory.swap_in_bytes_sec;
-    let swap_out = s.memory.swap_out_bytes_sec;
 
-    let swap_text = if swap_in == 0.0 && swap_out == 0.0 {
-        format!(" swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB")
+    const MIN_GAUGE_WIDTH: usize = 4;
+    const GAP: usize = 2;
+
+    let gb = 1024.0 * 1024.0 * 1024.0;
+    let fraction = if s.disk.total_bytes > 0 {
+        (s.disk.used_bytes as f64 / s.disk.total_bytes as f64).clamp(0.0, 1.0)
     } else {
-        format!(
-            " swap: {swap_used_gb:.1}/{swap_total_gb:.1} GB  in {}/out {}",
-            format_bytes_rate_compact(swap_in),
-            format_bytes_rate_compact(swap_out),
-        )
+        0.0
+    };
+    let pct = (fraction * 100.0).round() as u32;
+    let used_gb = s.disk.used_bytes as f64 / gb;
+    let total_gb = s.disk.total_bytes as f64 / gb;
+    let full_label = format!("disk: {pct}% {used_gb:.0}/{total_gb:.0}GB ");
+    let short_label = format!("disk: {pct}% ");
+    let rates = format!(
+        "r:{} w:{}",
+        format_bytes_rate_compact(s.disk.read_bytes_sec as f64),
+        format_bytes_rate_compact(s.disk.write_bytes_sec as f64),
+    );
+
+    let total_width = area.width as usize;
+    let show_rates = total_width
+        >= full_label
+            .len()
+            .saturating_add(MIN_GAUGE_WIDTH + GAP + rates.len());
+    let left_width = if show_rates {
+        total_width - GAP - rates.len()
+    } else {
+        total_width
     };
 
+    let label = if left_width >= full_label.len() + MIN_GAUGE_WIDTH {
+        full_label
+    } else if left_width > short_label.len() {
+        short_label
+    } else {
+        String::new()
+    };
+    let gauge_width = left_width.saturating_sub(label.len());
+    let mut left_spans = vec![Span::styled(label, Style::default().fg(theme.fg))];
+    left_spans.extend(gauge::render_gauge_bar(
+        fraction,
+        1.0,
+        gauge_width,
+        "",
+        theme,
+    ));
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            swap_text,
-            Style::default().fg(theme.muted),
-        ))),
-        Rect::new(inner.x, bottom_y, inner.width, 1),
+        Paragraph::new(Line::from(left_spans)),
+        Rect::new(area.x, area.y, left_width as u16, 1),
     );
+
+    if show_rates {
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                rates,
+                Style::default().fg(theme.muted),
+            )))
+            .alignment(Alignment::Right),
+            Rect::new(
+                area.x + left_width as u16 + GAP as u16,
+                area.y,
+                (total_width - left_width - GAP) as u16,
+                1,
+            ),
+        );
+    }
 }
