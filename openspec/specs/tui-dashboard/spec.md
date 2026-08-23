@@ -1834,3 +1834,49 @@ Every site that resets `process_selected` to `None` or to `Some(0)` SHALL also r
 `t` and `k` in the expanded process panel SHALL construct `pending_signal = Some((pid, name, signal))` using the pid returned by the unified resolution helper (SHALL-58-F1b) rather than by re-computing the sorted+filtered indices and reading `procs[indices[scroll+sel]]`. The `pid` in `pending_signal` SHALL equal the pid currently highlighted on screen at the moment the key was pressed.
 
 > SHALL-58-F1f
+
+## Iteration 59: Fail-Closed Process Selection [I59]
+
+Supersedes the missing-pid fallback in SHALL-58-F1b and SHALL-58-F1d, the
+out-of-range clearing behavior in SHALL-58-F1c, SHALL-58-F1e only when
+empty-view navigation clears `process_selected` while preserving the missing
+pid anchor, and SHALL-45-F5b only insofar as `j` is navigation rather than
+printable filter text while filter-input mode is active. A destructive action
+must not acquire a new target solely because the previously selected process
+disappeared and another process moved into the same display row.
+
+### Requirement: Missing tracked pid clears effective selection [I59-F1a]
+When a pid-backed selection exists and that pid is absent from the current
+sorted and filtered process view, the expanded process panel SHALL have no
+effective selected row. It SHALL NOT fall back to the stored cursor position.
+Cursor fallback SHALL remain available only when no pid-backed selection
+exists.
+
+> SHALL-59-F1a
+
+### Requirement: Missing tracked pid disables process signals [I59-F1b]
+While a pid-backed selection is absent from the current process view, pressing
+`t` or `k` SHALL NOT create a pending SIGTERM or SIGKILL action and SHALL NOT
+open a signal confirmation prompt. The displayed selection and the action
+target SHALL both be absent. If a signal confirmation was opened before the
+selected pid disappeared or ceased to be the effective selection, confirming
+it SHALL NOT send the signal, and the stale confirmation SHALL be permanently
+cancelled before the next render or input dispatch. Later reuse of the same pid
+and process name SHALL NOT revive the cancelled confirmation.
+
+> SHALL-59-F1b
+
+### Requirement: Explicit navigation restores process actions [I59-F1c]
+After a tracked pid becomes absent, a subsequent process-navigation key
+(`Up`, `Down`, or `j`, including in filter-input mode) on a non-empty view SHALL
+clamp the cursor to the visible row range and anchor the process at the
+resulting row as the new pid-backed selection. In normal navigation mode,
+highlighting and `t`/`k` behavior SHALL then resume for that newly selected
+pid. In filter-input mode, highlighting SHALL resume immediately, while
+printable action keys retain SHALL-45-F5b text-entry behavior until filter mode
+ends. A stale hidden confirmation SHALL NOT consume the first recovery key.
+Navigation on an empty view SHALL leave no effective selection; later
+repopulation SHALL NOT restore cursor-based targeting without another
+navigation key on the non-empty view.
+
+> SHALL-59-F1c
