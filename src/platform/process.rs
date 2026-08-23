@@ -33,7 +33,16 @@ impl Default for ProcessCpuState {
     }
 }
 
+const PROCESS_LIMIT: usize = 50;
+
 pub fn collect_processes(cpu_state: &mut ProcessCpuState) -> Vec<ProcessInfo> {
+    collect_processes_with_selected(cpu_state, None)
+}
+
+pub(crate) fn collect_processes_with_selected(
+    cpu_state: &mut ProcessCpuState,
+    selected_pid: Option<i32>,
+) -> Vec<ProcessInfo> {
     let pids = list_all_pids();
     let now = Instant::now();
     let mut procs = Vec::with_capacity(pids.len());
@@ -59,8 +68,28 @@ pub fn collect_processes(cpu_state: &mut ProcessCpuState) -> Vec<ProcessInfo> {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    // Keep top 50
-    procs.truncate(50);
+    retain_selected_within_limit(procs, selected_pid)
+}
+
+/// Keep the normal CPU-ranked bound while reserving its last slot for a
+/// freshly collected TUI selection that would otherwise fall below the cut.
+fn retain_selected_within_limit(
+    mut procs: Vec<ProcessInfo>,
+    selected_pid: Option<i32>,
+) -> Vec<ProcessInfo> {
+    let selected_below_limit = selected_pid.and_then(|pid| {
+        procs
+            .iter()
+            .position(|proc| proc.pid == pid)
+            .filter(|&position| position >= PROCESS_LIMIT)
+    });
+    if let Some(position) = selected_below_limit {
+        let selected = procs.remove(position);
+        procs.truncate(PROCESS_LIMIT - 1);
+        procs.push(selected);
+    } else {
+        procs.truncate(PROCESS_LIMIT);
+    }
     procs
 }
 
@@ -454,4 +483,54 @@ unsafe extern "C" {
     fn proc_pid_rusage(pid: i32, flavor: i32, buffer: *mut libc::c_void) -> i32;
 
     fn mach_timebase_info(info: *mut MachTimebaseInfo) -> i32;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ranked_processes(count: i32) -> Vec<ProcessInfo> {
+        (1..=count)
+            .map(|pid| ProcessInfo {
+                pid,
+                name: format!("process-{pid}"),
+                cpu_pct: (count - pid) as f32,
+                ..Default::default()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn i61_selected_process_below_limit_replaces_last_ranked_slot() {
+        let retained = retain_selected_within_limit(ranked_processes(60), Some(60));
+
+        assert_eq!(retained.len(), PROCESS_LIMIT);
+        assert!(retained.iter().any(|proc| proc.pid == 60));
+        assert!(retained.iter().any(|proc| proc.pid == 49));
+        assert!(!retained.iter().any(|proc| proc.pid == 50));
+    }
+
+    #[test]
+    fn i61_selected_process_already_in_limit_preserves_normal_ranking() {
+        let retained = retain_selected_within_limit(ranked_processes(60), Some(25));
+        let pids: Vec<i32> = retained.iter().map(|proc| proc.pid).collect();
+
+        assert_eq!(pids, (1..=50).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn i61_missing_selected_process_preserves_normal_ranking() {
+        let retained = retain_selected_within_limit(ranked_processes(60), Some(999));
+        let pids: Vec<i32> = retained.iter().map(|proc| proc.pid).collect();
+
+        assert_eq!(pids, (1..=50).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn i61_no_selected_process_preserves_normal_ranking() {
+        let retained = retain_selected_within_limit(ranked_processes(60), None);
+        let pids: Vec<i32> = retained.iter().map(|proc| proc.pid).collect();
+
+        assert_eq!(pids, (1..=50).collect::<Vec<_>>());
+    }
 }

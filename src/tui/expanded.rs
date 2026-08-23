@@ -1378,7 +1378,11 @@ fn draw_process_expanded(
     let filter_rows: u16 = if state.process_filter.is_some() { 1 } else { 0 };
     if let Some(ref filter) = state.process_filter {
         let filter_y = inner.y + 1;
-        let filter_text = format!("filter: {}_", filter);
+        let filter_text = if state.process_filter_editing {
+            format!("filter: {}_  [enter] apply  [esc] clear", filter)
+        } else {
+            format!("filter: {}  [f] edit", filter)
+        };
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(
                 filter_text,
@@ -1581,7 +1585,11 @@ fn draw_process_expanded(
         );
     } else {
         // Hint bar left
-        let hint = "[↑↓] navigate  [t] term  [k] kill  [f] filter";
+        let hint = if state.process_filter_editing {
+            "type to filter  [enter] apply  [esc] clear"
+        } else {
+            "[↑↓] navigate  [t] term  [k] kill  [f] filter"
+        };
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(
                 hint,
@@ -1589,14 +1597,16 @@ fn draw_process_expanded(
             ))),
             Rect::new(inner.x, sort_y, inner.width, 1),
         );
-        // Sort indicator right (overlaps right side)
-        let sort_text = format!("sort: {} \u{2193}", state.sort_mode.label());
-        f.render_widget(
-            Paragraph::new(
-                Line::from(Span::styled(sort_text, Style::default().fg(theme.muted)))
-                    .alignment(ratatui::layout::Alignment::Right),
-            ),
-            Rect::new(inner.x, sort_y, inner.width, 1),
-        );
+        if !state.process_filter_editing {
+            // Sort indicator right (overlaps right side)
+            let sort_text = format!("sort: {} \u{2193}", state.sort_mode.label());
+            f.render_widget(
+                Paragraph::new(
+                    Line::from(Span::styled(sort_text, Style::default().fg(theme.muted)))
+                        .alignment(ratatui::layout::Alignment::Right),
+                ),
+                Rect::new(inner.x, sort_y, inner.width, 1),
+            );
+        }
     }
 }

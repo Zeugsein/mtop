@@ -16,6 +16,7 @@ fn appstate_default_has_sensible_values() {
     assert_eq!(state.expanded_panel, None);
     assert_eq!(state.sort_mode, SortMode::default());
     assert_eq!(state.temp_unit, "celsius");
+    assert!(!state.process_filter_editing);
 }
 
 // =========================================================================
@@ -1131,6 +1132,7 @@ fn i58_filter_enter_resets_selected_pid() {
 
     input::handle_key_event(make_key(KeyCode::Char('f')), &mut state);
     assert_eq!(state.process_filter.as_deref(), Some(""));
+    assert!(state.process_filter_editing);
     assert_eq!(state.process_selected, Some(0));
     assert_eq!(
         state.selected_pid, None,
@@ -1242,44 +1244,173 @@ fn i59_empty_view_navigation_stays_fail_closed_after_repopulation() {
     assert_eq!(state.selected_pid, Some(4));
 }
 
-/// I59-F1c + I58-F1c: `j` remains navigation, rather than filter text, while
-/// filter-input mode is active and anchors a replacement after pid loss.
+/// I61-F1b: all printable navigation/action keys remain text while explicit
+/// filter editing is active.
 #[test]
-fn i59_filter_input_j_navigation_anchors_visible_pid() {
-    let mut state = make_process_state(make_test_procs());
-    state.sort_mode = SM::Pid;
-    input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
-    state.process_filter = Some(String::new());
-    state.snapshot.processes.retain(|p| p.pid != 2);
-
-    input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
-
-    assert_eq!(state.process_filter.as_deref(), Some(""));
-    assert_eq!(state.process_selected, Some(1));
-    assert_eq!(state.selected_pid, Some(3));
-}
-
-/// I59-F1c + I45-F5b: after filter-mode navigation restores a selection,
-/// printable action keys remain filter text and cannot queue a signal.
-#[test]
-fn i59_filter_input_action_keys_remain_text_after_navigation() {
-    for key in ['t', 'k'] {
+fn i61_filter_editing_treats_j_t_k_as_text() {
+    for key in ['j', 't', 'k'] {
         let mut state = make_process_state(make_test_procs());
         state.sort_mode = SM::Pid;
         input::handle_key_event(make_key(KeyCode::Down), &mut state); // row 1, pid 2
-        state.process_filter = Some(String::new());
-        state.snapshot.processes.retain(|p| p.pid != 2);
-
-        input::handle_key_event(make_key(KeyCode::Char('j')), &mut state);
-        assert_eq!(state.selected_pid, Some(3));
+        input::handle_key_event(make_key(KeyCode::Char('f')), &mut state);
 
         input::handle_key_event(make_key(KeyCode::Char(key)), &mut state);
 
         let expected = key.to_string();
         assert_eq!(state.process_filter.as_deref(), Some(expected.as_str()));
+        assert!(state.process_filter_editing);
         assert_eq!(state.selected_pid, None);
         assert_eq!(state.pending_signal, None);
     }
+}
+
+/// I61-F1b: Enter retains the query but exits editing, after which the same
+/// printable keys regain their action meanings against the filtered view.
+#[test]
+fn i61_filter_enter_retains_query_and_restores_actions() {
+    for (key, expected_signal) in [('t', libc::SIGTERM), ('k', libc::SIGKILL)] {
+        let mut state = make_process_state(make_test_procs());
+        state.sort_mode = SM::Pid;
+        input::handle_key_event(make_key(KeyCode::Char('f')), &mut state);
+        for c in "beta".chars() {
+            input::handle_key_event(make_key(KeyCode::Char(c)), &mut state);
+        }
+        assert_eq!(state.process_filter.as_deref(), Some("beta"));
+        assert!(state.process_filter_editing);
+
+        input::handle_key_event(make_key(KeyCode::Enter), &mut state);
+        assert_eq!(state.process_filter.as_deref(), Some("beta"));
+        assert!(!state.process_filter_editing);
+        assert_eq!(state.process_selected, Some(0));
+        assert_eq!(state.selected_pid, None);
+
+        input::handle_key_event(make_key(KeyCode::Char(key)), &mut state);
+        assert_eq!(
+            state.pending_signal.map(|(pid, _, signal)| (pid, signal)),
+            Some((2, expected_signal))
+        );
+    }
+}
+
+/// I61-F1b: deleting the last character does not silently leave editing;
+/// Escape remains the explicit clear-and-exit operation.
+#[test]
+fn i61_empty_filter_stays_editable_until_escape() {
+    let mut state = make_process_state(make_test_procs());
+    input::handle_key_event(make_key(KeyCode::Char('f')), &mut state);
+    input::handle_key_event(make_key(KeyCode::Char('x')), &mut state);
+    input::handle_key_event(make_key(KeyCode::Backspace), &mut state);
+
+    assert_eq!(state.process_filter.as_deref(), Some(""));
+    assert!(state.process_filter_editing);
+
+    input::handle_key_event(make_key(KeyCode::Esc), &mut state);
+    assert_eq!(state.process_filter, None);
+    assert!(!state.process_filter_editing);
+    assert_eq!(state.expanded_panel, Some(PanelId::Process));
+}
+
+/// I61-F1b: re-entering edit mode preserves a retained query, and committing
+/// that editor after deleting its last character normalizes it to no filter.
+#[test]
+fn i61_reenter_preserves_query_and_empty_enter_clears_filter() {
+    let mut state = make_process_state(make_test_procs());
+    state.process_filter = Some("x".to_string());
+
+    input::handle_key_event(make_key(KeyCode::Char('f')), &mut state);
+    assert_eq!(state.process_filter.as_deref(), Some("x"));
+    assert!(state.process_filter_editing);
+
+    input::handle_key_event(make_key(KeyCode::Backspace), &mut state);
+    input::handle_key_event(make_key(KeyCode::Enter), &mut state);
+    assert_eq!(state.process_filter, None);
+    assert!(!state.process_filter_editing);
+    assert_eq!(state.expanded_panel, Some(PanelId::Process));
+}
+
+/// I61-F1a: an accepted input batch schedules a cached-state redraw, while an
+/// input-free poll is the only path that schedules a fresh sample.
+#[test]
+fn i61_post_poll_schedule_redraws_input_and_resumes_sampling_when_idle() {
+    assert_eq!(post_poll_action(true), PostPollAction::Redraw);
+    assert_eq!(post_poll_action(false), PostPollAction::Sample);
+}
+
+/// I61-F1d: a tracked pid that reorders below the current viewport remains
+/// visible; rendering follows the pid without changing the target identity.
+#[test]
+fn i61_process_viewport_follows_selected_pid_after_reorder() {
+    let procs = (1..=50)
+        .map(|pid| ProcessInfo {
+            pid,
+            name: if pid == 50 {
+                "TAIL".to_string()
+            } else {
+                format!("process-{pid}")
+            },
+            cpu_pct: (51 - pid) as f32,
+            user: "u".to_string(),
+            ..Default::default()
+        })
+        .collect();
+    let mut state = make_process_state(procs);
+    state.sort_mode = SM::Pid;
+    state.process_scroll = 0;
+    state.process_selected = Some(0);
+    state.selected_pid = Some(50);
+
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    let rendered = buffer_text(&terminal);
+
+    assert!(
+        rendered.contains("TAIL"),
+        "the viewport must scroll to the selected pid's new row"
+    );
+    let buffer = terminal.backend().buffer();
+    let tail_cell = (0..buffer.area.height).find_map(|y| {
+        (0..buffer.area.width.saturating_sub(3)).find_map(|x| {
+            let symbols = [
+                buffer[(x, y)].symbol(),
+                buffer[(x + 1, y)].symbol(),
+                buffer[(x + 2, y)].symbol(),
+                buffer[(x + 3, y)].symbol(),
+            ];
+            (symbols == ["T", "A", "I", "L"]).then_some(&buffer[(x, y)])
+        })
+    });
+    let tail_cell = tail_cell.expect("selected tail row should be rendered");
+    let active_theme = &theme::THEMES[state.theme_idx];
+    assert_eq!(tail_cell.fg, active_theme.bg);
+    assert_eq!(tail_cell.bg, active_theme.fg);
+    assert_eq!(
+        input::resolve_selected_process(&state).map(|(pid, _)| pid),
+        Some(50),
+        "viewport following must not retarget the selection"
+    );
+}
+
+/// I61-F1b: the filter row and bottom hint expose whether printable keys are
+/// currently text input or actions.
+#[test]
+fn i61_process_filter_render_distinguishes_editing_and_retained_query() {
+    let mut state = make_process_state(make_test_procs());
+    state.process_filter = Some("beta".to_string());
+    state.process_filter_editing = true;
+
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    let editing = buffer_text(&terminal);
+    assert!(editing.contains("[enter] apply"));
+    assert!(editing.contains("type to filter"));
+
+    state.process_filter_editing = false;
+    terminal.draw(|f| draw_dashboard(f, &state)).unwrap();
+    let retained = buffer_text(&terminal);
+    assert!(retained.contains("filter: beta  [f] edit"));
+    assert!(retained.contains("[t] term  [k] kill"));
 }
 
 /// I59-F1b: a confirmation queued for a process that has disappeared is

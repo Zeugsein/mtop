@@ -41,6 +41,14 @@ impl Sampler {
         &mut self,
         interval_ms: u32,
     ) -> Result<MetricsSnapshot, Box<dyn std::error::Error>> {
+        self.sample_with_selected_process(interval_ms, None)
+    }
+
+    pub(crate) fn sample_with_selected_process(
+        &mut self,
+        interval_ms: u32,
+        selected_pid: Option<i32>,
+    ) -> Result<MetricsSnapshot, Box<dyn std::error::Error>> {
         let interval = interval_ms.max(100);
 
         // Sleep for the interval
@@ -66,7 +74,10 @@ impl Sampler {
         };
         let memory = self.mem_state.collect(self.host_port);
         let network = self.net_state.collect();
-        let processes = platform::process::collect_processes(&mut self.proc_cpu_state);
+        let processes = platform::process::collect_processes_with_selected(
+            &mut self.proc_cpu_state,
+            selected_pid,
+        );
         let battery = platform::battery::collect_battery();
 
         // Cross-reference: CPU and GPU power from power module

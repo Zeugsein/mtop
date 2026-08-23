@@ -13,6 +13,7 @@ fn toggle_expand(state: &mut AppState, panel: PanelId) {
         state.pending_signal = None;
         // I45-F5a: reset filter on close
         state.process_filter = None;
+        state.process_filter_editing = false;
         // I58-F1e: clear stable pid selection alongside the cursor
         state.selected_pid = None;
     } else {
@@ -20,6 +21,7 @@ fn toggle_expand(state: &mut AppState, panel: PanelId) {
         state.process_selected = None;
         state.pending_signal = None;
         state.process_filter = None;
+        state.process_filter_editing = false;
         state.selected_pid = None;
     }
 }
@@ -78,27 +80,34 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
 
     // I44-F5a: process expanded mode intercepts ↑/↓/j/k/t/f
     if state.expanded_panel == Some(PanelId::Process) {
-        // I45-F5b: filter input mode — intercepts all printable chars when active
-        if let Some(ref mut filter) = state.process_filter {
+        // I61-F1b: explicit filter-editing mode. The active query remains
+        // available after Enter so normal action keys can use the filtered view.
+        if state.process_filter_editing {
             match key.code {
                 KeyCode::Esc => {
                     // Clear filter and exit filter mode (don't close panel)
                     state.process_filter = None;
+                    state.process_filter_editing = false;
                     state.process_selected = Some(0);
                     state.selected_pid = None;
                     return false;
                 }
-                KeyCode::Backspace => {
-                    filter.pop();
-                    let cleared = filter.is_empty();
-                    if cleared {
+                KeyCode::Enter => {
+                    state.process_filter_editing = false;
+                    if state.process_filter.as_ref().is_some_and(String::is_empty) {
                         state.process_filter = None;
                     }
                     state.process_selected = Some(0);
                     state.selected_pid = None;
                     return false;
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
+                KeyCode::Backspace => {
+                    state.process_filter.get_or_insert_default().pop();
+                    state.process_selected = Some(0);
+                    state.selected_pid = None;
+                    return false;
+                }
+                KeyCode::Down => {
                     move_process_cursor(state, 1);
                     return false;
                 }
@@ -107,7 +116,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                     return false;
                 }
                 KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    filter.push(c);
+                    state.process_filter.get_or_insert_default().push(c);
                     state.process_selected = Some(0);
                     state.selected_pid = None;
                     return false;
@@ -139,7 +148,8 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
             }
             // I45-F5a: 'f' enters filter mode
             KeyCode::Char('f') => {
-                state.process_filter = Some(String::new());
+                state.process_filter.get_or_insert_default();
+                state.process_filter_editing = true;
                 state.process_selected = Some(0);
                 state.selected_pid = None;
                 return false;
@@ -158,6 +168,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
                 state.process_selected = None;
                 state.pending_signal = None;
                 state.process_filter = None;
+                state.process_filter_editing = false;
                 state.selected_pid = None;
                 state.expanded_panel = None;
             } else {
@@ -180,6 +191,7 @@ pub(crate) fn handle_key_event(key: KeyEvent, state: &mut AppState) -> bool {
         KeyCode::Char('e') | KeyCode::Enter => {
             state.process_selected = None;
             state.pending_signal = None;
+            state.process_filter_editing = false;
             state.selected_pid = None;
             state.expanded_panel = None;
         }

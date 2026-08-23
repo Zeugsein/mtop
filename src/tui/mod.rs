@@ -839,6 +839,8 @@ pub(crate) struct AppState {
     pub(crate) pending_signal: Option<(i32, String, i32)>, // (pid, process_name, signal)
     // I45-F5: process name filter in expanded mode
     pub(crate) process_filter: Option<String>,
+    // I61-F1b: active filter value outlives explicit text-entry mode
+    pub(crate) process_filter_editing: bool,
     // I58-F1a: stable pid-keyed selection — survives sort/refresh shuffles
     pub(crate) selected_pid: Option<i32>,
 }
@@ -859,8 +861,23 @@ impl Default for AppState {
             process_selected: None,
             pending_signal: None,
             process_filter: None,
+            process_filter_editing: false,
             selected_pid: None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PostPollAction {
+    Redraw,
+    Sample,
+}
+
+fn post_poll_action(had_input: bool) -> PostPollAction {
+    if had_input {
+        PostPollAction::Redraw
+    } else {
+        PostPollAction::Sample
     }
 }
 
@@ -893,6 +910,7 @@ pub fn run(
         process_selected: None,
         pending_signal: None,
         process_filter: None,
+        process_filter_editing: false,
         selected_pid: None,
     };
 
@@ -923,7 +941,8 @@ pub fn run(
 
         // Poll for input (non-blocking, with timeout = interval)
         let mut should_quit = false;
-        if event::poll(Duration::from_millis(state.interval_ms as u64))? {
+        let had_input = event::poll(Duration::from_millis(state.interval_ms as u64))?;
+        if had_input {
             if let Event::Key(key) = event::read()? {
                 should_quit = input::handle_key_event(key, &mut state);
             }
@@ -938,8 +957,15 @@ pub fn run(
             break;
         }
 
+        // I61-F1a: redraw an accepted input batch immediately from the current
+        // snapshot. Sampling resumes only after an input-free poll, so filter
+        // typing is never blocked behind sensor collection.
+        if post_poll_action(had_input) == PostPollAction::Redraw {
+            continue;
+        }
+
         // Sample
-        match sampler.sample(0) {
+        match sampler.sample_with_selected_process(0, state.selected_pid) {
             // interval handled by poll timeout
             Ok(s) => {
                 state.snapshot = s;
