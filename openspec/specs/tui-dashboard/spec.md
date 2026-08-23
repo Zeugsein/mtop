@@ -1880,3 +1880,47 @@ repopulation SHALL NOT restore cursor-based targeting without another
 navigation key on the non-empty view.
 
 > SHALL-59-F1c
+
+## Iteration 61: Responsive Process Filtering and Visible Stable Selection [I61]
+
+Supersedes SHALL-45-F5b and the filter-input `j` navigation requirements in
+SHALL-58-F1c and SHALL-59-F1c. The active filter query is distinct from
+text-entry mode, while the pid-keyed identity and every I59 fail-closed
+requirement remain in force.
+
+### Requirement: Input-responsive live process filtering [I61-F1a]
+While the expanded process filter is being edited, every accepted text change
+SHALL update the active query and displayed filtered rows using the current
+snapshot. The redraw SHALL NOT wait for or trigger a fresh metrics sample.
+Queued input events MAY be coalesced into one redraw. Periodic sampling SHALL
+resume after an input-free polling interval. The latest complete query SHALL be
+visible before that next sample completes.
+
+> SHALL-61-F1a
+
+### Requirement: Explicit process-filter editing lifecycle [I61-F1b]
+The active process-filter query and filter-editing mode SHALL be distinct.
+Pressing `f` in the expanded process panel SHALL enter editing while preserving
+an existing active query or starting an empty query. During editing, printable
+characters, including `j`, `t`, and `k`, SHALL edit the query and SHALL NOT
+navigate or create a signal action. Backspace SHALL remove one character and
+SHALL keep the empty editor active after the final character is removed.
+
+Pressing `Enter` SHALL leave editing while retaining a non-empty active query;
+an empty query SHALL normalize to no active filter. With editing inactive,
+normal navigation and `t`/`k` actions SHALL resume against the retained filtered
+view. Pressing `Esc` during editing SHALL clear the query and leave editing
+without closing the expanded panel. The filter presentation SHALL visibly
+distinguish editing state from a retained active filter.
+
+> SHALL-61-F1b
+
+### Requirement: Selected pid remains in the process viewport [I61-F1d]
+After snapshot or sort reordering, when the anchored selected pid exists in the
+current sorted and filtered view, the expanded process viewport SHALL adjust so
+that pid's row is visible and highlighted. The adjustment SHALL NOT change the
+selected pid or the signal target. If the selected pid is absent from the
+current scan or excluded by the active filter, SHALL-59-F1a and SHALL-59-F1b
+fail-closed behavior SHALL remain in force.
+
+> SHALL-61-F1d

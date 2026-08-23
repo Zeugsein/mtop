@@ -508,6 +508,20 @@ The SmcKeyData struct is 80 bytes total with a 32-byte result field. The struct 
 
 > Reference: tech-spec/smc.md — full SMC protocol, key encoding, struct layout
 
+## Iteration 61: Bounded Selected-PID Retention [I61]
+
+### Requirement: Bounded selected-pid retention for TUI sampling [I61-F1c]
+TUI process sampling SHALL request the currently anchored selected pid. The
+fresh process snapshot SHALL remain bounded to at most 50 rows. If the selected
+pid exists in the current process scan but ranks below the normal CPU top 50,
+the snapshot SHALL contain the CPU top 49 rows plus the selected pid. If it is
+already in the top 50, normal top-50 output SHALL be unchanged. If it is absent
+from the current process scan, it SHALL NOT be synthesized or retained from an
+older snapshot. Sampling for pipe, server, and other non-TUI consumers SHALL
+retain the normal CPU top 50 without a selected-pid request.
+
+> SHALL-61-F1c
+
 ## Breakdown: Process CPU Delta Tracking
 
 ### State storage
